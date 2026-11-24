@@ -51,6 +51,11 @@
 | `p` | open Pages |
 | `t` | open Today |
 
+Use Tab to indent a note under the previous note, Shift-Tab to lift it a level,
+and Shift-Up or Shift-Down to change its order. Press I to see a note's fields and
+links. F edits a field and G defines one on a tag. Type `book / ISBN = text` to
+set a field's type, or `book / ISBN -> Book number = text` to rename it.
+
 ## The outline
 
 | Key | Does |

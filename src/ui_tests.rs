@@ -76,9 +76,9 @@ fn brain_today_can_edit_nested_notes_and_reopen_them_without_touching_the_prose(
     assert!(desk.shows("Research"));
     desk.press(KeyEvent::new(KeyCode::Char('2'), KeyModifiers::SUPER));
     assert!(desk.shows("Research"));
-    assert!(desk.status().contains("Library is planned for RC26"));
+    assert!(desk.status().contains("Library is planned for RC27"));
     desk.press(KeyEvent::new(KeyCode::Char('4'), KeyModifiers::SUPER));
-    assert!(desk.status().contains("Review is planned for RC27"));
+    assert!(desk.status().contains("Review is planned for RC26"));
     desk.press(KeyEvent::new(
         KeyCode::Modifier(ModifierKeyCode::LeftSuper),
         KeyModifiers::NONE,
@@ -162,6 +162,70 @@ fn named_brain_pages_are_reachable_from_today_and_exclude_day_pages() {
     assert!(desk.shows("Reading list"));
     desk.key(KeyCode::Right);
     assert!(desk.shows("A history of maps"));
+}
+
+#[test]
+fn brain_beside_write_saves_tagged_notes_and_keeps_the_manuscript_draft() {
+    let fixture = tempfile::tempdir().unwrap();
+    let mut desk = Desk::open(book("brain-beside", true), 80, 24);
+    desk.app
+        .brain
+        .set_paths(fixture.path().join("Brain"), fixture.path().join("cache"));
+    desk.key(KeyCode::Tab);
+    desk.typed("The manuscript retains its own draft.");
+    let prose = desk.app.editor.text();
+    desk.menu(&["View", "Brain beside Write"]);
+    assert!(desk.shows("Brain · Project notes"));
+    desk.key(KeyCode::Char('n'));
+    desk.typed("Research for this project");
+    desk.press(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::SUPER));
+    assert!(desk.shows("Brain · Today"));
+    desk.press(KeyEvent::new(KeyCode::Char('1'), KeyModifiers::SUPER));
+    assert!(desk.shows("Research for this project"));
+    let side = desk.app.brain.side_area;
+    desk.app.on_click(side.x + 1, side.y);
+    desk.key(KeyCode::Enter);
+    assert!(desk.shows("Research for this project"));
+    assert_eq!(desk.app.editor.text(), prose);
+    let meta = Project::load(&desk.root).unwrap().meta;
+    let tag = meta.brain_tag.expect("Project tag stored on disk");
+    assert!(tag.parse::<grimoire_brain::model::NodeId>().is_ok());
+}
+
+#[test]
+fn brain_links_backlinks_tags_and_saved_lists_are_editable_from_the_keyboard() {
+    let fixture = tempfile::tempdir().unwrap();
+    let mut desk = Desk::open(book("brain-commands", true), 100, 30);
+    desk.app
+        .brain
+        .set_paths(fixture.path().join("Brain"), fixture.path().join("cache"));
+    desk.menu(&["View", "Brain"]);
+    for title in ["City maps", "Reading list"] {
+        desk.key(KeyCode::Char('n'));
+        desk.typed(title);
+        desk.key(KeyCode::Enter);
+    }
+    for (key, argument) in [
+        ('@', "City maps"),
+        ('#', "book"),
+        ('f', "Year=2026"),
+        ('s', "#book"),
+    ] {
+        desk.key(KeyCode::Char(key));
+        desk.typed(argument);
+        desk.key(KeyCode::Enter);
+    }
+    assert!(desk.shows("Search results"));
+    desk.key(KeyCode::Left);
+    desk.key(KeyCode::Char('i'));
+    assert!(desk.shows("#book"));
+    assert!(desk.shows("→ City maps"));
+    assert!(desk.shows("2026"));
+    desk.key(KeyCode::Esc);
+    desk.key(KeyCode::Up);
+    desk.key(KeyCode::Char('b'));
+    assert!(desk.shows("Backlinks"));
+    assert!(desk.shows("Reading list"));
 }
 
 impl Desk {

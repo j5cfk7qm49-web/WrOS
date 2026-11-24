@@ -30,6 +30,8 @@ pub struct ProjectMeta {
     pub draft: String,
     pub template: String,
     pub export_profile: String,
+    /// Stable Brain tag identity for the project's side pane.
+    pub brain_tag: Option<String>,
     #[serde(deserialize_with = "lenient_table")]
     pub mla: MlaDetails,
     pub target_words: usize,
@@ -137,6 +139,7 @@ impl Default for ProjectMeta {
             draft: String::new(),
             template: String::new(),
             export_profile: String::new(),
+            brain_tag: None,
             mla: MlaDetails::default(),
             target_words: 80_000,
             daily_target: 1_000,

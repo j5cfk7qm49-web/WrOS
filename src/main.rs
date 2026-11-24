@@ -1013,7 +1013,7 @@ fn dispatch_event(app: &mut App, ev: Event, confirm_quit: &mut bool) -> bool {
             return false;
         }
         if matches!(app.overlay, Overlay::None) {
-            if app.desk_view == app::brain::DeskView::Brain {
+            if app.brain_accepts_input() {
                 app.paste_brain(text);
             } else {
                 app.paste(text);
@@ -1230,7 +1230,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
         }
         _ => k,
     };
-    let brain_open = app.desk_view == app::brain::DeskView::Brain;
+    let brain_open = app.brain_accepts_input();
     if app.overlay == Overlay::None && brain_open {
         let command = k.modifiers == KeyModifiers::CONTROL
             || cfg!(target_os = "macos") && k.modifiers == KeyModifiers::SUPER;

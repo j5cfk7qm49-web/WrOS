@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use chrono::{Local, NaiveDate};
 use grimoire_brain::bounded_store::{OutlineRow, PagedBrain};
 use grimoire_brain::model::{NodeId, Place};
+use grimoire_brain::schema::SavedQuery;
 use grimoire_core::editor::Editor;
 use ratatui::Frame;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -15,6 +16,9 @@ use ratatui::widgets::{Block, Paragraph};
 
 use super::{App, Overlay};
 use crate::theme::Theme;
+
+mod commands;
+use commands::Command;
 
 const PAGE_SIZE: u16 = 32;
 
@@ -49,6 +53,12 @@ impl DeskView {
 pub struct BrainDesk {
     store: Option<PagedBrain>,
     outline: Option<Outline>,
+    other_outline: Option<Outline>,
+    active_side: bool,
+    pub(crate) side_visible: bool,
+    pub(crate) side_area: Rect,
+    pub(super) backup_observed: Option<(String, std::time::Instant)>,
+    pub(super) backup_attempted: Option<std::time::Instant>,
     paths: Option<(PathBuf, PathBuf)>,
     note_hits: Vec<(Rect, usize)>,
     pub(crate) view_hits: Vec<(Rect, DeskView)>,
@@ -61,6 +71,9 @@ struct Outline {
     rows: Vec<OutlineRow>,
     has_more: bool,
     draft: Option<Draft>,
+    prompt: Option<Prompt>,
+    details: Option<Vec<String>>,
+    details_scroll: usize,
 }
 
 #[derive(Clone)]
@@ -69,8 +82,14 @@ struct Location {
     title: String,
     offset: u32,
     selected: usize,
+    query: Option<SavedQuery>,
+    create_tag: Option<NodeId>,
 }
 
+struct Prompt {
+    command: Command,
+    editor: Editor,
+}
 struct Draft {
     node: Option<NodeId>,
     editor: Editor,
@@ -83,11 +102,42 @@ impl Location {
             title,
             offset: 0,
             selected: 0,
+            query: None,
+            create_tag: None,
         }
     }
 }
 
 impl BrainDesk {
+    pub(super) fn library_path(&self) -> PathBuf {
+        self.paths
+            .as_ref()
+            .map(|(library, _)| library.clone())
+            .unwrap_or_else(|| crate::home().join("Documents/Brain"))
+    }
+
+    pub(super) fn backed_up_version(&self) -> Option<String> {
+        self.store.as_ref().map(PagedBrain::version_id)
+    }
+
+    pub(super) fn next_copy_error(&self) -> Option<String> {
+        self.store.as_ref().and_then(PagedBrain::readable_error)
+    }
+
+    pub(crate) fn select_side(&mut self, active: bool) {
+        if self.active_side != active {
+            std::mem::swap(&mut self.outline, &mut self.other_outline);
+            self.active_side = active;
+        }
+    }
+
+    pub(super) fn close_project_pane(&mut self) {
+        self.select_side(false);
+        self.other_outline = None;
+        self.side_visible = false;
+        self.side_area = Rect::default();
+    }
+
     #[cfg(test)]
     pub(crate) fn set_paths(&mut self, library: PathBuf, cache: PathBuf) {
         self.paths = Some((library, cache));
@@ -125,16 +175,22 @@ impl BrainDesk {
             rows,
             has_more,
             draft: None,
+            prompt: None,
+            details: None,
+            details_scroll: 0,
         });
         Ok(())
     }
 
     fn paste(&mut self, text: &str) {
-        let Some(draft) = self
-            .outline
-            .as_mut()
-            .and_then(|outline| outline.draft.as_mut())
-        else {
+        let Some(outline) = self.outline.as_mut() else {
+            return;
+        };
+        let editor = if let Some(prompt) = &mut outline.prompt {
+            &mut prompt.editor
+        } else if let Some(draft) = &mut outline.draft {
+            &mut draft.editor
+        } else {
             return;
         };
         let text: String = text
@@ -146,7 +202,7 @@ impl BrainDesk {
                 c => Some(c),
             })
             .collect();
-        draft.editor.insert_str(&text);
+        editor.insert_str(&text);
     }
 
     pub(super) fn edit_history(&mut self, redo: bool) {
@@ -181,12 +237,13 @@ impl BrainDesk {
                 node
             }
             None => store
-                .create_note_with_text(
+                .create_tagged_note(
                     Place {
                         parent: outline.location.parent,
                         after: outline.selected().map(|row| row.id),
                     },
                     &body,
+                    outline.location.create_tag,
                 )
                 .map_err(anyhow::Error::msg)?,
         };
@@ -201,11 +258,70 @@ impl BrainDesk {
         Ok(true)
     }
 
-    fn browse(&mut self, code: KeyCode) -> anyhow::Result<()> {
+    fn browse(&mut self, code: KeyCode, shift: bool) -> anyhow::Result<()> {
         let (Some(store), Some(outline)) = (&mut self.store, &mut self.outline) else {
             return Ok(());
         };
+        let selected = outline.selected().map(|row| row.id);
+        let command = match code {
+            KeyCode::Char('/') => Some(Command::Find),
+            KeyCode::Char('@') => selected.map(Command::Link),
+            KeyCode::Char('#') => selected.map(Command::Tag),
+            KeyCode::Char('f') => selected.map(Command::Field),
+            KeyCode::Char('g') => Some(Command::Schema),
+            KeyCode::Char('s') => selected.map(Command::SaveSearch),
+            _ => None,
+        };
+        if let Some(command) = command {
+            outline.prompt = Some(Prompt {
+                command,
+                editor: Editor::from_text(""),
+            });
+            return Ok(());
+        }
+        if outline.details.is_some() && matches!(code, KeyCode::Up | KeyCode::Down) {
+            if code == KeyCode::Up {
+                outline.details_scroll = outline.details_scroll.saturating_sub(1);
+            } else if let Some(details) = &outline.details {
+                outline.details_scroll =
+                    (outline.details_scroll + 1).min(details.len().saturating_sub(1));
+            }
+            return Ok(());
+        }
         match code {
+            KeyCode::Char('i') => {
+                if outline.details.take().is_none()
+                    && let Some(node) = selected
+                {
+                    outline.details = Some(commands::describe(store, node)?);
+                    outline.details_scroll = 0;
+                }
+            }
+            KeyCode::Char('b') if selected.is_some() => {
+                outline.show_query(store, "Backlinks", SavedQuery::LinksTo(selected.unwrap()))?;
+            }
+            KeyCode::Char('o') if selected.is_some() => {
+                outline.show_query(
+                    store,
+                    "Linked notes",
+                    SavedQuery::LinksFrom(selected.unwrap()),
+                )?;
+            }
+            KeyCode::Char('r') if selected.is_some() => {
+                if let Some(query) = store
+                    .details(selected.unwrap())
+                    .map_err(anyhow::Error::msg)?
+                    .query
+                {
+                    outline.show_query(store, "Saved search", query)?;
+                }
+            }
+            KeyCode::Tab | KeyCode::BackTab => {
+                outline.move_selection(store, code)?;
+            }
+            KeyCode::Up | KeyCode::Down if shift => {
+                outline.move_selection(store, code)?;
+            }
             KeyCode::Char('p') | KeyCode::Char('t') => {
                 let (date, location) = if code == KeyCode::Char('p') {
                     (outline.date, Location::new(None, "Pages".into()))
@@ -219,6 +335,10 @@ impl BrainDesk {
                 outline.ancestors.clear();
             }
             KeyCode::Char('n') => {
+                if outline.location.query.is_some() && outline.location.create_tag.is_none() {
+                    anyhow::bail!("Open a page to add a note");
+                }
+                outline.details = None;
                 outline.draft = Some(Draft {
                     node: None,
                     editor: Editor::from_text(""),
@@ -232,6 +352,7 @@ impl BrainDesk {
                         node: Some(row.id),
                         editor,
                     });
+                    outline.details = None;
                 }
             }
             KeyCode::Up => outline.step(store, false)?,
@@ -255,11 +376,50 @@ impl BrainDesk {
         Ok(())
     }
 
+    fn prompt_key(&mut self, key: KeyEvent) -> anyhow::Result<bool> {
+        let (Some(store), Some(outline)) = (&mut self.store, &mut self.outline) else {
+            return Ok(false);
+        };
+        let Some(prompt) = &mut outline.prompt else {
+            return Ok(false);
+        };
+        if !key.modifiers.difference(KeyModifiers::SHIFT).is_empty() {
+            return Ok(true);
+        }
+        match key.code {
+            KeyCode::Esc => outline.prompt = None,
+            KeyCode::Enter => {
+                let input = prompt.editor.text();
+                let command = prompt.command;
+                let selected = outline.selected().map(|row| row.id);
+                if let Some(query) = command.apply(store, &input, selected)? {
+                    outline.show_query(store, "Search results", query)?;
+                } else if outline.details.is_some()
+                    && let Some(node) = selected
+                {
+                    outline.details = Some(commands::describe(store, node)?);
+                }
+                outline.prompt = None;
+            }
+            KeyCode::Left => prompt.editor.left(),
+            KeyCode::Right => prompt.editor.right(),
+            KeyCode::Home => prompt.editor.scene_start(),
+            KeyCode::End => prompt.editor.scene_end(),
+            KeyCode::Backspace => prompt.editor.backspace(),
+            KeyCode::Delete => prompt.editor.delete(),
+            KeyCode::Char(c) if !c.is_control() => prompt.editor.insert(c),
+            _ => {}
+        }
+        Ok(true)
+    }
+
     pub(super) fn click(&mut self, x: u16, y: u16) {
         let Some(outline) = &mut self.outline else {
             return;
         };
         if outline.draft.is_none()
+            && outline.details.is_none()
+            && outline.prompt.is_none()
             && let Some((_, index)) = self
                 .note_hits
                 .iter()
@@ -273,9 +433,9 @@ impl BrainDesk {
         if self
             .outline
             .as_ref()
-            .is_some_and(|outline| outline.draft.is_none())
+            .is_some_and(|outline| outline.draft.is_none() && outline.prompt.is_none())
         {
-            self.browse(if down { KeyCode::Down } else { KeyCode::Up })?;
+            self.browse(if down { KeyCode::Down } else { KeyCode::Up }, false)?;
         }
         Ok(())
     }
@@ -292,6 +452,117 @@ impl Outline {
         self.location = location;
         self.rows = rows;
         self.has_more = has_more;
+        self.details = None;
+        Ok(())
+    }
+
+    fn show_query(
+        &mut self,
+        store: &mut PagedBrain,
+        title: &str,
+        query: SavedQuery,
+    ) -> anyhow::Result<()> {
+        let mut next = Location::new(None, title.into());
+        next.query = Some(query);
+        let previous = self.location.clone();
+        self.load(store, next)?;
+        self.ancestors.push(previous);
+        Ok(())
+    }
+
+    fn move_selection(&mut self, store: &mut PagedBrain, code: KeyCode) -> anyhow::Result<()> {
+        let Some(node) = self.selected().map(|row| row.id) else {
+            return Ok(());
+        };
+        if self.location.query.is_some() {
+            anyhow::bail!("Open the note's page to change its place");
+        }
+        let parent = self.location.parent;
+        let current = self.location.offset + self.location.selected as u32;
+        let sibling = |store: &mut PagedBrain, offset| -> anyhow::Result<Option<NodeId>> {
+            let page = if parent.is_some() {
+                store.children(parent, offset, 1)
+            } else {
+                store.named_pages(offset, 1)
+            };
+            Ok(page.map_err(anyhow::Error::msg)?.first().map(|row| row.id))
+        };
+        let (moving, place, next) = match code {
+            KeyCode::Tab if current > 0 => {
+                let Some(previous) = sibling(store, current - 1)? else {
+                    return Ok(());
+                };
+                (
+                    node,
+                    Place {
+                        parent: Some(previous),
+                        after: None,
+                    },
+                    None,
+                )
+            }
+            KeyCode::BackTab => {
+                let Some(parent) = parent else {
+                    return Ok(());
+                };
+                let Some(above) = self.ancestors.last().cloned() else {
+                    return Ok(());
+                };
+                if above.query.is_some() {
+                    return Ok(());
+                }
+                (
+                    node,
+                    Place {
+                        parent: above.parent,
+                        after: Some(parent),
+                    },
+                    Some(above),
+                )
+            }
+            KeyCode::Up if current > 0 => {
+                let Some(previous) = sibling(store, current - 1)? else {
+                    return Ok(());
+                };
+                (
+                    previous,
+                    Place {
+                        parent,
+                        after: Some(node),
+                    },
+                    None,
+                )
+            }
+            KeyCode::Down => {
+                let Some(following) = sibling(store, current + 1)? else {
+                    return Ok(());
+                };
+                (
+                    node,
+                    Place {
+                        parent,
+                        after: Some(following),
+                    },
+                    None,
+                )
+            }
+            _ => return Ok(()),
+        };
+        store.move_note(moving, place).map_err(anyhow::Error::msg)?;
+        let changing_parent = next.is_some();
+        let mut location = next.unwrap_or_else(|| self.location.clone());
+        if code == KeyCode::Up && current < location.offset + 1 {
+            location.offset = location.offset.saturating_sub(u32::from(PAGE_SIZE));
+        } else if code == KeyCode::Down && self.location.selected + 1 == usize::from(PAGE_SIZE) {
+            location.offset += u32::from(PAGE_SIZE);
+        }
+        self.load(store, location)?;
+        if changing_parent {
+            self.ancestors.pop();
+        }
+        if let Some(index) = self.rows.iter().position(|row| row.id == node) {
+            self.location.selected = index;
+        }
         Ok(())
     }
 
@@ -317,7 +588,9 @@ impl Outline {
 }
 
 fn page(store: &mut PagedBrain, location: &Location) -> anyhow::Result<(Vec<OutlineRow>, bool)> {
-    let mut rows = if location.parent.is_some() {
+    let mut rows = if let Some(query) = &location.query {
+        store.search(query, location.offset, PAGE_SIZE + 1)
+    } else if location.parent.is_some() {
         store.children(location.parent, location.offset, PAGE_SIZE + 1)
     } else {
         store.named_pages(location.offset, PAGE_SIZE + 1)
@@ -336,18 +609,81 @@ fn note_title(body: &str) -> &str {
 }
 
 impl App {
+    pub fn brain_accepts_input(&self) -> bool {
+        self.desk_view == DeskView::Brain || self.brain.active_side
+    }
+
+    pub fn toggle_brain_beside(&mut self) {
+        if self.desk_view == DeskView::Write && self.brain.side_visible {
+            self.brain.select_side(false);
+            self.brain.side_visible = false;
+            return;
+        }
+        if let Err(error) = self.open_brain_beside() {
+            self.msg = format!("Could not open project notes · {error}");
+        }
+    }
+
+    fn open_brain_beside(&mut self) -> anyhow::Result<()> {
+        self.brain.select_side(false);
+        let date = Local::now().date_naive();
+        self.brain.open_today(date)?;
+        let store = self.brain.store.as_mut().expect("Open Brain store");
+        let tag = if let Some(tag) = &self.project.meta.brain_tag {
+            tag.parse::<NodeId>().map_err(anyhow::Error::msg)?
+        } else {
+            let title = format!("Project — {}", self.project.meta.title);
+            let tag = store
+                .create_note_with_text(Place::default(), &title)
+                .map_err(anyhow::Error::msg)?;
+            let key = tag.external_id();
+            grimoire_core::submission::save_brain_tag(&self.project.root, &key)?;
+            self.project.meta.brain_tag = Some(key);
+            tag
+        };
+        if self.brain.other_outline.is_none() {
+            let parent = if store.note(tag).map_err(anyhow::Error::msg)?.is_some() {
+                tag
+            } else {
+                store.ensure_today(date).map_err(anyhow::Error::msg)?
+            };
+            let mut location = Location::new(Some(parent), "Project notes".into());
+            location.query = Some(SavedQuery::Tagged(tag));
+            location.create_tag = Some(tag);
+            let (rows, has_more) = page(store, &location)?;
+            self.brain.other_outline = Some(Outline {
+                date,
+                location,
+                rows,
+                has_more,
+                ancestors: Vec::new(),
+                draft: None,
+                prompt: None,
+                details: None,
+                details_scroll: 0,
+            });
+        }
+        self.desk_view = DeskView::Write;
+        self.brain.side_visible = true;
+        self.brain.select_side(true);
+        self.focus_mode = false;
+        self.msg.clear();
+        Ok(())
+    }
+
     pub fn switch_desk_view(&mut self, view: DeskView) {
         match view {
             DeskView::Library => {
-                self.msg = "Library is planned for RC26".into();
+                self.msg = "Library is planned for RC27".into();
                 return;
             }
             DeskView::Review => {
-                self.msg = "Review is planned for RC27".into();
+                self.msg = "Review is planned for RC26".into();
                 return;
             }
             DeskView::Write | DeskView::Brain => {}
         }
+        self.brain.select_side(false);
         if view == self.desk_view {
             return;
         }
@@ -387,7 +723,33 @@ impl App {
         }
     }
 
+    pub(super) fn save_brain_panes(&mut self) -> bool {
+        if !self.save_brain() {
+            return false;
+        }
+        let side = self.brain.active_side;
+        self.brain.select_side(!side);
+        let saved = self.save_brain();
+        self.brain.select_side(side);
+        saved
+    }
+
     pub fn on_brain_key(&mut self, key: KeyEvent) {
+        if self
+            .brain
+            .outline
+            .as_ref()
+            .is_some_and(|outline| outline.prompt.is_some())
+        {
+            if key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char('v') {
+                self.paste_brain(&self.clipboard_text());
+            } else if let Err(error) = self.brain.prompt_key(key) {
+                self.msg = error.to_string();
+            } else {
+                self.msg.clear();
+            }
+            return;
+        }
         let draft = self
             .brain
             .outline
@@ -439,8 +801,22 @@ impl App {
                 _ => {}
             }
         } else if key.code == KeyCode::Esc {
-            self.open_menu();
-        } else if let Err(error) = self.brain.browse(key.code) {
+            if self
+                .brain
+                .outline
+                .as_mut()
+                .is_none_or(|outline| outline.details.take().is_none())
+            {
+                if self.brain.active_side {
+                    self.brain.select_side(false);
+                } else {
+                    self.open_menu();
+                }
+            }
+        } else if let Err(error) = self
+            .brain
+            .browse(key.code, key.modifiers.contains(KeyModifiers::SHIFT))
+        {
             self.msg = format!("Could not open Brain notes · {error}");
         }
     }
@@ -482,27 +858,35 @@ pub(crate) fn draw_view_bar(f: &mut Frame, app: &mut App, area: Rect, theme: &Th
     }
 }
 
-pub(crate) fn draw(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
+pub(crate) fn draw(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme, side: bool) {
     app.brain.note_hits.clear();
-    let Some(outline) = &mut app.brain.outline else {
+    let focused = side == app.brain.active_side;
+    let outline = if focused {
+        &mut app.brain.outline
+    } else {
+        &mut app.brain.other_outline
+    };
+    let Some(outline) = outline else {
         return;
     };
     let [title, body, keys] = Layout::vertical([
         Constraint::Length(1),
         Constraint::Min(0),
-        Constraint::Length(1),
+        Constraint::Length(2),
     ])
     .areas(area);
     let text = Style::default().fg(theme.text);
     let dim = Style::default().fg(theme.dim);
     let accent = Style::default().fg(theme.accent);
     let root = outline.ancestors.first().unwrap_or(&outline.location);
-    let heading = if root.parent.is_none() {
+    let heading = if outline.location.query.is_some() {
+        format!(" Brain · {}", outline.location.title)
+    } else if root.parent.is_none() {
         " Brain · Pages".into()
     } else {
         format!(" Brain · Today · {}", outline.date.format("%Y-%m-%d"))
     };
-    let path = if outline.ancestors.is_empty() {
+    let path = if outline.ancestors.is_empty() || outline.location.query.is_some() {
         String::new()
     } else {
         format!("  ›  {}", outline.location.title)
@@ -514,21 +898,54 @@ pub(crate) fn draw(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
         ]),
         title,
     );
-    if let Some(draft) = &mut outline.draft {
+    if let Some(prompt) = &mut outline.prompt {
+        let [hint, input] =
+            Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(body);
+        f.render_widget(Line::styled(prompt.command.hint(), dim), hint);
+        draw_draft(
+            f,
+            &mut prompt.editor,
+            input,
+            text,
+            focused && app.overlay == Overlay::None,
+        );
+        f.render_widget(Line::styled(" Enter Apply   Esc Cancel", dim), keys);
+    } else if let Some(draft) = &mut outline.draft {
         draw_draft(
             f,
             &mut draft.editor,
             body,
             text,
-            app.overlay == Overlay::None,
+            focused && app.overlay == Overlay::None,
         );
         f.render_widget(Line::styled(" Enter Save   Esc Cancel", dim), keys);
+    } else if let Some(lines) = &outline.details {
+        f.render_widget(
+            Paragraph::new(
+                lines
+                    .iter()
+                    .skip(outline.details_scroll)
+                    .take(usize::from(body.height))
+                    .map(|line| Line::styled(line.as_str(), text))
+                    .collect::<Vec<_>>(),
+            ),
+            body,
+        );
+        f.render_widget(
+            Line::styled(
+                " ↑↓ Scroll   # Tag   F Field   G Schema   O Links   B Backlinks   Esc Back",
+                dim,
+            ),
+            keys,
+        );
     } else {
         let inner = Block::new()
             .padding(ratatui::widgets::Padding::horizontal(1))
             .inner(body);
         if outline.rows.is_empty() {
-            let empty = if outline.location.parent.is_none() {
+            let empty = if outline.location.query.is_some() {
+                "No matching notes."
+            } else if outline.location.parent.is_none() {
                 "No pages yet."
             } else {
                 "No notes here yet."
@@ -562,10 +979,16 @@ pub(crate) fn draw(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
             "N New note"
         };
         f.render_widget(
-            Line::styled(
-                format!(" {create}   Enter Edit   ←↑↓→ Navigate   P Pages   T Today"),
-                dim,
-            ),
+            Paragraph::new(vec![
+                Line::styled(
+                    format!(" {create}   Enter Edit   ←↑↓→ Navigate   P Pages   T Today"),
+                    dim,
+                ),
+                Line::styled(
+                    " / Search   S Save search   R Run   I Details   # Tag   @ Link",
+                    dim,
+                ),
+            ]),
             keys,
         );
     }

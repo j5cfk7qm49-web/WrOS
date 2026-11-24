@@ -7,6 +7,7 @@ use grimoire_core::project::Kind;
 /// Everything the palette can do. Scenes and notes are opened by path.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
+    BrainBeside,
     SwitchDeskView(crate::app::brain::DeskView),
     Settings,
     SystemSettings,
@@ -285,6 +286,7 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
     let part = app.project.meta.part_noun();
     let mut v = vec![
         Entry::new("Brain", "Super+3", Action::SwitchDeskView(DeskView::Brain)),
+        Entry::new("Brain beside Write", "", Action::BrainBeside),
         Entry::new("Write", "Super+1", Action::SwitchDeskView(DeskView::Write)),
         Entry::new("WrOS settings", "", Action::Settings),
         Entry::new("System settings", "", Action::SystemSettings),

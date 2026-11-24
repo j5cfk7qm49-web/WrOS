@@ -57,12 +57,13 @@ pub fn draw(
     app.rect_scene = Rect::default();
     app.view_hits.clear();
     app.music_row_hits.clear();
+    app.brain.side_area = Rect::default();
     crate::app::brain::draw_view_bar(f, app, view_bar, &t);
 
     if brain_open {
         app.rect_tree = Rect::default();
         app.create_hits.clear();
-        crate::app::brain::draw(f, app, main, &t);
+        crate::app::brain::draw(f, app, main, &t, false);
     } else {
         draw_write(f, app, main, &t);
     }
@@ -136,6 +137,19 @@ fn draw_write(f: &mut Frame, app: &mut App, main: Rect, t: &Theme) {
     };
 
     let edit_area = crate::app::pins::sidebar(f, app, edit_area, t);
+    let edit_area = if app.brain.side_visible && !app.focus_mode && edit_area.height >= 12 {
+        let split = if edit_area.width >= 75 {
+            Layout::horizontal([Constraint::Percentage(58), Constraint::Percentage(42)])
+        } else {
+            Layout::vertical([Constraint::Percentage(55), Constraint::Percentage(45)])
+        };
+        let [write, brain] = split.areas(edit_area);
+        app.brain.side_area = brain;
+        write
+    } else {
+        app.brain.select_side(false);
+        edit_area
+    };
 
     // Editable documents have independent contexts. Wide terminals put them
     // side by side; 80x24 remains useful by stacking prose vertically. Hidden
@@ -182,6 +196,9 @@ fn draw_write(f: &mut Frame, app: &mut App, main: Rect, t: &Theme) {
     }
     if matches!(app.focus, Focus::Codex | Focus::Beside) && !app.side_room {
         app.activate_editor(Pane::Primary);
+    }
+    if !app.brain.side_area.is_empty() {
+        crate::app::brain::draw(f, app, app.brain.side_area, t, true);
     }
 }
 
@@ -825,7 +842,7 @@ fn marked(st: Style, colour: ratatui::style::Color, underline_colour: bool) -> S
 }
 
 fn draw_editor(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
-    let focused = app.view_is_focused();
+    let focused = app.view_is_focused() && !app.brain_accepts_input();
     let mut title = app.open_title();
     if app.views.active == Pane::Secondary {
         title = format!("Secondary · {title}");

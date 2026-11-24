@@ -35,6 +35,10 @@ The mouse works everywhere on the bar: click a menu to open it, move across the 
 
 - **Write** (`Super+1`) returns to the manuscript. **Brain** (`Super+3`) opens your personal outline. Both are also available in **Find anything**. Brain shows the view bar above its outline.
 - Brain opens to **Today**. Press `N` to add a note, `Enter` to edit or save, and `Esc` to cancel an edit. Use `↑` and `↓` to choose a note, `→` to open its children, and `←` to go back. `P` shows named pages, where `N` adds a page. `T` returns to Today.
+- **Brain beside Write** opens the notes tagged for this project. A note created in that list receives the project tag. Press `Esc` outside an edit to return to the manuscript, or select Write from the view bar. You can also click either pane.
+- Press `I` for a note's details, including its tags, fields and links. `@` adds a link by title, `O` opens linked notes, and `B` opens backlinks. Press `#` to tag a note. Use a built-in name like `book` or the title of a named page.
+- Press `/` to search, `S` to save a search on the selected note, and `R` to run that saved search. Use a phrase, `#tag`, `@title` for backlinks, or `field=value` when the selected note has that field.
+- In **Settings › Backups and accounts › Backups**, create an encrypted Brain backup and restore earlier Brain snapshots to a separate folder.
 - **Focus mode** (`Ctrl-D`): everything but the page goes away. `Ctrl-D` again brings it all back.
 - **Show the outline** / **Hide the outline**: the outline column, without entering focus mode. It has no key of its own unless you give it one in Settings › Look and keyboard › Keyboard.
 - **Show the pins sidebar** / **Hide the pins sidebar**. See *Pins*.

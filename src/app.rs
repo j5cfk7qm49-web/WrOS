@@ -1939,7 +1939,7 @@ impl App {
     /// if session history is on. False (with a message) if something couldn't
     /// be saved; its words are in recovery either way.
     pub fn try_quit(&mut self) -> bool {
-        if !self.commit_saves() || self.project.dirty_count() != 0 || !self.save_brain() {
+        if !self.commit_saves() || self.project.dirty_count() != 0 || !self.save_brain_panes() {
             return false;
         }
         if !self.checkpoint_productivity(true) {
@@ -2459,6 +2459,7 @@ impl App {
     pub fn run_action(&mut self, action: Action) {
         self.overlay = Overlay::None;
         match action {
+            Action::BrainBeside => self.toggle_brain_beside(),
             Action::SwitchDeskView(view) => self.switch_desk_view(view),
             Action::NewScene | Action::NewChapter | Action::NewPart | Action::NewFolder => {
                 self.switch_desk_view(brain::DeskView::Write);
@@ -2479,14 +2480,14 @@ impl App {
                 self.start_delete();
             }
             Action::History => self.open_history(),
-            Action::Save if self.desk_view == brain::DeskView::Brain => {
+            Action::Save if self.brain_accepts_input() => {
                 self.save_brain();
             }
             Action::Save => self.save(),
-            Action::Undo | Action::Redo if self.desk_view == brain::DeskView::Brain => {
+            Action::Undo | Action::Redo if self.brain_accepts_input() => {
                 self.brain.edit_history(action == Action::Redo);
             }
-            Action::Paste if self.desk_view == brain::DeskView::Brain => {
+            Action::Paste if self.brain_accepts_input() => {
                 self.paste_brain(&self.clipboard_text());
             }
             Action::Cut
@@ -2495,7 +2496,7 @@ impl App {
             | Action::Italic
             | Action::Bold
             | Action::InsertFootnote
-                if self.desk_view == brain::DeskView::Brain =>
+                if self.brain_accepts_input() =>
             {
                 self.msg = "Open Write to use this manuscript command".into();
             }
@@ -5436,6 +5437,14 @@ impl App {
             self.brain.click(x, y);
             return;
         }
+        if self.overlay == Overlay::None {
+            let beside = hit(self.brain.side_area, x, y);
+            self.brain.select_side(beside);
+            if beside {
+                self.brain.click(x, y);
+                return;
+            }
+        }
         if self.pin_click(x, y) {
             return;
         }
@@ -5597,7 +5606,7 @@ impl App {
     /// Extend the editor selection while the left button is held — or, in the
     /// tree, track where a dragged row would land.
     pub fn on_drag(&mut self, x: u16, y: u16) {
-        if self.desk_view == brain::DeskView::Brain && self.overlay == Overlay::None {
+        if self.brain_accepts_input() && self.overlay == Overlay::None {
             return;
         }
         if matches!(
@@ -5676,7 +5685,12 @@ impl App {
         if self.bar_scroll(down) || self.settings_wheel(down) {
             return;
         }
-        if self.desk_view == brain::DeskView::Brain && self.overlay == Overlay::None {
+        if self.overlay == Overlay::None
+            && (self.desk_view == brain::DeskView::Brain || hit(self.brain.side_area, x, y))
+        {
+            if self.desk_view == brain::DeskView::Write {
+                self.brain.select_side(true);
+            }
             self.scroll_brain(down);
             return;
         }

@@ -127,7 +127,7 @@ impl App {
                 ));
                 rows
             }
-            Title::Edit if self.desk_view == crate::app::brain::DeskView::Brain => vec![
+            Title::Edit if self.brain_accepts_input() => vec![
                 BarRow::new("Undo", format!("{m}Z"), Action::Undo),
                 BarRow::new("Redo", format!("{m}Y"), Action::Redo),
                 BarRow::new("Paste", format!("{m}V"), Action::Paste),
@@ -175,6 +175,15 @@ impl App {
                 let desk_views = [
                     BarRow::new("Write", "Super+1", Action::SwitchDeskView(DeskView::Write)),
                     BarRow::new("Brain", "Super+3", Action::SwitchDeskView(DeskView::Brain)),
+                    BarRow::new(
+                        if self.brain.side_visible && self.desk_view == DeskView::Write {
+                            "Hide Brain beside Write"
+                        } else {
+                            "Brain beside Write"
+                        },
+                        "",
+                        Action::BrainBeside,
+                    ),
                 ];
                 if self.desk_view == DeskView::Brain {
                     return desk_views
@@ -242,7 +251,7 @@ impl App {
                     BarRow::new("Themes…", "F9", Action::Themes),
                     BarRow::new("Workspaces…", "", Action::Workspaces),
                 ]);
-                rows.extend(desk_views);
+                rows.extend(desk_views.into_iter().skip(1));
                 rows
             }
             Title::Book => {
