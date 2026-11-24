@@ -2,9 +2,11 @@ use std::collections::BTreeSet;
 
 use chrono::NaiveDate;
 use grimoire_brain::automerge_store::AutomergeStore;
-use grimoire_brain::loro_store::LoroStore;
-use grimoire_brain::model::{Builtin, Change, Edit, FieldId, Model, NodeId, OpId, Place};
-use grimoire_brain::replica::Replica;
+#[cfg(feature = "qualification")]
+use grimoire_brain::bounded_store::SqliteLedger;
+use grimoire_brain::loro_store::{LoroStore, PagedLoroStore};
+use grimoire_brain::model::{Builtin, Change, Edit, FieldId, Model, NodeId, OpId, Place, Snapshot};
+use grimoire_brain::replica::{Checkpoint, Replica};
 
 #[derive(Clone)]
 struct Random(u64);
@@ -68,10 +70,92 @@ fn text(node: NodeId, text: &str) -> Change {
     }
 }
 
-fn apply(store: &mut impl Replica, model: &mut Model, op: Edit, trace: &mut Vec<Edit>) -> Vec<u8> {
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
+
+trait TestPeer: Sized {
+    type Backup;
+    fn open_peer(device: u64) -> Result<Self>;
+    fn save_peer(&mut self) -> Result<Self::Backup>;
+    fn restore_peer(device: u64, saved: &Self::Backup) -> Result<Self>;
+    fn apply_edit(&mut self, edit: Edit) -> Result<Vec<u8>>;
+    fn accept_update(&mut self, bytes: &[u8]) -> Result<()>;
+    fn build_view(&self) -> Result<Snapshot>;
+    fn waiting(&self) -> Result<bool>;
+    fn operation_count(&self) -> Result<usize>;
+}
+
+impl<R: Replica> TestPeer for R {
+    type Backup = Checkpoint;
+    fn open_peer(device: u64) -> Result<Self> {
+        Ok(Self::new(device)?)
+    }
+    fn save_peer(&mut self) -> Result<Self::Backup> {
+        Ok(self.checkpoint()?)
+    }
+    fn restore_peer(device: u64, saved: &Self::Backup) -> Result<Self> {
+        Ok(Self::restore(device, saved)?)
+    }
+    fn apply_edit(&mut self, edit: Edit) -> Result<Vec<u8>> {
+        Ok(self.append(edit)?)
+    }
+    fn accept_update(&mut self, bytes: &[u8]) -> Result<()> {
+        Ok(self.import(bytes)?)
+    }
+    fn build_view(&self) -> Result<Snapshot> {
+        Ok(self.project()?)
+    }
+    fn waiting(&self) -> Result<bool> {
+        Ok(self.has_pending()?)
+    }
+    fn operation_count(&self) -> Result<usize> {
+        Ok(self.edit_count())
+    }
+}
+
+#[cfg(feature = "qualification")]
+struct LedgerPeer {
+    ledger: SqliteLedger,
+    folder: tempfile::TempDir,
+}
+
+#[cfg(feature = "qualification")]
+impl TestPeer for LedgerPeer {
+    type Backup = std::path::PathBuf;
+    fn open_peer(device: u64) -> Result<Self> {
+        let folder = tempfile::tempdir()?;
+        let ledger = SqliteLedger::open(&folder.path().join("ledger"), device)?;
+        Ok(Self { ledger, folder })
+    }
+    fn save_peer(&mut self) -> Result<Self::Backup> {
+        self.ledger.checkpoint()?;
+        Ok(self.folder.path().join("ledger"))
+    }
+    fn restore_peer(device: u64, saved: &Self::Backup) -> Result<Self> {
+        let folder = tempfile::tempdir()?;
+        let ledger = SqliteLedger::restore_backup(saved, &folder.path().join("ledger"), device)?;
+        Ok(Self { ledger, folder })
+    }
+    fn apply_edit(&mut self, edit: Edit) -> Result<Vec<u8>> {
+        self.ledger.append(edit)
+    }
+    fn accept_update(&mut self, bytes: &[u8]) -> Result<()> {
+        self.ledger.import(bytes)
+    }
+    fn build_view(&self) -> Result<Snapshot> {
+        self.ledger.project()
+    }
+    fn waiting(&self) -> Result<bool> {
+        Ok(!self.ledger.project()?.pending().is_empty())
+    }
+    fn operation_count(&self) -> Result<usize> {
+        self.ledger.edit_count()
+    }
+}
+
+fn apply(store: &mut impl TestPeer, model: &mut Model, op: Edit, trace: &mut Vec<Edit>) -> Vec<u8> {
     trace.push(op.clone());
     model.insert(op.clone()).unwrap();
-    store.append(op).unwrap()
+    store.apply_edit(op).unwrap()
 }
 
 #[test]
@@ -84,14 +168,25 @@ fn automerge_peers_converge_with_pending_dependencies() {
     run_schedules::<AutomergeStore>();
 }
 
-fn run_schedules<S: Replica>() {
+#[test]
+fn paged_loro_peers_converge_with_pending_dependencies() {
+    run_schedules::<PagedLoroStore>();
+}
+
+#[cfg(feature = "qualification")]
+#[test]
+fn sqlite_ledger_peers_converge_with_pending_dependencies() {
+    run_schedules::<LedgerPeer>();
+}
+
+fn run_schedules<S: TestPeer>() {
     for seed in 25_001..25_009 {
         run_schedule::<S>(seed, 2);
         run_schedule::<S>(seed, 3);
     }
 }
 
-fn run_schedule<S: Replica>(seed: u64, device_count: u64) {
+fn run_schedule<S: TestPeer>(seed: u64, device_count: u64) {
     let mut random = Random(seed);
     let parent = note(1, 1);
     let child = note(2, 1);
@@ -106,7 +201,9 @@ fn run_schedule<S: Replica>(seed: u64, device_count: u64) {
     };
     let mut oracle = Model::default();
     let mut trace = Vec::new();
-    let mut peers: Vec<_> = (1..=device_count).map(|p| S::new(p).unwrap()).collect();
+    let mut peers: Vec<_> = (1..=device_count)
+        .map(|p| S::open_peer(p).unwrap())
+        .collect();
     let base = [
         edit(1, 1, None, create(parent, None)),
         edit(2, 1, Some(id(1, 1)), create(child, Some(parent))),
@@ -118,10 +215,10 @@ fn run_schedule<S: Replica>(seed: u64, device_count: u64) {
     for op in base {
         let bytes = apply(&mut peers[0], &mut oracle, op, &mut trace);
         for peer in &mut peers[1..] {
-            peer.import(&bytes).unwrap();
+            peer.accept_update(&bytes).unwrap();
         }
     }
-    let old_backup = peers[0].checkpoint().unwrap();
+    let old_backup = peers[0].save_peer().unwrap();
     let deletion = oracle.snapshot().delete_subtree(parent).unwrap();
     let mut updates = Vec::new();
 
@@ -200,13 +297,13 @@ fn run_schedule<S: Replica>(seed: u64, device_count: u64) {
         .iter()
         .rposition(|(device, _)| *device == 1)
         .unwrap();
-    peers[1].import(&updates[parked].1).unwrap();
-    assert!(peers[1].has_pending().unwrap(), "seed {seed}");
-    peers[1] = S::restore(100, &peers[1].checkpoint().unwrap()).unwrap();
-    assert!(peers[1].has_pending().unwrap(), "seed {seed}");
+    peers[1].accept_update(&updates[parked].1).unwrap();
+    assert!(peers[1].waiting().unwrap(), "seed {seed}");
+    peers[1] = S::restore_peer(100, &peers[1].save_peer().unwrap()).unwrap();
+    assert!(peers[1].waiting().unwrap(), "seed {seed}");
 
     // A restored, old backup joins with a fresh device identity.
-    let mut restored = S::restore(200, &old_backup).unwrap();
+    let mut restored = S::restore_peer(200, &old_backup).unwrap();
     let old_edit = edit(7, 200, Some(id(6, 1)), text(index, "From the old backup"));
     updates.push((200, apply(&mut restored, &mut oracle, old_edit, &mut trace)));
     peers.push(restored);
@@ -243,24 +340,24 @@ fn run_schedule<S: Replica>(seed: u64, device_count: u64) {
         random.shuffle(&mut delivery);
         for (attempt, i) in delivery.into_iter().enumerate() {
             let bytes = &updates[i].1;
-            peer.import(bytes).unwrap_or_else(|error| {
+            peer.accept_update(bytes).unwrap_or_else(|error| {
                 panic!("seed {seed}, peers {device_count}, receiver {target}, delivery {i}: {error:?}\n{trace:#?}")
             });
             if attempt.is_multiple_of(5) {
-                peer.import(bytes).unwrap();
+                peer.accept_update(bytes).unwrap();
             }
         }
         assert!(
-            !peer.has_pending().unwrap(),
+            !peer.waiting().unwrap(),
             "seed {seed}, receiver {target}\n{trace:#?}"
         );
         assert_eq!(
-            peer.project().unwrap(),
+            peer.build_view().unwrap(),
             expected,
             "seed {seed}, receiver {target}\n{trace:#?}"
         );
         assert_eq!(
-            peer.edit_count(),
+            peer.operation_count().unwrap(),
             trace.len(),
             "seed {seed}, receiver {target}"
         );

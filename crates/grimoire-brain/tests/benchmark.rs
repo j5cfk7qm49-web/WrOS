@@ -15,6 +15,16 @@ fn automerge_benchmark_writes_versioned_results() {
     check_report("automerge");
 }
 
+#[test]
+fn paged_loro_benchmark_writes_versioned_results() {
+    check_report("loro-paged");
+}
+
+#[test]
+fn sqlite_ledger_benchmark_writes_versioned_results() {
+    check_report("sqlite-ledger");
+}
+
 fn check_report(engine: &str) {
     let folder = tempfile::tempdir().unwrap();
     let output = folder.path().join("result.json");

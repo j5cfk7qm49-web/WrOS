@@ -7,19 +7,30 @@
 
 use crate::model::{Change, Edit, Model, ModelError, NodeId, OpId, Place, Snapshot};
 use crate::replica::{Checkpoint, Engine, Replica, StoreError};
-use loro::{ExportMode, LoroDoc, LoroTree, LoroValue, TreeID, TreeParentId, ValueOrContainer};
+use loro::{
+    ExportMode, LoroDoc, LoroMap, LoroTree, LoroValue, TreeID, TreeParentId, ValueOrContainer,
+};
 
 const EDITS: &str = "brain-edits-v1";
+const EDIT_PAGES: &str = "brain-edit-pages-v1";
+const EDITS_PER_PAGE: u64 = 4096;
 const OUTLINE: &str = "brain-outline-v1";
 const LOCATIONS: &str = "brain-outline-ids-v1";
 const LOGICAL_ID: &str = "logical-id";
 
-pub struct LoroStore {
+pub type LoroStore = LoroReplica<false>;
+pub type PagedLoroStore = LoroReplica<true>;
+
+pub struct LoroReplica<const PAGED: bool> {
     doc: LoroDoc,
 }
 
-impl Replica for LoroStore {
-    const ENGINE: Engine = Engine::Loro;
+impl<const PAGED: bool> Replica for LoroReplica<PAGED> {
+    const ENGINE: Engine = if PAGED {
+        Engine::LoroPaged
+    } else {
+        Engine::Loro
+    };
 
     fn new(device: u64) -> Result<Self, StoreError> {
         let doc = LoroDoc::new();
@@ -85,40 +96,85 @@ impl Replica for LoroStore {
 
     #[cfg(feature = "qualification")]
     fn edit_count(&self) -> usize {
-        self.doc.get_map(EDITS).len()
+        self.edit_maps()
+            .expect("valid fixture edit pages")
+            .iter()
+            .map(LoroMap::len)
+            .sum()
     }
 
     fn project(&self) -> Result<Snapshot, StoreError> {
-        let LoroValue::Map(records) = self.doc.get_map(EDITS).get_value() else {
-            return Err(StoreError::InvalidDocument);
-        };
         let mut model = Model::default();
-        for (key, value) in records.iter() {
-            let LoroValue::String(record) = value else {
+        for edits in self.edit_maps()? {
+            let LoroValue::Map(records) = edits.get_value() else {
                 return Err(StoreError::InvalidDocument);
             };
-            let edit: Edit = serde_json::from_str(record)?;
-            if *key != edit_key(edit.id) {
-                return Err(StoreError::InvalidDocument);
+            for (key, value) in records.iter() {
+                let LoroValue::String(record) = value else {
+                    return Err(StoreError::InvalidDocument);
+                };
+                let edit: Edit = serde_json::from_str(record)?;
+                if *key != edit_key(edit.id) {
+                    return Err(StoreError::InvalidDocument);
+                }
+                model.insert(edit)?;
             }
-            model.insert(edit)?;
         }
         Ok(model.snapshot())
     }
 }
 
-impl LoroStore {
+impl<const PAGED: bool> LoroReplica<PAGED> {
+    #[cfg(feature = "qualification")]
+    pub(crate) fn projection_stamp(&self) -> Vec<u8> {
+        let version = self.doc.oplog_vv();
+        let mut entries: Vec<_> = version.iter().collect();
+        entries.sort_unstable_by_key(|entry| *entry.0);
+        entries
+            .into_iter()
+            .flat_map(|(peer, counter)| peer.to_be_bytes().into_iter().chain(counter.to_be_bytes()))
+            .collect()
+    }
+
+    fn edit_map(&self, id: OpId) -> LoroMap {
+        if PAGED {
+            self.doc.get_map(page_name(id.clock / EDITS_PER_PAGE))
+        } else {
+            self.doc.get_map(EDITS)
+        }
+    }
+
+    fn edit_maps(&self) -> Result<Vec<LoroMap>, StoreError> {
+        if !PAGED {
+            return Ok(vec![self.doc.get_map(EDITS)]);
+        }
+        let LoroValue::Map(pages) = self.doc.get_map(EDIT_PAGES).get_value() else {
+            return Err(StoreError::InvalidDocument);
+        };
+        pages
+            .keys()
+            .map(|address| {
+                let address: u64 = address.parse().map_err(|_| StoreError::InvalidDocument)?;
+                Ok(self.doc.get_map(page_name(address)))
+            })
+            .collect()
+    }
+
     fn record(&mut self, edit: Edit) -> Result<bool, StoreError> {
         edit.validate()?;
         if edit.id.device != self.doc.peer_id() {
             return Err(StoreError::WrongDevice(edit.id));
         }
-        let edits = self.doc.get_map(EDITS);
         for &dependency in &edit.dependencies {
-            if edits.get(&edit_key(dependency)).is_none() {
+            if self
+                .edit_map(dependency)
+                .get(&edit_key(dependency))
+                .is_none()
+            {
                 return Err(StoreError::MissingDependency(dependency));
             }
         }
+        let edits = self.edit_map(edit.id);
         let key = edit_key(edit.id);
         let record = serde_json::to_string(&edit)?;
         if let Some(existing) = edits.get(&key) {
@@ -132,6 +188,11 @@ impl LoroStore {
             Change::Create { node, place } => self.create_native(node, place)?,
             Change::Move { node, place } => self.move_native(node, place)?,
             _ => {}
+        }
+        if PAGED && edits.is_empty() {
+            self.doc
+                .get_map(EDIT_PAGES)
+                .insert(&(edit.id.clock / EDITS_PER_PAGE).to_string(), true)?;
         }
         edits.insert(&key, record)?;
         Ok(true)
@@ -233,6 +294,10 @@ impl LoroStore {
             .native_id(anchor)?
             .filter(|&id| tree.parent(id) == Some(parent.into())))
     }
+}
+
+fn page_name(address: u64) -> String {
+    format!("brain-edits-page-{address}")
 }
 
 fn edit_key(id: OpId) -> String {

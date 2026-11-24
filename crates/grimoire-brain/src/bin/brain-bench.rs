@@ -4,10 +4,11 @@ use std::process::ExitCode;
 
 use grimoire_brain::automerge_store::AutomergeStore;
 use grimoire_brain::benchmark::{
-    Profile, checkpoint_worker, cold_open_worker, prepare_worker, run,
+    BenchStore, Profile, checkpoint_worker, cold_open_worker, prepare_worker, run,
 };
+use grimoire_brain::bounded_store::{PagedBrain, SqliteLedger};
 use grimoire_brain::loro_store::LoroStore;
-use grimoire_brain::replica::Replica;
+use grimoire_brain::storage::Journal;
 
 type Result = std::result::Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
@@ -30,15 +31,17 @@ fn execute() -> Result {
         let engine = args.remove(index + 1);
         args.remove(index);
         return match engine.to_str() {
-            Some("automerge") => execute_with::<AutomergeStore>(args),
-            Some("loro") => execute_with::<LoroStore>(args),
-            _ => Err("Choose the loro or automerge engine".into()),
+            Some("automerge") => execute_with::<Journal<AutomergeStore>>(args),
+            Some("loro") => execute_with::<Journal<LoroStore>>(args),
+            Some("loro-paged") => execute_with::<PagedBrain>(args),
+            Some("sqlite-ledger") => execute_with::<SqliteLedger>(args),
+            _ => Err("Choose loro, automerge, loro-paged or sqlite-ledger".into()),
         };
     }
-    execute_with::<LoroStore>(args)
+    execute_with::<Journal<LoroStore>>(args)
 }
 
-fn execute_with<S: Replica>(args: Vec<OsString>) -> Result {
+fn execute_with<S: BenchStore>(args: Vec<OsString>) -> Result {
     let mut seed = None;
     let mut profile = None;
     let mut output = None;
@@ -73,7 +76,7 @@ fn execute_with<S: Replica>(args: Vec<OsString>) -> Result {
     while let Some(flag) = args.next() {
         if flag == "--help" {
             println!(
-                "brain-bench --seed NUMBER --profile smoke|aged --output FILE [--engine loro|automerge] [--revision COMMIT]"
+                "brain-bench --seed NUMBER --profile smoke|aged --output FILE [--engine loro|automerge|loro-paged|sqlite-ledger] [--revision COMMIT]"
             );
             return Ok(());
         }

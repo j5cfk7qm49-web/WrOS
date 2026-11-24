@@ -24,6 +24,10 @@ type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 const DEVICE: u64 = 1;
 const MIB: u64 = 1024 * 1024;
 const QUERY: &str = "SELECT rowid FROM notes WHERE notes MATCH ?1 ORDER BY rank LIMIT 20";
+const BOUNDED_QUERY: &str = "WITH candidates AS MATERIALIZED (
+         SELECT rowid, rank FROM notes WHERE notes MATCH ?1 ORDER BY rowid LIMIT 128
+     )
+     SELECT rowid FROM candidates ORDER BY rank, rowid LIMIT 20";
 
 #[derive(Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -33,7 +37,7 @@ pub enum Profile {
 }
 
 #[derive(Serialize)]
-struct Workload {
+pub struct Workload {
     visible_nodes: usize,
     deleted_nodes: usize,
     accumulated_edits: u64,
@@ -146,7 +150,12 @@ struct Report<'a> {
     within_limits: bool,
 }
 
-pub fn run<S: Replica>(seed: u64, profile: Profile, revision: &str, output: &Path) -> Result<bool> {
+pub fn run<S: BenchStore>(
+    seed: u64,
+    profile: Profile,
+    revision: &str,
+    output: &Path,
+) -> Result<bool> {
     let parent = output
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
@@ -239,24 +248,23 @@ pub fn run<S: Replica>(seed: u64, profile: Profile, revision: &str, output: &Pat
 
 // Separate worker processes ensure fixture allocation and prior opens cannot
 // leave resident allocator pages in the checkpoint measurement process.
-pub fn prepare_worker<S: Replica>(seed: u64, profile: Profile, root: &Path) -> Result<()> {
+pub fn prepare_worker<S: BenchStore>(seed: u64, profile: Profile, root: &Path) -> Result<()> {
     let paths = BenchPaths::new(root);
     let workload = profile.workload();
     eprintln!("Preparing the Brain benchmark fixture");
-    let target = seed_store::<S>(&paths.store, &workload, seed)?;
+    let target = S::seed(&paths.store, &workload, seed)?;
     eprintln!("Writing the initial SQLite index and Markdown copies");
     setup_projections::<S>(&paths, &workload)?;
     fs::write(root.join("target.json"), serde_json::to_vec(&target)?)?;
     Ok(())
 }
 
-pub fn cold_open_worker<S: Replica>(root: &Path) -> Result<()> {
+pub fn cold_open_worker<S: BenchStore>(root: &Path) -> Result<()> {
     let target: FixtureNote = serde_json::from_slice(&fs::read(root.join("target.json"))?)?;
     let paths = BenchPaths::new(root);
     let start = Instant::now();
-    let disk = Journal::<S>::open(&paths.store, DEVICE)?;
-    let projection = disk.project()?;
-    first_note(&projection, target.node)?;
+    let mut disk = S::open(&paths.store)?;
+    disk.note(target.node)?;
     let elapsed = start.elapsed();
     let record = ColdOpen {
         elapsed,
@@ -266,9 +274,9 @@ pub fn cold_open_worker<S: Replica>(root: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn checkpoint_worker<S: Replica>(root: &Path) -> Result<()> {
+pub fn checkpoint_worker<S: BenchStore>(root: &Path) -> Result<()> {
     let paths = BenchPaths::new(root);
-    let mut disk = Journal::<S>::open(&paths.store, DEVICE)?;
+    let mut disk = S::open(&paths.store)?;
     let record = measure_checkpoint(&mut disk, &paths)?;
     serde_json::to_writer(io::stdout().lock(), &record)?;
     Ok(())
@@ -325,7 +333,7 @@ impl BenchPaths {
 }
 
 #[derive(Clone, Copy, Deserialize, Serialize)]
-struct FixtureNote {
+pub struct FixtureNote {
     node: NodeId,
     token: OpId,
     last_text: OpId,
@@ -333,13 +341,13 @@ struct FixtureNote {
     last_tag: Option<OpId>,
 }
 
-struct Fixture<S: Replica> {
+struct Fixture<S> {
     store: S,
     clock: u64,
     random: u64,
 }
 
-impl<S: Replica> Fixture<S> {
+impl<S: FixtureSink> Fixture<S> {
     fn next_random(&mut self) -> u64 {
         // SplitMix64, including a valid sequence for seed zero.
         self.random = self.random.wrapping_add(0x9e3779b97f4a7c15);
@@ -353,7 +361,7 @@ impl<S: Replica> Fixture<S> {
         let edit = make_edit(self.clock, change, extra);
         self.clock += 1;
         let id = edit.id;
-        self.store.record_fixture_edit(edit)?;
+        self.store.record_edit(edit)?;
         Ok(id)
     }
 }
@@ -373,9 +381,55 @@ fn make_edit(previous: u64, change: Change, extra: Option<OpId>) -> Edit {
     }
 }
 
-fn seed_store<S: Replica>(root: &Path, workload: &Workload, seed: u64) -> Result<FixtureNote> {
+fn seed_replica<S: Replica>(root: &Path, workload: &Workload, seed: u64) -> Result<FixtureNote> {
+    let mut store = S::new(DEVICE)?;
+    let target = populate_fixture(&mut store, workload, seed)?;
+    assert_eq!(store.edit_count() as u64, workload.accumulated_edits);
+    let checkpoint = store.checkpoint()?;
+    drop(store);
+    let mut disk = Journal::<S>::open(root, DEVICE)?;
+    disk.import(&checkpoint.snapshot)?;
+    drop(checkpoint);
+    // Leave a normal pair of usable generations with no setup journal.
+    disk.checkpoint()?;
+    disk.checkpoint()?;
+    Ok(target)
+}
+
+trait FixtureSink {
+    fn record_edit(&mut self, edit: Edit) -> Result<()>;
+    fn record_review(&mut self, review: String, event: u64) -> Result<()>;
+}
+
+impl<S: Replica> FixtureSink for &mut S {
+    fn record_edit(&mut self, edit: Edit) -> Result<()> {
+        Ok(self.record_fixture_edit(edit)?)
+    }
+
+    fn record_review(&mut self, review: String, event: u64) -> Result<()> {
+        Ok(self.record_fixture_review(review, event)?)
+    }
+}
+
+struct LedgerSeed<'a>(&'a Connection);
+
+impl FixtureSink for LedgerSeed<'_> {
+    fn record_edit(&mut self, edit: Edit) -> Result<()> {
+        SqliteLedger::seed_edit(self.0, &edit)
+    }
+
+    fn record_review(&mut self, review: String, event: u64) -> Result<()> {
+        SqliteLedger::seed_review(self.0, event, &review)
+    }
+}
+
+fn populate_fixture(
+    store: impl FixtureSink,
+    workload: &Workload,
+    seed: u64,
+) -> Result<FixtureNote> {
     let mut fixture = Fixture {
-        store: S::new(DEVICE)?,
+        store,
         clock: 0,
         random: seed,
     };
@@ -468,7 +522,7 @@ fn seed_store<S: Replica>(root: &Path, workload: &Workload, seed: u64) -> Result
         }
     }
     for event in 0..workload.review_events {
-        fixture.store.record_fixture_review(
+        fixture.store.record_review(
             format!(
                 r#"{{"event":{event},"card":{},"grade":{},"day":{}}}"#,
                 event % workload.visible_nodes as u64,
@@ -478,18 +532,6 @@ fn seed_store<S: Replica>(root: &Path, workload: &Workload, seed: u64) -> Result
             event,
         )?;
     }
-    assert_eq!(
-        fixture.store.edit_count() as u64,
-        workload.accumulated_edits
-    );
-    let checkpoint = fixture.store.checkpoint()?;
-    drop(fixture);
-    let mut disk = Journal::<S>::open(root, DEVICE)?;
-    disk.import(&checkpoint.snapshot)?;
-    drop(checkpoint);
-    // Leave a normal pair of usable generations with no setup journal.
-    disk.checkpoint()?;
-    disk.checkpoint()?;
     Ok(notes[0])
 }
 
@@ -501,8 +543,11 @@ fn fixture_text(salt: u64) -> String {
     text
 }
 
-fn setup_projections<S: Replica>(paths: &BenchPaths, workload: &Workload) -> Result<()> {
-    let view = Journal::<S>::open(&paths.store, DEVICE)?.project()?;
+fn setup_projections<S: BenchStore>(paths: &BenchPaths, workload: &Workload) -> Result<()> {
+    let mut disk = S::open(&paths.store)?;
+    let view = disk.project()?;
+    disk.prime_view(&view)?;
+    drop(disk);
     fs::create_dir(&paths.readable)?;
     let mut connection = Connection::open(&paths.index)?;
     connection
@@ -599,7 +644,7 @@ struct Sample {
     checkpoint_size: u64,
 }
 
-fn sample_workload<S: Replica>(
+fn sample_workload<S: BenchStore>(
     root: &Path,
     paths: &BenchPaths,
     workload: &Workload,
@@ -619,16 +664,20 @@ fn sample_workload<S: Replica>(
             );
         }
     }
-    let mut disk = Journal::<S>::open(&paths.store, DEVICE)?;
+    let mut disk = S::open(&paths.store)?;
     let store_open_rss = proc_kib("/proc/self/status", "VmRSS:")?;
-    let mut line = first_note(&disk.project()?, target.node)?;
+    let mut line = disk.note(target.node)?;
     let first_projection_rss = proc_kib("/proc/self/status", "VmRSS:")?;
-    let initial_journal = directory_bytes(&paths.store.join("journal"))?;
+    let initial_journal = disk.journal_bytes(&paths.store)?;
     let mut edits = Vec::new();
     let mut searches = Vec::new();
     let search = Connection::open(&paths.index)?;
     search.busy_timeout(Duration::from_secs(2))?;
-    let mut query = search.prepare_cached(QUERY)?;
+    let mut query = search.prepare_cached(if S::PERSISTED_VIEW {
+        BOUNDED_QUERY
+    } else {
+        QUERY
+    })?;
     let initial_writes = proc_value("/proc/self/io", "write_bytes:")?;
     for i in 0..workload.latency_samples {
         let start = Instant::now();
@@ -650,8 +699,17 @@ fn sample_workload<S: Replica>(
             },
             Some(previous_text),
         ))?;
-        // Construct the line that would be handed to the foreground writer.
-        std::hint::black_box(format!("{}\n", line));
+        // Read the updated production-facing view for the bounded stores.
+        let display = if S::PERSISTED_VIEW {
+            let saved = disk.note(target.node)?;
+            if saved != line {
+                return Err("The persisted Brain view did not show the saved edit".into());
+            }
+            saved
+        } else {
+            line.clone()
+        };
+        std::hint::black_box(format!("{}\n", display));
         edits.push(start.elapsed());
 
         let start = Instant::now();
@@ -668,7 +726,7 @@ fn sample_workload<S: Replica>(
     }
     let edit_process_writes =
         proc_value("/proc/self/io", "write_bytes:")?.saturating_sub(initial_writes);
-    let journal = directory_bytes(&paths.store.join("journal"))?;
+    let journal = disk.journal_bytes(&paths.store)?;
     let new_bytes = journal.saturating_sub(initial_journal);
     let checkpoint = measure_checkpoint(&mut disk, paths)?;
     let checkpoint_size = checkpoint_size(&paths.store)?;
@@ -711,10 +769,7 @@ struct CheckpointSample {
     peak_wal: u64,
 }
 
-fn measure_checkpoint<S: Replica>(
-    disk: &mut Journal<S>,
-    paths: &BenchPaths,
-) -> Result<CheckpointSample> {
+fn measure_checkpoint(disk: &mut impl BenchStore, paths: &BenchPaths) -> Result<CheckpointSample> {
     let baseline = directory_bytes(&paths.store)?;
     let rss_before = proc_kib("/proc/self/status", "VmRSS:")?;
     let wal = paths.index.with_file_name("search.sqlite-wal");
@@ -746,6 +801,117 @@ fn measure_checkpoint<S: Replica>(
         saved?;
         sample.join().map_err(|_| "Checkpoint sampler panicked")?
     })
+}
+
+pub trait BenchStore: Sized {
+    const ENGINE: Engine;
+    const PERSISTED_VIEW: bool = false;
+    fn open(root: &Path) -> Result<Self>;
+    fn seed(root: &Path, workload: &Workload, seed: u64) -> Result<FixtureNote>;
+    fn project(&self) -> Result<Snapshot>;
+    fn prime_view(&mut self, _snapshot: &Snapshot) -> Result<()> {
+        Ok(())
+    }
+    fn note(&mut self, node: NodeId) -> Result<String> {
+        first_note(&self.project()?, node)
+    }
+    fn append(&mut self, edit: Edit) -> Result<()>;
+    fn checkpoint(&mut self) -> Result<()>;
+    fn journal_bytes(&self, root: &Path) -> io::Result<u64>;
+}
+
+impl<S: Replica> BenchStore for Journal<S> {
+    const ENGINE: Engine = S::ENGINE;
+    fn open(root: &Path) -> Result<Self> {
+        Ok(Self::open(root, DEVICE)?)
+    }
+    fn seed(root: &Path, workload: &Workload, seed: u64) -> Result<FixtureNote> {
+        seed_replica::<S>(root, workload, seed)
+    }
+    fn project(&self) -> Result<Snapshot> {
+        Ok(self.project()?)
+    }
+    fn append(&mut self, edit: Edit) -> Result<()> {
+        self.append(edit)?;
+        Ok(())
+    }
+    fn checkpoint(&mut self) -> Result<()> {
+        Ok(self.checkpoint()?)
+    }
+    fn journal_bytes(&self, root: &Path) -> io::Result<u64> {
+        directory_bytes(&root.join("journal"))
+    }
+}
+
+impl BenchStore for PagedBrain {
+    const ENGINE: Engine = Engine::LoroPaged;
+    const PERSISTED_VIEW: bool = true;
+    fn open(root: &Path) -> Result<Self> {
+        Self::open(root, DEVICE)
+    }
+    fn seed(root: &Path, workload: &Workload, seed: u64) -> Result<FixtureNote> {
+        seed_replica::<PagedLoroStore>(root, workload, seed)
+    }
+    fn project(&self) -> Result<Snapshot> {
+        self.project()
+    }
+    fn prime_view(&mut self, snapshot: &Snapshot) -> Result<()> {
+        self.prime_view(snapshot)
+    }
+    fn note(&mut self, node: NodeId) -> Result<String> {
+        self.note(node)?
+            .ok_or_else(|| "The first benchmark note is missing".into())
+    }
+    fn append(&mut self, edit: Edit) -> Result<()> {
+        self.append(edit)?;
+        Ok(())
+    }
+    fn checkpoint(&mut self) -> Result<()> {
+        self.checkpoint()
+    }
+    fn journal_bytes(&self, root: &Path) -> io::Result<u64> {
+        Ok(directory_bytes(&root.join("journal"))? + optional_bytes(&self.wal_path())?)
+    }
+}
+
+impl BenchStore for SqliteLedger {
+    const ENGINE: Engine = Engine::SqliteLedger;
+    const PERSISTED_VIEW: bool = true;
+    fn open(root: &Path) -> Result<Self> {
+        Self::open(root, DEVICE)
+    }
+    fn seed(root: &Path, workload: &Workload, seed: u64) -> Result<FixtureNote> {
+        let mut disk = Self::open(root, DEVICE)?;
+        let transaction = disk.seed_transaction()?;
+        let target = populate_fixture(LedgerSeed(&transaction), workload, seed)?;
+        let rows: i64 =
+            transaction.query_row("SELECT count(*) FROM operations", [], |row| row.get(0))?;
+        assert_eq!(u64::try_from(rows)?, workload.accumulated_edits);
+        transaction.commit()?;
+        Ok(target)
+    }
+    fn project(&self) -> Result<Snapshot> {
+        self.project()
+    }
+    fn prime_view(&mut self, snapshot: &Snapshot) -> Result<()> {
+        self.prime_view(snapshot)?;
+        self.checkpoint()?;
+        self.checkpoint()
+    }
+    fn note(&mut self, node: NodeId) -> Result<String> {
+        self.note(node)?
+            .ok_or_else(|| "The first benchmark note is missing".into())
+    }
+    fn append(&mut self, edit: Edit) -> Result<()> {
+        self.append(edit)?;
+        Ok(())
+    }
+    fn checkpoint(&mut self) -> Result<()> {
+        self.checkpoint()
+    }
+    fn journal_bytes(&self, _root: &Path) -> io::Result<u64> {
+        optional_bytes(&self.wal_path())
+    }
 }
 
 fn checkpoint_size(root: &Path) -> io::Result<u64> {
@@ -833,3 +999,5 @@ fn machine() -> Result<Machine> {
         cgroup_memory_limit: limit,
     })
 }
+use crate::bounded_store::{PagedBrain, SqliteLedger};
+use crate::loro_store::PagedLoroStore;

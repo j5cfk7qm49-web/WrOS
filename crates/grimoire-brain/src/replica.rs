@@ -11,6 +11,10 @@ pub enum Engine {
     #[default]
     Loro,
     Automerge,
+    #[serde(rename = "loro-paged")]
+    LoroPaged,
+    #[serde(rename = "sqlite-ledger")]
+    SqliteLedger,
 }
 
 impl Engine {
@@ -18,6 +22,8 @@ impl Engine {
         match self {
             Self::Loro => "loro",
             Self::Automerge => "automerge",
+            Self::LoroPaged => "loro-paged",
+            Self::SqliteLedger => "sqlite-ledger",
         }
     }
 }

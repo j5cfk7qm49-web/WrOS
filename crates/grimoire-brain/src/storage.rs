@@ -75,6 +75,11 @@ pub struct Journal<S: Replica> {
 }
 
 impl<S: Replica> Journal<S> {
+    #[cfg(feature = "qualification")]
+    pub(crate) fn replica(&self) -> &S {
+        &self.store
+    }
+
     pub fn open(root: &Path, device: u64) -> Result<Self, StorageError> {
         fs::create_dir_all(root)?;
         if let Some(parent) = root.parent().filter(|path| !path.as_os_str().is_empty()) {
@@ -232,7 +237,7 @@ impl<S: Replica> Journal<S> {
         Ok(())
     }
 
-    fn require_healthy(&self) -> Result<(), StorageError> {
+    pub(crate) fn require_healthy(&self) -> Result<(), StorageError> {
         if self.failed {
             return Err(StorageError::ReopenRequired);
         }

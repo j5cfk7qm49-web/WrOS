@@ -392,6 +392,22 @@ impl Snapshot {
         Some(text)
     }
 
+    /// Fast replacement is valid only when the complete visible body has one
+    /// live token with one causal winner.
+    #[cfg(feature = "qualification")]
+    pub(crate) fn single_text_winner(&self, node: NodeId) -> Option<(OpId, OpId)> {
+        let note = self.nodes.get(&node)?;
+        let mut live = note.text.iter().filter(|id| self.tokens[id].present);
+        let token = *live.next()?;
+        if live.next().is_some() {
+            return None;
+        }
+        match self.tokens[&token].text.0.as_slice() {
+            [(winner, _)] => Some((token, *winner)),
+            _ => None,
+        }
+    }
+
     pub fn recoverable_text(&self, token: OpId) -> Option<&str> {
         self.tokens.get(&token)?.text.winner().map(String::as_str)
     }
