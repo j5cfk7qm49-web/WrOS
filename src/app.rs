@@ -2480,12 +2480,13 @@ impl App {
                 self.start_delete();
             }
             Action::History => self.open_history(),
+            Action::Save if self.desk_view == brain::DeskView::Review => {}
             Action::Save if self.brain_accepts_input() => {
                 self.save_brain();
             }
             Action::Save => self.save(),
             Action::Undo | Action::Redo if self.brain_accepts_input() => {
-                self.brain.edit_history(action == Action::Redo);
+                self.undo_brain_input(action == Action::Redo);
             }
             Action::Paste if self.brain_accepts_input() => {
                 self.paste_brain(&self.clipboard_text());
@@ -5437,6 +5438,9 @@ impl App {
             self.brain.click(x, y);
             return;
         }
+        if self.desk_view == brain::DeskView::Review && self.overlay == Overlay::None {
+            return;
+        }
         if self.overlay == Overlay::None {
             let beside = hit(self.brain.side_area, x, y);
             self.brain.select_side(beside);
@@ -5686,7 +5690,7 @@ impl App {
             return;
         }
         if self.overlay == Overlay::None
-            && (self.desk_view == brain::DeskView::Brain || hit(self.brain.side_area, x, y))
+            && (self.desk_view != brain::DeskView::Write || hit(self.brain.side_area, x, y))
         {
             if self.desk_view == brain::DeskView::Write {
                 self.brain.select_side(true);

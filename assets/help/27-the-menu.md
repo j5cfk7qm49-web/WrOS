@@ -34,6 +34,7 @@ The mouse works everywhere on the bar: click a menu to open it, move across the 
 ## View
 
 - **Write** (`Super+1`) returns to the manuscript. **Brain** (`Super+3`) opens your personal outline. Both are also available in **Find anything**. Brain shows the view bar above its outline.
+- **Review cards** (`Super+4`) opens cards made in Brain notes. Press Enter to reveal an answer, then choose a grade from 0 to 5. Press F for a tag or saved search. The view bar shows how many cards are due.
 - Brain opens to **Today**. Press `N` to add a note, `Enter` to edit or save, and `Esc` to cancel an edit. Use `↑` and `↓` to choose a note, `→` to open its children, and `←` to go back. `P` shows named pages, where `N` adds a page. `T` returns to Today.
 - **Brain beside Write** opens the notes tagged for this project. A note created in that list receives the project tag. Press `Esc` outside an edit to return to the manuscript, or select Write from the view bar. You can also click either pane.
 - Press `I` for a note's details, including its tags, fields and links. `@` adds a link by title, `O` opens linked notes, and `B` opens backlinks. Press `#` to tag a note. Use a built-in name like `book` or the title of a named page.
@@ -42,7 +43,7 @@ The mouse works everywhere on the bar: click a menu to open it, move across the 
 - **Focus mode** (`Ctrl-D`): everything but the page goes away. `Ctrl-D` again brings it all back.
 - **Show the outline** / **Hide the outline**: the outline column, without entering focus mode. It has no key of its own unless you give it one in Settings › Look and keyboard › Keyboard.
 - **Show the pins sidebar** / **Hide the pins sidebar**. See *Pins*.
-- **Open a scene beside…** (`v`) and **Look up the name here** (`Ctrl-O`).
+- **Open a scene beside…** (`v`).
 - **Show the second pane** (`F11`) and **Choose second document…**: a second document you can edit beside the first.
 - **Corkboard…** (`b` in the outline): every scene as an index card. See *The corkboard*.
 - **Themes…** (`F9`) and **Workspaces…**.
@@ -65,7 +66,7 @@ The mouse works everywhere on the bar: click a menu to open it, move across the 
 - **Music player…** (`F7`): while music is on.
 - **Dictionary and thesaurus…** and **Writing checks…**.
 - **Revision ›**: Notes and TKs (`Ctrl-T`), the next TK or note, the next scene still in draft, echo words, Check names, the footnote navigator, the continuity tracker, draft milestones, revision notes and the prose and revision dashboard.
-- **Notes ›**: the Pinboard, Pin this document, the writing journal, the scratchpad and the session handoff.
+- **Notes ›**: Look up the name here (`Ctrl-O`), the Pinboard, Pin this document, the writing journal, the scratchpad and the session handoff.
 - **Progress ›** holds Progress (the project's word count and pace), Goals, Calendar, Sprints, Edits, Collection, Challenges and Story Spark.
 
 ## Settings

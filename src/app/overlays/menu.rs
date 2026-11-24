@@ -332,6 +332,10 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
         Action::SwitchDeskView(crate::app::brain::DeskView::Brain) => {
             ("Opens Brain and its Today outline.", "wros")
         }
+        Action::SwitchDeskView(crate::app::brain::DeskView::Review) => (
+            "Reveals answers and records grades for cards from Brain.",
+            "keys",
+        ),
         Action::Scratchpad => (
             "Original Notes linked to scenes; explicit independent promotion keeps the original.",
             "scratchpad",

@@ -176,6 +176,11 @@ impl App {
                     BarRow::new("Write", "Super+1", Action::SwitchDeskView(DeskView::Write)),
                     BarRow::new("Brain", "Super+3", Action::SwitchDeskView(DeskView::Brain)),
                     BarRow::new(
+                        "Review cards",
+                        "Super+4",
+                        Action::SwitchDeskView(DeskView::Review),
+                    ),
+                    BarRow::new(
                         if self.brain.side_visible && self.desk_view == DeskView::Write {
                             "Hide Brain beside Write"
                         } else {
@@ -185,7 +190,7 @@ impl App {
                         Action::BrainBeside,
                     ),
                 ];
-                if self.desk_view == DeskView::Brain {
+                if self.desk_view != DeskView::Write {
                     return desk_views
                         .into_iter()
                         .chain([
@@ -229,11 +234,6 @@ impl App {
                         "Open a scene beside…",
                         "v",
                         Action::BesidePicker,
-                    ));
-                    rows.push(BarRow::new(
-                        "Look up the name here",
-                        format!("{m}O"),
-                        Action::OpenCodex,
                     ));
                 }
                 rows.extend([
@@ -425,6 +425,8 @@ impl App {
                     "",
                     Action::ProjectSourcesConflict,
                 ),
+                BarRow::new("Look up the name here", format!("{m}O"), Action::OpenCodex)
+                    .dim_unless(writing, WRITE_FIRST),
             ],
             Side::Practice => vec![
                 BarRow::new("Progress…", "", Action::Progress),

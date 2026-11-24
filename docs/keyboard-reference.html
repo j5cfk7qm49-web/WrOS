@@ -1,6 +1,6 @@
 <!doctype html><html lang="en"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="source-sha256" content="b57f57dbdc0893e5a09d2b3f75912b4e9497d0d890e7ff8c09f0a1f5f81bd8d8">
+<meta name="source-sha256" content="9ca4cbff1da904677bb17aa5f4d60b466778d457ba791466d3ada9812f5e14a4">
 <title>WrOS — printable keyboard reference</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#edece7;color:#242923;font:14px/1.4 system-ui,sans-serif}main{max-width:1000px;margin:28px auto;padding:32px 40px;background:#fff;border-top:8px solid #365b47}h1{font-size:32px;margin:0}header p{color:#586258;margin:6px 0 18px}.badge{font:700 11px system-ui;letter-spacing:.12em;color:#365b47}aside{padding:12px 15px;background:#edf3ee;border:1px solid #cfdbd1;margin:20px 0}.keys{columns:2;column-gap:32px}h2{font-size:16px;margin:18px 0 5px;break-after:avoid}p{margin:7px 0}table{border-collapse:collapse;width:100%;font-size:12px}tr{break-inside:avoid}td{border-bottom:1px solid #ddd;padding:4px 3px;vertical-align:top}td:first-child{width:34%}tr:first-child{font-weight:bold}kbd{font:inherit;font-weight:600}footer{border-top:1px solid #ddd;padding-top:12px;margin-top:20px;font-size:11px;color:#555}@media(max-width:680px){main{margin:0;padding:20px}.keys{columns:1}}@media print{@page{margin:12mm}body{background:white;font-size:10pt}main{margin:0;padding:0;max-width:none;border:0}h1{font-size:24pt}.keys{columns:2;column-gap:7mm}aside{background:white;margin:10px 0}table{font-size:8pt}h2{font-size:11pt}td{padding:2px}footer{font-size:8pt}header p{margin-bottom:8px}}
@@ -19,6 +19,7 @@
 <tr><td><kbd>Super</kbd> tap</td><td>open Find anything beneath the menu bar</td></tr>
 <tr><td><kbd>Super+1</kbd></td><td>switch to Write</td></tr>
 <tr><td><kbd>Super+3</kbd></td><td>switch to Brain</td></tr>
+<tr><td><kbd>Super+4</kbd></td><td>open Review cards</td></tr>
 <tr><td><kbd>Tab</kbd></td><td>the next pane; <kbd>Shift-Tab</kbd> the one before</td></tr>
 <tr><td><kbd>Ctrl-S</kbd></td><td>save now (autosave already does)</td></tr>
 <tr><td><kbd>Ctrl-Q</kbd></td><td>quit in a desktop session; installed WrOS keeps the writing app open</td></tr>
@@ -60,6 +61,20 @@
 <p>and Shift-Up or Shift-Down to change its order. Press I to see a note&#x27;s fields and</p>
 <p>links. F edits a field and G defines one on a tag. Type <kbd>book / ISBN = text</kbd> to</p>
 <p>set a field&#x27;s type, or <kbd>book / ISBN -&gt; Book number = text</kbd> to rename it.</p>
+<h2>Review cards</h2>
+<p>In Brain, write <kbd>front :: back</kbd> for a card or <kbd>front ::: back</kbd> for a</p>
+<p>card in each direction. Put <kbd>{{words}}</kbd> around text you want hidden in</p>
+<p>a sentence. For an answer on several lines, write <kbd>front ::</kbd> and put</p>
+<p>each answer line in a child note.</p>
+<table>
+<tr><td>Key</td><td>Does</td></tr>
+<tr><td><kbd>Enter</kbd> or <kbd>Space</kbd></td><td>reveal the answer</td></tr>
+<tr><td><kbd>0</kbd> through <kbd>5</kbd></td><td>grade how well you remembered the answer</td></tr>
+<tr><td><kbd>F</kbd></td><td>filter by <kbd>#tag</kbd> or saved search title. Enter an empty filter for all cards</td></tr>
+<tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>scroll long cards</td></tr>
+<tr><td><kbd>R</kbd></td><td>check for cards that have come due</td></tr>
+<tr><td><kbd>Esc</kbd></td><td>cancel the filter or open the menu</td></tr>
+</table>
 <h2>The outline</h2>
 <table>
 <tr><td>Key</td><td>Does</td></tr>

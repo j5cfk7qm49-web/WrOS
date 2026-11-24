@@ -286,6 +286,11 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
     let part = app.project.meta.part_noun();
     let mut v = vec![
         Entry::new("Brain", "Super+3", Action::SwitchDeskView(DeskView::Brain)),
+        Entry::new(
+            "Review cards",
+            "Super+4",
+            Action::SwitchDeskView(DeskView::Review),
+        ),
         Entry::new("Brain beside Write", "", Action::BrainBeside),
         Entry::new("WrOS settings", "", Action::Settings),
         Entry::new("System settings", "", Action::SystemSettings),
@@ -484,7 +489,7 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("Compile manuscript (Markdown)", "", Action::Compile),
         Entry::new("Themes", "F9", Action::Themes),
     ];
-    if app.desk_view == DeskView::Brain {
+    if app.desk_view != DeskView::Write {
         v.insert(
             0,
             Entry::new("Write", "Super+1", Action::SwitchDeskView(DeskView::Write)),

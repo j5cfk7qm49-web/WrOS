@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use chrono::{Local, NaiveDate};
 use grimoire_brain::bounded_store::{OutlineRow, PagedBrain};
 use grimoire_brain::model::{NodeId, Place};
+use grimoire_brain::review::looks_like_card;
 use grimoire_brain::schema::SavedQuery;
 use grimoire_core::editor::Editor;
 use ratatui::Frame;
@@ -18,6 +19,7 @@ use super::{App, Overlay};
 use crate::theme::Theme;
 
 mod commands;
+pub(crate) mod review;
 use commands::Command;
 
 const PAGE_SIZE: u16 = 32;
@@ -52,6 +54,7 @@ impl DeskView {
 #[derive(Default)]
 pub struct BrainDesk {
     store: Option<PagedBrain>,
+    review: review::ReviewDesk,
     outline: Option<Outline>,
     other_outline: Option<Outline>,
     active_side: bool,
@@ -143,14 +146,7 @@ impl BrainDesk {
         self.paths = Some((library, cache));
     }
 
-    fn open_today(&mut self, date: NaiveDate) -> anyhow::Result<()> {
-        if self
-            .outline
-            .as_ref()
-            .is_some_and(|outline| outline.date == date || outline.draft.is_some())
-        {
-            return Ok(());
-        }
+    fn open_store(&mut self) -> anyhow::Result<&mut PagedBrain> {
         if self.store.is_none() {
             let (library, cache) = self.paths.clone().unwrap_or_else(|| {
                 let home = crate::home();
@@ -164,7 +160,24 @@ impl BrainDesk {
             self.store =
                 Some(PagedBrain::open_library(&library, &cache).map_err(anyhow::Error::msg)?);
         }
-        let store = self.store.as_mut().expect("Brain store was opened");
+        Ok(self.store.as_mut().expect("Brain store was opened"))
+    }
+
+    fn refresh_review(&mut self) -> anyhow::Result<()> {
+        self.open_store()?;
+        self.review
+            .refresh(self.store.as_mut().expect("Brain store was opened"))
+    }
+
+    fn open_today(&mut self, date: NaiveDate) -> anyhow::Result<()> {
+        if self
+            .outline
+            .as_ref()
+            .is_some_and(|outline| outline.date == date || outline.draft.is_some())
+        {
+            return Ok(());
+        }
+        let store = self.open_store()?;
         let today = store.ensure_today(date).map_err(anyhow::Error::msg)?;
         let location = Location::new(Some(today), "Today".into());
         let (rows, has_more) = page(store, &location)?;
@@ -227,6 +240,14 @@ impl BrainDesk {
             return Ok(false);
         };
         let body = draft.editor.text();
+        let affects_review = looks_like_card(&body)
+            || looks_like_card(&outline.location.title)
+            || draft.node.is_some_and(|node| {
+                outline
+                    .rows
+                    .iter()
+                    .any(|row| row.id == node && looks_like_card(&row.body))
+            });
         if draft.node.is_none() && body.trim().is_empty() {
             outline.draft = None;
             return Ok(false);
@@ -254,6 +275,10 @@ impl BrainDesk {
             outline.location.selected = index;
         } else if outline.has_more {
             outline.step(store, true)?;
+        }
+        if affects_review {
+            // A busy cache can retry the count on the next view change.
+            let _ = self.review.refresh(store);
         }
         Ok(true)
     }
@@ -610,7 +635,7 @@ fn note_title(body: &str) -> &str {
 
 impl App {
     pub fn brain_accepts_input(&self) -> bool {
-        self.desk_view == DeskView::Brain || self.brain.active_side
+        self.desk_view != DeskView::Write || self.brain.active_side
     }
 
     pub fn toggle_brain_beside(&mut self) {
@@ -677,11 +702,7 @@ impl App {
                 self.msg = "Library is planned for RC27".into();
                 return;
             }
-            DeskView::Review => {
-                self.msg = "Review is planned for RC26".into();
-                return;
-            }
-            DeskView::Write | DeskView::Brain => {}
+            DeskView::Write | DeskView::Brain | DeskView::Review => {}
         }
         self.brain.select_side(false);
         if view == self.desk_view {
@@ -693,16 +714,40 @@ impl App {
             self.msg = format!("Could not open Brain · {error}");
             return;
         }
+        if matches!(view, DeskView::Brain | DeskView::Review)
+            && let Err(error) = self.brain.refresh_review()
+        {
+            self.msg = format!("Could not open Review cards · {error}");
+            if view == DeskView::Review {
+                return;
+            }
+        }
         self.tree_drag = None;
         self.desk_view = view;
         self.msg.clear();
     }
 
     pub fn paste_brain(&mut self, text: &str) {
-        self.brain.paste(text);
+        if self.desk_view == DeskView::Review {
+            self.brain.review.paste(text);
+        } else {
+            self.brain.paste(text);
+        }
+    }
+
+    pub(super) fn undo_brain_input(&mut self, redo: bool) {
+        if self.desk_view == DeskView::Review {
+            self.brain.review.edit_history(redo);
+        } else {
+            self.brain.edit_history(redo);
+        }
     }
 
     pub(super) fn scroll_brain(&mut self, down: bool) {
+        if self.desk_view == DeskView::Review {
+            self.brain.review.scroll(down);
+            return;
+        }
         if let Err(error) = self.brain.scroll(down) {
             self.msg = format!("Could not open Brain notes · {error}");
         }
@@ -735,6 +780,10 @@ impl App {
     }
 
     pub fn on_brain_key(&mut self, key: KeyEvent) {
+        if self.desk_view == DeskView::Review {
+            self.on_review_card_key(key);
+            return;
+        }
         if self
             .brain
             .outline
@@ -830,7 +879,12 @@ pub(crate) fn draw_view_bar(f: &mut Frame, app: &mut App, area: Rect, theme: &Th
     }
     let mut x = area.x;
     for view in DeskView::ALL {
-        let width = view.label().len() as u16 + 2;
+        let label = if view == DeskView::Review {
+            format!("Review {}", app.brain.review.all_due)
+        } else {
+            view.label().into()
+        };
+        let width = label.len() as u16 + 2;
         if x + width > area.right() {
             break;
         }
@@ -840,12 +894,12 @@ pub(crate) fn draw_view_bar(f: &mut Frame, app: &mut App, area: Rect, theme: &Th
                 .fg(theme.accent)
                 .bg(theme.sel)
                 .add_modifier(Modifier::BOLD)
-        } else if matches!(view, DeskView::Write | DeskView::Brain) {
+        } else if view != DeskView::Library {
             Style::default().fg(theme.text)
         } else {
             Style::default().fg(theme.dim)
         };
-        f.render_widget(Line::styled(format!(" {} ", view.label()), style), rect);
+        f.render_widget(Line::styled(format!(" {label} "), style), rect);
         app.brain.view_hits.push((rect, view));
         x += width;
         if x < area.right() && view != DeskView::Review {

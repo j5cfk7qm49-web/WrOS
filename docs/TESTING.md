@@ -1,5 +1,15 @@
 # Testing and verification
 
+## RC26 Review cards
+
+Run the card syntax, identity, grading, clock and rebuild checks in the pinned
+development shell. The desk tests drive the actual menu and keyboard routes.
+
+~~~sh
+cargo test -p grimoire-brain --features qualification --locked
+cargo test -p grimoire-tui --no-default-features --locked --bin grimoire review
+~~~
+
 ## RC25 Brain storage
 
 Run the focused Brain tests and build the benchmark on the pinned Nix toolchain.

@@ -45,11 +45,12 @@ pub fn draw(
     // The menu bar takes the top line, except in focus mode, where it only
     // shows while a menu is up.
     app.bar_hits.borrow_mut().clear();
-    let brain_open = app.desk_view == crate::app::brain::DeskView::Brain;
-    let bar_line = brain_open || !app.focus_mode;
+    use crate::app::brain::DeskView;
+    let nonwriting_view = app.desk_view != DeskView::Write;
+    let bar_line = nonwriting_view || !app.focus_mode;
     let [bar, view_bar, main, status] = Layout::vertical([
         Constraint::Length(u16::from(bar_line)),
-        Constraint::Length(u16::from(brain_open)),
+        Constraint::Length(u16::from(nonwriting_view)),
         Constraint::Min(3),
         Constraint::Length(1),
     ])
@@ -60,10 +61,14 @@ pub fn draw(
     app.brain.side_area = Rect::default();
     crate::app::brain::draw_view_bar(f, app, view_bar, &t);
 
-    if brain_open {
+    if nonwriting_view {
         app.rect_tree = Rect::default();
         app.create_hits.clear();
-        crate::app::brain::draw(f, app, main, &t, false);
+        match app.desk_view {
+            DeskView::Brain => crate::app::brain::draw(f, app, main, &t, false),
+            DeskView::Review => crate::app::brain::review::draw(f, app, main, &t),
+            _ => {}
+        }
     } else {
         draw_write(f, app, main, &t);
     }
@@ -1196,7 +1201,9 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Span::styled(format!("  today {today_text}"), style)
     };
 
-    let mut spans = if app.desk_view == crate::app::brain::DeskView::Brain {
+    let mut spans = if app.desk_view == crate::app::brain::DeskView::Review {
+        vec![Span::styled(" Review cards", Style::default().fg(t.dim))]
+    } else if app.desk_view == crate::app::brain::DeskView::Brain {
         vec![Span::styled(" Brain", Style::default().fg(t.dim))]
     } else if app.focus_mode {
         let (title, words) = app.open.map_or((String::new(), 0), |i| {

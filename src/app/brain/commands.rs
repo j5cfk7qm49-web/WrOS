@@ -150,7 +150,7 @@ pub(super) fn find_tag(store: &mut PagedBrain, text: &str) -> anyhow::Result<Nod
     find_note(store, text)
 }
 
-fn find_note(store: &mut PagedBrain, text: &str) -> anyhow::Result<NodeId> {
+pub(super) fn find_note(store: &mut PagedBrain, text: &str) -> anyhow::Result<NodeId> {
     let text = text.trim();
     if let Ok(id) = text.parse() {
         return Ok(id);

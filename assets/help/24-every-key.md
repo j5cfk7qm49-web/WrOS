@@ -13,6 +13,7 @@
 | `Super` tap | open Find anything beneath the menu bar |
 | `Super+1` | switch to Write |
 | `Super+3` | switch to Brain |
+| `Super+4` | open Review cards |
 | `Tab` | the next pane; `Shift-Tab` the one before |
 | `Ctrl-S` | save now (autosave already does) |
 | `Ctrl-Q` | quit in a desktop session; installed WrOS keeps the writing app open |
@@ -55,6 +56,22 @@ Use Tab to indent a note under the previous note, Shift-Tab to lift it a level,
 and Shift-Up or Shift-Down to change its order. Press I to see a note's fields and
 links. F edits a field and G defines one on a tag. Type `book / ISBN = text` to
 set a field's type, or `book / ISBN -> Book number = text` to rename it.
+
+## Review cards
+
+In Brain, write `front :: back` for a card or `front ::: back` for a
+card in each direction. Put `{{words}}` around text you want hidden in
+a sentence. For an answer on several lines, write `front ::` and put
+each answer line in a child note.
+
+| Key | Does |
+|---|---|
+| `Enter` or `Space` | reveal the answer |
+| `0` through `5` | grade how well you remembered the answer |
+| `F` | filter by `#tag` or saved search title. Enter an empty filter for all cards |
+| `↑` `↓` | scroll long cards |
+| `R` | check for cards that have come due |
+| `Esc` | cancel the filter or open the menu |
 
 ## The outline
 

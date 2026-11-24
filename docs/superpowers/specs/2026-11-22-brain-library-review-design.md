@@ -410,6 +410,24 @@ Results pending.
 - **Naming:** Write already has "Review notes" (`src/app/review_notes.rs`), so menus say "Review cards"
   where the two could be confused. (my call)
 
+RC26 pins [fsrs-rs 6.6.2](https://docs.rs/fsrs/6.6.2/fsrs/) with its FSRS-6
+default parameters and a 90% retention target. Rating map 1 maps 0 and 1 to
+Again, 2 to Hard, 3 and 4 to Good, and 5 to Easy. The grade, mapping version,
+and recorded local time with its UTC offset stay in the event.
+
+Each device clamps a backwards clock correction to its last effective time
+for that card. Replay orders events by effective UTC time and then operation
+ID. It uses the difference between recorded local dates, with a zero lower
+bound and a ceiling of the elapsed UTC days plus one. The receiving
+machine's clock and zone do not enter replay. The SQLite schedule cache
+rebuilds from the journal, and a new event updates only its own card.
+
+Edits save the active card IDs alongside the note. Cloze answers retain their
+IDs when reordered. Matching uses the previous order for indistinguishable
+answers and for remaining edits of the same card type. A removal keeps its
+grade history. An answer with an empty `::` uses the note's children in
+outline order. The parser reads the first 32 clozes of a note up to 16 KiB.
+
 ## Stage 0 correctness and performance gate
 
 Use a deterministic seed and a reference model with expected visible and recoverable content.

@@ -78,7 +78,8 @@ fn brain_today_can_edit_nested_notes_and_reopen_them_without_touching_the_prose(
     assert!(desk.shows("Research"));
     assert!(desk.status().contains("Library is planned for RC27"));
     desk.press(KeyEvent::new(KeyCode::Char('4'), KeyModifiers::SUPER));
-    assert!(desk.status().contains("Review is planned for RC26"));
+    assert!(desk.shows("Review cards"));
+    assert!(desk.shows("No cards due"));
     desk.press(KeyEvent::new(
         KeyCode::Modifier(ModifierKeyCode::LeftSuper),
         KeyModifiers::NONE,
@@ -132,6 +133,65 @@ fn brain_today_can_edit_nested_notes_and_reopen_them_without_touching_the_prose(
     desk.key(KeyCode::Right);
     assert!(desk.shows("A note from the library"));
     assert_eq!(desk.app.editor.text(), first_scene_body);
+}
+
+#[test]
+fn review_cards_use_a_saved_search_and_never_type_into_the_manuscript() {
+    use grimoire_brain::bounded_store::PagedBrain;
+    use grimoire_brain::model::{Builtin, NodeId, Place};
+    use grimoire_brain::schema::SavedQuery;
+
+    let fixture = tempfile::tempdir().unwrap();
+    let library = fixture.path().join("Brain");
+    let cache = fixture.path().join("cache");
+    let mut store = PagedBrain::open_library(&library, &cache).unwrap();
+    let tag = NodeId::Builtin(Builtin::Concept);
+    store
+        .create_tagged_note(
+            Place::default(),
+            "Prompt for Review :: Answer for Review",
+            Some(tag),
+        )
+        .unwrap();
+    store
+        .create_note_with_text(Place::default(), "Separate prompt :: Separate answer")
+        .unwrap();
+    let list = store
+        .create_note_with_text(Place::default(), "Concept queue")
+        .unwrap();
+    store
+        .set_search(list, Some(SavedQuery::Tagged(tag)))
+        .unwrap();
+    drop(store);
+
+    let mut desk = Desk::open(book("review-cards", true), 80, 24);
+    desk.app.brain.set_paths(library.clone(), cache.clone());
+    desk.key(KeyCode::Tab);
+    desk.typed("Manuscript draft");
+    let draft = desk.app.editor.text();
+    desk.menu(&["View", "Review cards"]);
+    assert!(desk.shows("Review 2"));
+    desk.key(KeyCode::Char('f'));
+    desk.typed("Concept queue");
+    desk.key(KeyCode::Enter);
+    assert!(desk.shows("Concept queue · 1 due"));
+    assert!(desk.shows("Prompt for Review"));
+    assert!(!desk.shows("Answer for Review"));
+    desk.key(KeyCode::Char('3'));
+    assert!(desk.shows("Prompt for Review"));
+    desk.key(KeyCode::Enter);
+    assert!(desk.shows("Answer for Review"));
+    desk.key(KeyCode::Char('5'));
+    assert!(desk.shows("No cards due"));
+    assert!(desk.shows("Review 1"));
+    desk.typed("Pasted over nothing");
+    assert_eq!(desk.app.editor.text(), draft);
+    drop(desk);
+    let store = PagedBrain::open_library(&library, &cache).unwrap();
+    let snapshot = store.project().unwrap();
+    let events: Vec<_> = snapshot.review_events().collect();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].1.grade, 5);
 }
 
 #[test]
