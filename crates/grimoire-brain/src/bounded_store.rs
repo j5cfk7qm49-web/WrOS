@@ -6,7 +6,7 @@ use std::path::Path;
 #[cfg(feature = "qualification")]
 use std::path::PathBuf;
 
-use chrono::NaiveDate;
+use chrono::{DateTime, FixedOffset, NaiveDate};
 use rusqlite::{Connection, TransactionBehavior};
 
 use crate::loro_store::PagedLoroStore;
@@ -16,11 +16,14 @@ use crate::projection::{
     open_database, read_children, read_frontier, read_note, replace_view, stamp_view,
 };
 use crate::readable::{self, ReadableWorker};
+use crate::review::{CardKey, Review, cards_for_text, looks_like_card};
+use crate::review_projection;
 use crate::schema::{FieldSpec, SavedQuery};
 use crate::search;
 use crate::storage::{Journal, sync_directory};
 
 pub use crate::projection::OutlineRow;
+pub use crate::review_projection::{DueCard, DueCards};
 pub use crate::search::NoteDetails;
 
 #[cfg(feature = "qualification")]
@@ -28,6 +31,8 @@ pub use crate::sqlite_ledger::SqliteLedger;
 
 const LIVE_DB: &str = "live.sqlite";
 const DEVICE_FILE: &str = "device-id";
+const REVIEW_VIEW: &[u8] = b"paged-outline-v5\0";
+const PRE_REVIEW_VIEW: &[u8] = b"paged-outline-v4\0";
 
 pub struct PagedBrain {
     journal: Journal<PagedLoroStore>,
@@ -119,6 +124,28 @@ impl PagedBrain {
     ) -> Result<Vec<OutlineRow>> {
         self.refresh_view()?;
         search::search(&self.view, query, offset, count)
+    }
+
+    pub fn due_cards(&mut self, now: i64, filter: Option<&SavedQuery>) -> Result<DueCards> {
+        self.refresh_view()?;
+        review_projection::due(&self.view, now, filter)
+    }
+
+    pub fn grade_card(
+        &mut self,
+        card: CardKey,
+        grade: u8,
+        now: DateTime<FixedOffset>,
+    ) -> Result<()> {
+        self.refresh_view()?;
+        if !review_projection::is_reviewable(&self.view, card)? {
+            return Err("This card no longer has an answer".into());
+        }
+        let previous = review_projection::last_on_device(&self.view, card, self.device)?;
+        let review = Review::capture(card, grade, now, previous)?;
+        let edit = self.local_edit(Change::ReviewCard { review })?;
+        self.append(edit)?;
+        Ok(())
     }
 
     pub fn details(&mut self, node: NodeId) -> Result<NoteDetails> {
@@ -272,13 +299,21 @@ impl PagedBrain {
         text: &str,
         tag: Option<NodeId>,
     ) -> Result<NodeId> {
-        let edit = self.local_edit(Change::CreateWithText {
+        let mut edit = self.local_edit(Change::CreateWithText {
             place,
             text: text.to_owned(),
             tag,
         })?;
         self.validate_place(place)?;
         let node = NodeId::Note(edit.id);
+        let cards = cards_for_text(text, &[], edit.id);
+        if !cards.is_empty() {
+            edit.change = Change::NoteCards {
+                node,
+                content: Box::new(edit.change),
+                cards,
+            };
+        }
         self.append(edit)?;
         Ok(node)
     }
@@ -292,6 +327,7 @@ impl PagedBrain {
         if old == text {
             return Ok(false);
         }
+        let next_text = text;
         let text = text.to_owned();
         let (change, extra) = match target {
             TextTarget::Empty => (
@@ -307,6 +343,17 @@ impl PagedBrain {
         };
         let mut edit = self.local_edit(change)?;
         edit.dependencies.extend(extra);
+        if looks_like_card(&old) || looks_like_card(next_text) {
+            let previous = review_projection::note_cards(&self.view, node)?;
+            let cards = cards_for_text(next_text, &previous, edit.id);
+            if !previous.is_empty() || !cards.is_empty() {
+                edit.change = Change::NoteCards {
+                    node,
+                    content: Box::new(edit.change),
+                    cards,
+                };
+            }
+        }
         self.append(edit)?;
         Ok(true)
     }
@@ -347,8 +394,15 @@ impl PagedBrain {
 
     fn refresh_view(&mut self) -> Result<()> {
         self.journal.require_healthy()?;
-        if !has_stamp(&self.view, &self.projection_stamp())? {
-            self.prime_view(&self.project()?)?;
+        let stamp = self.projection_stamp();
+        if !has_stamp(&self.view, &stamp)? {
+            let previous = self.stamp_with_prefix(PRE_REVIEW_VIEW);
+            if has_stamp(&self.view, &previous)? {
+                review_projection::upgrade_rc25(&mut self.view, &stamp)?;
+                self.wake_readable();
+            } else {
+                self.prime_view(&self.project()?)?;
+            }
         }
         if let Some(worker) = &self.readable
             && !self.readable_started
@@ -360,7 +414,11 @@ impl PagedBrain {
     }
 
     fn projection_stamp(&self) -> Vec<u8> {
-        let mut stamp = b"paged-outline-v4\0".to_vec();
+        self.stamp_with_prefix(REVIEW_VIEW)
+    }
+
+    fn stamp_with_prefix(&self, prefix: &[u8]) -> Vec<u8> {
+        let mut stamp = prefix.to_vec();
         stamp.extend(self.journal.replica().projection_stamp());
         stamp
     }
@@ -390,7 +448,7 @@ impl PagedBrain {
             if apply_paged_edit(&transaction, edit)? {
                 readable::mark_edit(
                     &transaction,
-                    &edit.change,
+                    edit.content(),
                     NodeId::Note(edit.id),
                     old,
                     &after,

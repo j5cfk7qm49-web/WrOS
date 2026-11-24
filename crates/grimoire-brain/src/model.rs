@@ -8,6 +8,7 @@ use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
+use crate::review::{Card, Review};
 use crate::schema::{FieldSpec, SavedQuery, default_fields};
 
 /// A Lamport clock followed by a stable device ID for deterministic ties.
@@ -116,6 +117,15 @@ pub enum Change {
         node: NodeId,
         query: Option<SavedQuery>,
     },
+    /// Save the text and its reconciled card IDs in one journal operation.
+    NoteCards {
+        node: NodeId,
+        content: Box<Change>,
+        cards: Vec<Card>,
+    },
+    ReviewCard {
+        review: Review,
+    },
     /// Freeze the visible descendants in the deleting device's view.
     Delete {
         members: BTreeSet<NodeId>,
@@ -134,6 +144,8 @@ pub enum ModelError {
     InvalidDependency,
     UnobservedTarget,
     ForeignUndo,
+    InvalidReview,
+    InvalidCards,
 }
 
 #[derive(Debug, Default)]
@@ -148,6 +160,13 @@ struct StoredEdit {
 }
 
 impl Edit {
+    pub(crate) fn content(&self) -> &Change {
+        match &self.change {
+            Change::NoteCards { content, .. } => content,
+            change => change,
+        }
+    }
+
     pub(crate) fn validate(&self) -> Result<(), ModelError> {
         if self
             .dependencies
@@ -155,6 +174,35 @@ impl Edit {
             .any(|dependency| dependency.clock >= self.id.clock)
         {
             return Err(ModelError::InvalidDependency);
+        }
+        match &self.change {
+            Change::ReviewCard { review } if !review.is_valid() => {
+                return Err(ModelError::InvalidReview);
+            }
+            Change::NoteCards {
+                node,
+                content,
+                cards,
+            } => {
+                let owns_text = match content.as_ref() {
+                    Change::CreateWithText { .. } => *node == NodeId::Note(self.id),
+                    Change::InsertText {
+                        node: target,
+                        after: None,
+                        ..
+                    } => node == target,
+                    Change::EditText { .. } => true,
+                    _ => false,
+                };
+                let identities: BTreeSet<_> = cards.iter().map(|card| card.id).collect();
+                if !owns_text
+                    || identities.len() != cards.len()
+                    || identities.iter().any(|id| id.created > self.id)
+                {
+                    return Err(ModelError::InvalidCards);
+                }
+            }
+            _ => {}
         }
         let target = match &self.change {
             Change::Undo { target } => {
@@ -274,7 +322,27 @@ impl Model {
                     members.contains(&node) && !self.depends_on(*deletion, id)
                 })
             };
-            match &edit.change {
+            let content: &Change = if let Change::NoteCards {
+                node,
+                content,
+                cards,
+            } = &edit.change
+            {
+                if active {
+                    view.card_sets
+                        .entry(*node)
+                        .or_default()
+                        .assign(self, id, cards.clone());
+                }
+                content
+            } else {
+                &edit.change
+            };
+            if let Change::ReviewCard { review } = content {
+                // Grades are an append-only record even if note editing is undone.
+                view.reviews.insert(id, *review);
+            }
+            match content {
                 Change::Create { node, place } => view.create(*node, *place, active),
                 Change::CreateWithText { place, text, tag } => {
                     let node = NodeId::Note(id);
@@ -432,6 +500,8 @@ pub struct Snapshot {
     hidden: BTreeSet<NodeId>,
     aliases: BTreeMap<NodeId, NodeId>,
     pending: BTreeSet<OpId>,
+    card_sets: BTreeMap<NodeId, Values<Vec<Card>>>,
+    reviews: BTreeMap<OpId, Review>,
     #[cfg(feature = "runtime")]
     frontier: EditFrontier,
 }
@@ -456,6 +526,14 @@ impl EditFrontier {
 }
 
 impl Snapshot {
+    pub fn review_events(&self) -> impl Iterator<Item = (OpId, &Review)> {
+        self.reviews.iter().map(|(&id, review)| (id, review))
+    }
+
+    pub fn saved_cards(&self, node: NodeId) -> Option<&[Card]> {
+        self.card_sets.get(&node)?.winner().map(Vec::as_slice)
+    }
+
     #[cfg(feature = "runtime")]
     pub(crate) fn frontier(&self) -> &EditFrontier {
         &self.frontier

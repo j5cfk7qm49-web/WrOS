@@ -8,6 +8,8 @@ use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 
 use crate::model::{Change, Edit, EditFrontier, NodeId, OpId, Place, Snapshot};
 use crate::readable;
+use crate::review::looks_like_card;
+use crate::review_projection;
 use crate::search;
 
 pub(crate) type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -51,6 +53,7 @@ pub(crate) fn create_view(db: &Connection) -> Result<()> {
          );",
     )?;
     search::create_tables(db)?;
+    review_projection::create_tables(db)?;
     readable::create_tables(db)
 }
 
@@ -164,6 +167,7 @@ pub(crate) fn replace_view(db: &mut Connection, stamp: &[u8], snapshot: &Snapsho
         "DELETE FROM live_notes; DELETE FROM live_outline; DELETE FROM known_nodes;",
     )?;
     search::reset(&transaction)?;
+    review_projection::reset(&transaction)?;
     let mut known = transaction.prepare("INSERT INTO known_nodes VALUES (?1)")?;
     for node in snapshot.known_nodes() {
         known.execute([serde_json::to_string(&node)?])?;
@@ -195,11 +199,13 @@ pub(crate) fn replace_view(db: &mut Connection, stamp: &[u8], snapshot: &Snapsho
                 !snapshot.has_live_text(node),
             ])?;
             search::populate_note(&transaction, snapshot, node)?;
+            review_projection::populate_note(&transaction, snapshot, node, &body)?;
             parents.push(Some(node));
         }
     }
     drop(insert);
     drop(outline);
+    review_projection::rebuild_events(&transaction, snapshot)?;
     write_frontier(&transaction, snapshot.frontier())?;
     readable::rebuilt(&transaction, stamp)?;
     stamp_view(&transaction, stamp)?;
@@ -212,7 +218,16 @@ pub(crate) fn apply_paged_edit(db: &Connection, edit: &Edit) -> Result<bool> {
     if !frontier.complete || edit.id.clock <= frontier.clock {
         return Ok(false);
     }
-    let applied = match &edit.change {
+    // RC25 notes have only text. Let the rebuild path derive cards for those
+    // imported operations once before scheduling is available for the notes.
+    if let Change::CreateWithText { text, .. }
+    | Change::InsertText { text, .. }
+    | Change::EditText { text, .. } = &edit.change
+        && looks_like_card(text)
+    {
+        return Ok(false);
+    }
+    let applied = match edit.content() {
         Change::Create { node, place } => add_node(db, *node, *place)?,
         Change::CreateWithText { place, text, tag } => {
             let node = NodeId::Note(edit.id);
@@ -239,10 +254,17 @@ pub(crate) fn apply_paged_edit(db: &Connection, edit: &Edit) -> Result<bool> {
         Change::Move { node, place } if frontier.heads.is_subset(&edit.dependencies) => {
             move_node(db, *node, *place)?
         }
+        Change::ReviewCard { review } if frontier.heads.is_subset(&edit.dependencies) => {
+            review_projection::append_event(db, edit.id, review)?;
+            true
+        }
         change if frontier.heads.is_subset(&edit.dependencies) => search::apply(db, change)?,
         _ => false,
     };
     if applied {
+        if let Change::NoteCards { node, cards, .. } = &edit.change {
+            review_projection::save_cards(db, *node, cards)?;
+        }
         frontier.observe(edit.id, &edit.dependencies);
         write_frontier(db, &frontier)?;
     }
@@ -366,7 +388,7 @@ fn insert_first_text(db: &Connection, node: NodeId, id: OpId, text: &str) -> Res
 }
 
 pub(crate) fn apply_text(db: &Connection, edit: &Edit) -> Result<bool> {
-    let Change::EditText { token, text } = &edit.change else {
+    let Change::EditText { token, text } = edit.content() else {
         return Ok(false);
     };
     let token = op_key(*token);
@@ -390,7 +412,7 @@ pub(crate) fn op_key(id: OpId) -> [u8; 16] {
     key
 }
 
-fn decode_op(key: &[u8]) -> Result<OpId> {
+pub(crate) fn decode_op(key: &[u8]) -> Result<OpId> {
     let key: &[u8; 16] = key.try_into()?;
     Ok(OpId {
         clock: u64::from_be_bytes(key[..8].try_into()?),

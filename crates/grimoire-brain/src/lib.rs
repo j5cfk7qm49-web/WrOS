@@ -13,6 +13,9 @@ mod projection;
 #[cfg(feature = "runtime")]
 mod readable;
 pub mod replica;
+pub mod review;
+#[cfg(feature = "runtime")]
+mod review_projection;
 pub mod schema;
 #[cfg(feature = "runtime")]
 mod search;

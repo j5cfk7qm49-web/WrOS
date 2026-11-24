@@ -268,20 +268,10 @@ pub(crate) fn search(
     let count = count.min(120);
     match query {
         SavedQuery::Text(value) => {
-            let value = value.trim();
-            if value.is_empty() {
+            let Some(pattern) = literal_phrase(value)? else {
                 return Ok(Vec::new());
-            }
-            if value.len() > 1024 {
-                return Err("Search text is too long".into());
-            }
-            // Literal phrase search. Punctuation and quotes cannot change the
-            // expression or invoke query operators.
-            results(
-                db,
-                TEXT,
-                params![format!("\"{}\"", value.replace('"', "\"\"")), count, offset],
-            )
+            };
+            results(db, TEXT, params![pattern, count, offset])
         }
         SavedQuery::Tagged(tag) => results(
             db,
@@ -304,6 +294,15 @@ pub(crate) fn search(
             params![serde_json::to_string(field)?, count, offset, value],
         ),
     }
+}
+
+pub(crate) fn literal_phrase(value: &str) -> Result<Option<String>> {
+    let value = value.trim();
+    if value.len() > 1024 {
+        return Err("Search text is too long".into());
+    }
+    // Punctuation and quotes cannot change the expression or invoke operators.
+    Ok((!value.is_empty()).then(|| format!("\"{}\"", value.replace('"', "\"\""))))
 }
 
 fn results(db: &Connection, sql: &str, parameters: impl Params) -> Result<Vec<OutlineRow>> {

@@ -184,12 +184,12 @@ impl<const PAGED: bool> LoroReplica<PAGED> {
                 Err(ModelError::ReusedId.into())
             };
         }
-        match edit.change {
-            Change::Create { node, place } => self.create_native(node, place)?,
+        match edit.content() {
+            Change::Create { node, place } => self.create_native(*node, *place)?,
             Change::CreateWithText { place, .. } => {
-                self.create_native(NodeId::Note(edit.id), place)?;
+                self.create_native(NodeId::Note(edit.id), *place)?;
             }
-            Change::Move { node, place } => self.move_native(node, place)?,
+            Change::Move { node, place } => self.move_native(*node, *place)?,
             _ => {}
         }
         if PAGED && edits.is_empty() {
