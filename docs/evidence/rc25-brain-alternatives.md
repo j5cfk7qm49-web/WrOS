@@ -129,3 +129,21 @@ for FTS. Peak RSS during checkpoint was 159 MiB and journal plus projection
 WAL averaged 14.1 KiB per edit. The installed desk's input-to-display timing
 still needs its own pass.
 [Aged run](rc25-brain-hp-stream-loro-paged-runtime.json)
+
+### RC25 Stage 1 on the HP Stream
+
+Commit `ad8eb24` ran both the smoke and aged workloads on the HP Stream's
+encrypted eMMC. The aged run used the same 50,000 visible nodes and 500,000
+operations as the selection benchmark. All six limits passed. At p95 the
+store opened in 414.2 ms, a durable edit reached text preparation in 49.7 ms,
+and foreground FTS finished in 42.7 ms. The write budget was close, with
+55.8 KiB of journal and projection WAL per edit against a 64 KiB limit.
+Peak process-tree checkpoint RSS was 154 MiB.
+[Aged storage results](rc25-brain-hp-stream-rc25-aged.json)
+
+The 80×24 terminal run exercised links, project-tagged notes beside Write,
+readable Markdown, and reopening after an abrupt app exit. Twenty typing
+samples reached parsed terminal output in 2.75 ms at p95. The test used a
+synthetic library and the terminal renderer. Graphical scanout remains a
+separate qualification check.
+[Terminal samples](rc25-brain-hp-terminal.json)
