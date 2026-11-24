@@ -287,7 +287,6 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
     let mut v = vec![
         Entry::new("Brain", "Super+3", Action::SwitchDeskView(DeskView::Brain)),
         Entry::new("Brain beside Write", "", Action::BrainBeside),
-        Entry::new("Write", "Super+1", Action::SwitchDeskView(DeskView::Write)),
         Entry::new("WrOS settings", "", Action::Settings),
         Entry::new("System settings", "", Action::SystemSettings),
         Entry::new("Workspaces", "", Action::Workspaces),
@@ -485,6 +484,12 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("Compile manuscript (Markdown)", "", Action::Compile),
         Entry::new("Themes", "F9", Action::Themes),
     ];
+    if app.desk_view == DeskView::Brain {
+        v.insert(
+            0,
+            Entry::new("Write", "Super+1", Action::SwitchDeskView(DeskView::Write)),
+        );
+    }
     if app.selection_in_trash() {
         v.insert(
             0,
