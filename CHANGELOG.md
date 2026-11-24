@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.0~rc25 · Brain
+
+- Brain opens to Today and supports named pages, nested notes, links, backlinks,
+  tags, editable fields and saved search lists.
+- Write can open the project's notes beside the manuscript. Brain and Write
+  keep their own drafts and focus.
+- Brain writes readable Markdown copies and can be backed up independently.
+  Restoring a Brain snapshot verifies its contents in a separate folder.
+
 ## 0.1.0~rc16 · The installer, fixed on real hardware
 
 The installer fixes found installing rc14 on the HP Stream, with a new USB stick image, and the

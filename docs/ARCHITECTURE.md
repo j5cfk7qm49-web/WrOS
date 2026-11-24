@@ -86,6 +86,21 @@ Workspace restoration deliberately gives the existing newer resume record preced
 
 ## Document engine and next domain services
 
+Brain stores stable note and field IDs in a paged Loro operation journal. A
+checked update reaches disk before the editor acknowledges a save. The store
+keeps the writer lock and can retain two checked checkpoint generations. A
+separate short publication lock lets encrypted backup pin immutable files.
+
+The disposable SQLite database holds the outline, tag and backlink indexes,
+field values and FTS5 search. Its version covers both the schema and the Loro
+frontier. Ordinary edits and moves update indexed rows in one transaction.
+The Markdown worker writes one affected root page at a time and publishes a
+version after the queue is complete. The next open can rebuild missing copies
+and the index from the journal.
+
+Write keeps a project tag ID in `project.toml`. Brain beside Write uses that
+tag as its filter and applies it when creating a note from that pane.
+
 1. **Document/pane registry — Tested M3b:** `crates/grimoire-core/src/documents.rs` owns file identity; `src/app/documents.rs` moves/swaps complete Editor contexts (never cloned on each frame). `App.editor/open` is the active context; the other keeps geometry, caret/manual-scroll and click state. Pure render/position/save-resume operations borrow a role via a temporary context swap; input activation additionally flushes both and changes focus. Both contexts flush to their original Project nodes, including inactive bulk edits and recovered words. The registry is validated before saves, external adoption and editor replacement; unsafe alias changes keep both buffers and attempt recovery. A duplicate-file selection focuses its current owner. Core source fingerprints remain the existing save guard, not a new unsafe write path. See [WORKSPACES](WORKSPACES.md) for threshold/layout/rename behavior and boundaries.
 2. **Pins — Tested M4a:** portable `pins.rs` metadata store, case-sensitive semantic heading/quote resolution and bounded retained preview rows; TUI cache maps canonical identities to authoritative Project nodes. Card/sidebar/dashboard reads never create writers. Explicit source editing reuses document ownership/save/recovery, including refusal to guess between two externally aliased retained editors. Card lifecycle is metadata-only recoverable archive/Trash, never source deletion. See [PINS](PINS.md). **Journal — Tested initial M4b**: portable daily append API records actual sampled saved Project counts, offsets/request boundaries and unknown metrics; reflections are separate ordinary Notes Markdown. Cache/input adapter reuses exclusive editor ownership/save/recovery and read-only modal/paste guards. See [JOURNAL](JOURNAL.md). **Scratchpad/handoff — Tested M4c:** `workflow.rs` stores references/Prepared→Ready receipts, never prose; exclusive independent scene creation preserves the original. Handoff is user-authored ordinary Notes shown on next app/project open after recovery priority, not an inferred intention or reboot/time fact. Source editing reuses the same registry/save/recovery path. Workspaces add explicit empty original starters and global-card ID sets, not copied bodies. See [WORKFLOW](WORKFLOW.md) and [WORKSPACES](WORKSPACES.md). The sampled journal remains separate from M5 recorded operations and does not infer unobserved gross/time.
 3. **Productivity — Tested initial M5:** `measure.rs` / opt-in Editor range receipts preserve word identity/classification; `accounting.rs` records bounded metadata-only parts and conservative observed inter-edit spans using injected clocks; `productivity.rs` and `challenges.rs` provide goals/calendars/sprints/optional awards/frozen civil-date tasks. `src/app/productivity.rs` owns captured original-editor operations, save/checkpoint barriers and cached reader/widget rows. Unassigned time/word gaps stay unavailable. Native source counts remain separate; no exclusive typing, all-day crash coverage or indefinite archival claim. See [DAILY_CHALLENGES](DAILY_CHALLENGES.md).

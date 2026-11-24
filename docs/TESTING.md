@@ -19,6 +19,21 @@ Stream before approving the Brain view. [Workload and limits](evidence/rc25-brai
 The runner also accepts `loro-paged` and `sqlite-ledger`.
 [HP Stream alternatives](evidence/rc25-brain-alternatives.md)
 
+Run the Stage 1 desk, terminal and backup checks with the pinned toolchain.
+The terminal snapshots expect the uninstalled update-helper path.
+
+~~~sh
+cargo test -p grimoire-tui --no-default-features --locked --bin grimoire brain
+cargo test -p wros-input --features native --locked
+WROS_PATH_HELPER_UPDATE=/usr/libexec/wros-update cargo test --no-default-features --features test-driver,pty-qa --test driven --locked
+nix build -L .#checks.x86_64-linux.brain-backup
+~~~
+
+The backup fixture uses a disposable encrypted Restic repository and tests
+Brain-only edits, read-back verification, an older snapshot, fresh device
+identity, and a corrupt journal. The installed HP Stream pass also checks
+structural editing, projection recovery, and input-to-display latency.
+
 ## RC24 essay and citations
 
 From the candidate checkout in the pinned NixOS development shell:

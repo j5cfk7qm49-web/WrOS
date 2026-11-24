@@ -1,5 +1,5 @@
 {
-  description = "WrOS rc24: offline-first writing appliance on NixOS";
+  description = "WrOS rc25: offline-first writing appliance on NixOS";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/f1e5c356f35d07e7b71a6b5e6c9338e0b029e0c0";
@@ -158,6 +158,7 @@
         unlock-waits = vmTest ./nixos/tests/unlock-waits.nix;
         import-book = vmTest ./nixos/tests/import-book.nix;
         book-timeline = vmTest ./nixos/tests/book-timeline.nix;
+        brain-backup = vmTest ./nixos/tests/brain-backup.nix;
         mla-paper = vmTest ./nixos/tests/mla-paper.nix;
         helpers-no-fhs = vmTest ./nixos/tests/helpers-no-fhs.nix;
         start-frames = vmTest ./nixos/tests/start-frames.nix;
