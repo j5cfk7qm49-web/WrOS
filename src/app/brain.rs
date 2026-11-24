@@ -539,14 +539,14 @@ pub(crate) fn draw(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
                 let y = inner.y + (index - first) as u16;
                 let line = Rect::new(inner.x, y, inner.width, 1);
                 app.brain.note_hits.push((line, index));
-                let style = if index == outline.location.selected {
-                    accent.bg(theme.sel)
+                let (marker, style) = if index == outline.location.selected {
+                    ("› ", accent.bg(theme.sel))
                 } else {
-                    text
+                    ("  ", text)
                 };
                 let bullet = if row.has_children { "▸ " } else { "• " };
                 f.render_widget(
-                    Line::styled(format!("{bullet}{}", note_title(&row.body)), style),
+                    Line::styled(format!("{marker}{bullet}{}", note_title(&row.body)), style),
                     line,
                 );
             }

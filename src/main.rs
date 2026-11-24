@@ -1230,7 +1230,8 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
         }
         _ => k,
     };
-    if app.overlay == Overlay::None && app.desk_view == app::brain::DeskView::Brain {
+    let brain_open = app.desk_view == app::brain::DeskView::Brain;
+    if app.overlay == Overlay::None && brain_open {
         let command = k.modifiers == KeyModifiers::CONTROL
             || cfg!(target_os = "macos") && k.modifiers == KeyModifiers::SUPER;
         if command && k.code == KeyCode::Char('q') {
@@ -1405,6 +1406,9 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
         return false;
     }
     if ctrl {
+        if brain_open && matches!(k.code, KeyCode::Char('s' | 'c' | 'x' | 'z' | 'Z' | 'y')) {
+            return false;
+        }
         let shift = k.modifiers.contains(KeyModifiers::SHIFT);
         match k.code {
             KeyCode::Char('s') => {

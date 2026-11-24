@@ -57,6 +57,9 @@ fn brain_today_can_edit_nested_notes_and_reopen_them_without_touching_the_prose(
     let cache = fixture.path().join("cache");
     let mut desk = Desk::open(book("brain-today", true), 80, 24);
     desk.app.brain.set_paths(library.clone(), cache.clone());
+    let first_scene_body = desk.app.editor.text();
+    desk.key(KeyCode::Tab);
+    desk.typed("Write draft stays here.");
     let prose = desk.app.editor.text();
     assert!(!library.exists());
 
@@ -80,6 +83,8 @@ fn brain_today_can_edit_nested_notes_and_reopen_them_without_touching_the_prose(
             ..
         }
     ));
+    desk.ctrl('z');
+    assert_eq!(desk.app.editor.text(), prose);
     desk.press(KeyEvent::new(KeyCode::Char('1'), KeyModifiers::SUPER));
     assert!(matches!(
         desk.app.overlay,
@@ -119,7 +124,7 @@ fn brain_today_can_edit_nested_notes_and_reopen_them_without_touching_the_prose(
     desk.press(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::SUPER));
     desk.key(KeyCode::Right);
     assert!(desk.shows("A note from the library"));
-    assert_eq!(desk.app.editor.text(), prose);
+    assert_eq!(desk.app.editor.text(), first_scene_body);
 }
 
 #[test]
@@ -137,7 +142,7 @@ fn named_brain_pages_are_reachable_from_today_and_exclude_day_pages() {
     desk.key(KeyCode::Char('n'));
     desk.typed("Reading list");
     desk.key(KeyCode::Enter);
-    assert!(desk.shows("Reading list"));
+    assert!(desk.shows("› • Reading list"));
     desk.key(KeyCode::Right);
     desk.key(KeyCode::Char('n'));
     desk.typed("A history of maps");
