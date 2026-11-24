@@ -42,6 +42,7 @@ pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
         }
         Some("prose") => prose_command(args)?,
         Some("backup") => backup_command(args)?,
+        Some("brain") => brain_command(args)?,
         Some("lexicon") => {
             let query = args
                 .next()
@@ -154,6 +155,109 @@ pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
         Some(other) => {
             bail!("unknown WrOS command {other}; try grimoire wros help (alias: writingdeck)")
         }
+    }
+    Ok(())
+}
+
+fn brain_command(mut args: impl Iterator<Item = String>) -> Result<()> {
+    use grimoire_brain::bounded_store::PagedBrain;
+    use grimoire_brain::model::{NodeId, Place};
+
+    let live = grimoire_core::paths::home().join("Documents/Brain");
+    let action = args.next().unwrap_or_default();
+    let requested = args.next().map(PathBuf::from);
+    let help = "Use brain list FOLDER, brain show FOLDER NOTE-ID, brain recover FOLDER NOTE-ID, or brain checkpoint [FOLDER]";
+    let root = match (action.as_str(), requested) {
+        ("list" | "show" | "recover", Some(path)) => path,
+        ("checkpoint", path) => path.unwrap_or_else(|| live.clone()),
+        _ => bail!("{help}"),
+    };
+    let node = match action.as_str() {
+        "show" | "recover" => Some(
+            args.next()
+                .ok_or_else(|| anyhow::anyhow!("Supply a Brain note ID"))?
+                .parse::<NodeId>()
+                .map_err(anyhow::Error::msg)?,
+        ),
+        _ => None,
+    };
+    if args.next().is_some() {
+        bail!("{help}");
+    }
+    if !root.join("store/journal").is_dir() {
+        bail!("Choose a folder with an existing Brain store");
+    }
+    let root = root.canonicalize()?;
+    if action == "recover" && live.canonicalize().is_ok_and(|path| path == root) {
+        bail!("Choose an isolated Brain restore as the source");
+    }
+    let temporary = tempfile::tempdir()?;
+    let mut source =
+        PagedBrain::open_library(&root, temporary.path()).map_err(anyhow::Error::msg)?;
+    match (action.as_str(), node) {
+        ("checkpoint", _) => {
+            source.checkpoint().map_err(anyhow::Error::msg)?;
+            println!("Brain checkpoint verified.");
+        }
+        ("show" | "recover", Some(node)) => {
+            let text = source
+                .note(node)
+                .map_err(anyhow::Error::msg)?
+                .ok_or_else(|| {
+                    anyhow::anyhow!("This note is hidden or missing in the isolated library")
+                })?;
+            if action == "show" {
+                println!("{text}");
+            } else {
+                let temporary = tempfile::tempdir()?;
+                let mut destination = PagedBrain::open_library(&live, temporary.path())
+                    .map_err(anyhow::Error::msg)?;
+                let date = chrono::Local::now().date_naive();
+                let today = destination.ensure_today(date).map_err(anyhow::Error::msg)?;
+                let note = destination
+                    .create_note_with_text(
+                        Place {
+                            parent: Some(today),
+                            after: None,
+                        },
+                        &text,
+                    )
+                    .map_err(anyhow::Error::msg)?;
+                println!(
+                    "Recovered the note's text to Today as {}.",
+                    note.external_id()
+                );
+            }
+        }
+        ("list", _) => {
+            let snapshot = source.project().map_err(anyhow::Error::msg)?;
+            let mut visit: Vec<_> = snapshot
+                .children(None)
+                .into_iter()
+                .rev()
+                .map(|node| (node, 0))
+                .collect();
+            while let Some((node, depth)) = visit.pop() {
+                let title = snapshot
+                    .body(node)
+                    .filter(|text| !text.is_empty())
+                    .unwrap_or_else(|| node.external_id());
+                println!(
+                    "{}{}  {}",
+                    "  ".repeat(depth),
+                    node.external_id(),
+                    title.lines().next().unwrap_or("")
+                );
+                visit.extend(
+                    snapshot
+                        .children(Some(node))
+                        .into_iter()
+                        .rev()
+                        .map(|node| (node, depth + 1)),
+                );
+            }
+        }
+        _ => bail!("{help}"),
     }
     Ok(())
 }

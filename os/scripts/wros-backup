@@ -21,6 +21,7 @@ import signal
 import stat
 import subprocess
 import sys
+import tarfile
 import tempfile
 import threading
 import uuid
@@ -39,6 +40,7 @@ PROFILE = '.wros-profile'
 PROFILE_FILE_LIMIT = 1024 * 1024
 PROFILE_TOTAL_LIMIT = 4 * 1024 * 1024
 TAG = 'wros-project-v1'
+BRAIN_TAG = 'wros-brain-v1'
 EXISTING_REPOSITORY = (
     'This folder already holds an encrypted WrOS backup. To use it, choose '
     '“Connect existing repository and recovery key” and provide its recovery key. '
@@ -292,6 +294,96 @@ def google_connect_failure(kind):
 
 def inventory_digest(inv):
     return hashlib.sha256(json.dumps(inv, sort_keys=True).encode('utf-8')).hexdigest()
+
+
+def checked_brain_payload(path, limit=None):
+    with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
+        require(stat.S_ISREG(os.fstat(stream.fileno()).st_mode), 'Brain contains a non-file record.')
+        checksum = stream.read(32)
+        digest, payload = hashlib.sha256(), bytearray()
+        while chunk := stream.read(65536):
+            digest.update(chunk)
+            if limit is not None:
+                require(len(payload) + len(chunk) <= limit, 'Brain manifest is too large.')
+                payload.extend(chunk)
+        require(digest.digest() == checksum, 'A Brain record has an invalid checksum.')
+        return bytes(payload)
+
+
+def brain_records(root, verify=False):
+    store = root/'store'
+    journal = store/'journal'
+    require(store.is_dir() and not store.is_symlink() and journal.is_dir()
+            and not journal.is_symlink(), 'Choose an existing Brain library.')
+    records = sorted('store/journal/' + p.name for p in journal.iterdir()
+                     if re.fullmatch(r'[0-9]{20}\.update', p.name))
+    current = store/'CURRENT'
+    if current.exists() or current.is_symlink():
+        manifest = json.loads(checked_brain_payload(current, 65536))
+        require(isinstance(manifest, dict) and manifest.get('schema') == 1
+                and manifest.get('engine') == 'loro-paged', 'Unsupported Brain store.')
+        require(isinstance(manifest.get('active'), dict), 'Brain checkpoint is missing.')
+        for slot in (manifest['active'], manifest.get('previous')):
+            if slot is None:
+                continue
+            generation = slot.get('generation')
+            require(type(generation) is int and 0 < generation < 10**20,
+                    'Invalid Brain checkpoint generation.')
+            records.append(f'store/checkpoint-{generation:020}.snapshot')
+            if slot.get('has_pending') is True:
+                records.append(f'store/checkpoint-{generation:020}.pending')
+        records.append('store/CURRENT')
+    require(records, 'Save your first Brain note before backing up.')
+    require(len(records) == len(set(records)), 'Invalid repeated Brain checkpoint.')
+    files = root/'files'
+    if files.exists() or files.is_symlink():
+        require(files.is_dir() and not files.is_symlink(), 'Brain media folder is unsafe.')
+        for media in sorted(files.iterdir()):
+            require(re.fullmatch('[a-f0-9]{64}', media.name), 'A Brain file lacks its SHA-256 name.')
+            records.append('files/' + media.name)
+    require(len(records) < MAX_FILES, 'Brain has too many files for this backup.')
+    for relative in records:
+        path = root/relative
+        require(stat.S_ISREG(path.lstat().st_mode), 'Brain contains a link or special file.')
+        if verify and relative.startswith('store/') and path != current:
+            checked_brain_payload(path)
+    return records
+
+
+def pin_brain(root, stage):
+    require((root/'store').is_dir() and not (root/'store').is_symlink(), 'Choose an existing Brain library.')
+    lock = root/'store/publish.lock'
+    require(not lock.is_symlink(), 'Brain publish lock is unsafe.')
+    with os.fdopen(os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600), 'rb') as guard:
+        fcntl.flock(guard, fcntl.LOCK_SH)
+        (stage/'store/journal').mkdir(parents=True)
+        for relative in brain_records(root):
+            target = stage/relative
+            target.parent.mkdir(exist_ok=True)
+            # Checkpoints, checked journal records and addressed media are
+            # immutable. Pin their inodes without staging another data copy.
+            os.link(root/relative, target, follow_symlinks=False)
+
+
+def brain_inventory(stage):
+    records = brain_records(stage, verify=True)
+    files, total = {}, 0
+    for relative in records:
+        path = stage/relative
+        digest, size = hashlib.sha256(), 0
+        with path.open('rb') as stream:
+            while chunk := stream.read(1024 * 1024):
+                size += len(chunk)
+                require(total + size <= MAX_BYTES, 'Brain exceeds the supported backup size.')
+                digest.update(chunk)
+        total += size
+        files[relative] = {'bytes': size, 'sha256': digest.hexdigest()}
+        if relative.startswith('files/'):
+            require(digest.hexdigest() == path.name, 'A Brain media file differs from its name.')
+    directories = ['store', 'store/journal']
+    if (stage/'files').is_dir():
+        directories.insert(0, 'files')
+    return {'files': files, 'directories': directories, 'bytes': total}
 
 
 def safe_new_path(value):
@@ -613,10 +705,10 @@ class Service:
         self.save()
         return result
 
-    def snapshots(self, queue_id=None, setup=False):
+    def snapshots(self, queue_id=None, setup=False, kind=TAG):
         if not self.current:
             return []
-        tags = TAG + (',queue:' + queue_id if queue_id else '')
+        tags = kind + (',queue:' + queue_id if queue_id else '')
         rows = json.loads(self.restic(['snapshots', '--tag', tags], setup=setup)) or []
         require(isinstance(rows, list) and len(rows) <= 1000, 'Repository exceeds 1,000 supported snapshots; use Restic maintenance tools.')
         result = []
@@ -659,13 +751,18 @@ class Service:
                 'drive_folder': self.drive_folder,
                 'drive_entries': list(self.drive_entries),
                 'snapshots': self.named_snapshots(setup=setup) if refresh else self.latest_snapshots(),
+                'brain_snapshots': self.named_snapshots(setup=setup, kind=BRAIN_TAG) if refresh
+                                   else self.latest_snapshots(kind=BRAIN_TAG),
+                'brain_revisions': {root: entry['revision'] for root, entry in self.latest().items()
+                                    if self.current and entry.get('kind') == BRAIN_TAG
+                                    and entry['id'] in self.current['verified'] and entry.get('revision')},
                 'notice': notice}
 
-    def named_snapshots(self, setup=False):
+    def named_snapshots(self, setup=False, kind=TAG):
         """The refreshed list as shown: a snapshot this computer recorded names its book's folder
         (restic itself only knows the staging copy; restore keeps using that)."""
         folders = {entry['id']: root for root, entry in self.latest().items()}
-        rows = self.snapshots(setup=True) if setup else self.snapshots()
+        rows = self.snapshots(setup=setup, kind=kind)
         return [row | {'path': folders.get(row['id'], row['path'])} for row in rows]
 
     def latest(self):
@@ -680,19 +777,22 @@ class Service:
         return {root: entry for root, entry in value.items()
                 if isinstance(entry, dict) and {'id', 'time', 'project'} <= set(entry)}
 
-    def record_latest(self, root, snapshot):
+    def record_latest(self, root, snapshot, kind=TAG, revision=''):
         record = self.latest()
         record[str(root)] = {'id': snapshot['id'], 'time': snapshot['time'], 'project': root.name}
+        if kind != TAG:
+            record[str(root)].update(kind=kind, revision=revision)
         atomic_private(self.latest_path, json.dumps(record, sort_keys=True).encode())
 
-    def latest_snapshots(self):
+    def latest_snapshots(self, kind=TAG):
         """Each book's latest verified snapshot under its real folder, without contacting the repository."""
         if not self.current:
             return []
         verified = self.current['verified']
         return sorted(({'id': entry['id'], 'time': entry['time'], 'path': root, 'project': entry['project'],
                         'restore_checked_at': verified[entry['id']]}
-                       for root, entry in self.latest().items() if entry['id'] in verified),
+                        for root, entry in self.latest().items() if entry['id'] in verified
+                        and entry.get('kind', TAG) == kind),
                       key=lambda item: item['time'], reverse=True)
 
     def restore_into(self, snapshot, target, phase='Checking the snapshot by restoring it'):
@@ -918,10 +1018,10 @@ class Service:
                 result['notice'] += ' Older automatic snapshots were not pruned this time.'
         return result
 
-    def prune(self, now=None):
+    def prune(self, now=None, kind=TAG):
         """Forget automatic snapshots outside the retention schedule, then free their space.
         The newest verified snapshot of every book is kept whatever the schedule says."""
-        rows = json.loads(self.restic(['snapshots', '--tag', TAG + ',auto'])) or []
+        rows = json.loads(self.restic(['snapshots', '--tag', kind + ',auto'])) or []
         require(isinstance(rows, list), 'Unexpected snapshot list; nothing pruned.')
         protected = {entry['id'] for entry in self.latest().values()}
         forget = [i for i in retention_forget(rows, now or datetime.now(timezone.utc))
@@ -993,6 +1093,81 @@ class Service:
         if same_device:
             message += ' Destination is on the same filesystem; keep an off-device copy too.'
         return self.status(message)
+
+    def verify_brain_stream(self, snapshot, expected):
+        private_file(Path(self.current['key']))
+        command = ['/usr/bin/restic', '--repo', self.repository(self.current['repository']),
+                   '--password-file', self.current['key'], '--quiet', 'dump',
+                   snapshot['id'] + ':' + snapshot['path'], '/']
+        entries, folders = set(), set()
+        wanted = dict(expected['files'])
+        manifest = json.dumps({'version': 1, 'kind': 'brain', 'inventory': expected}, sort_keys=True).encode()
+        wanted[MANIFEST] = {'bytes': len(manifest), 'sha256': hashlib.sha256(manifest).hexdigest()}
+        with subprocess.Popen(command, env=self.env, stdin=subprocess.DEVNULL,
+                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as process:
+            try:
+                with tarfile.open(fileobj=process.stdout, mode='r|') as stream:
+                    for member in stream:
+                        relative = member.name.removeprefix('./').strip('/')
+                        if member.isdir():
+                            require(not relative or relative in expected['directories'],
+                                    'Unexpected directory in the Brain backup.')
+                            if relative:
+                                folders.add(relative)
+                            continue
+                        check = wanted.get(relative)
+                        require(member.isfile() and check is not None and relative not in entries
+                                and member.size == check['bytes'], 'Unexpected file in the Brain backup.')
+                        digest = hashlib.sha256()
+                        with stream.extractfile(member) as contents:
+                            while chunk := contents.read(1024 * 1024):
+                                digest.update(chunk)
+                        require(digest.hexdigest() == check['sha256'],
+                                'A Brain file differs when read back from the backup.')
+                        entries.add(relative)
+                require(process.wait(timeout=1800) == 0 and entries == set(wanted)
+                        and folders == set(expected['directories']), 'Brain backup verification was incomplete.')
+            finally:
+                if process.poll() is None:
+                    process.kill()
+
+    def backup_brain(self, library, automatic=False, revision=''):
+        require(self.current is not None, 'Connect an encrypted backup repository first.')
+        require(isinstance(revision, str) and (not revision or re.fullmatch('[a-f0-9]{64}', revision)),
+                'Invalid Brain revision.')
+        root = Path(library).resolve(strict=True)
+        require(not root.is_relative_to(self.state.resolve()), 'Choose the Brain library outside backup state.')
+        destination = self.repository(self.current['repository'])
+        if not destination.startswith('rclone:'):
+            repo = Path(destination)
+            require(not repo.is_relative_to(root) and not root.is_relative_to(repo),
+                    'Backup repository and Brain must be separate directories.')
+        with tempfile.TemporaryDirectory(prefix='.wros-brain-backup-', dir=root) as temporary:
+            stage = Path(temporary)
+            pin_brain(root, stage)
+            original = brain_inventory(stage)
+            manifest = {'version': 1, 'kind': 'brain', 'inventory': original}
+            (stage/MANIFEST).write_text(json.dumps(manifest, sort_keys=True), encoding='utf-8')
+            tags = ['--tag', BRAIN_TAG, '--tag', 'project:Brain']
+            if automatic:
+                tags += ['--tag', 'auto']
+            output = self.restic(['backup', *tags, '--host', 'wros', '--', str(stage)], stage,
+                                 phase='Encrypting Brain notes and media')
+            summaries = [json.loads(line) for line in output.splitlines() if line.strip()]
+            identifier = next((row.get('snapshot_id') for row in summaries
+                               if row.get('message_type') == 'summary'), None)
+            require(identifier, 'Backup did not return a complete Brain snapshot.')
+            snapshot = next((row for row in self.snapshots(kind=BRAIN_TAG)
+                             if row['id'].startswith(identifier)), None)
+            require(snapshot is not None, 'Brain snapshot could not be found for verification.')
+            progress('Reading back the Brain backup without a disk copy')
+            self.verify_brain_stream(snapshot, original)
+            self.current['verified'][snapshot['id']] = now()
+            self.save()
+            self.record_latest(root, snapshot, kind=BRAIN_TAG, revision=revision)
+        if automatic:
+            self.prune(kind=BRAIN_TAG)
+        return self.status('Brain backup verified by reading back every saved file.')
 
     def write_profile(self, target):
         """Grimoire's own files (regular files only, each at most 1 MiB) and the keyboard layout and
@@ -1080,12 +1255,24 @@ class Service:
         if self.current and not self.current['repository'].startswith('drive:'):
             require(not target.is_relative_to(Path(self.repository(self.current['repository']))), 'Restore outside the repository.')
         snapshot = next((row for row in self.snapshots() if row['id'] == identifier), None)
+        brain = snapshot is None
+        if brain:
+            snapshot = next((row for row in self.snapshots(kind=BRAIN_TAG) if row['id'] == identifier), None)
         require(snapshot is not None, 'Snapshot no longer available; refresh the list.')
+        if brain:
+            live = (Path.home()/'Documents/Brain').resolve()
+            require(not target.is_relative_to(live) and not live.is_relative_to(target),
+                    'Restore Brain to an isolated folder.')
+            require(not settings, 'A Brain backup has no project settings.')
         stage = Path(tempfile.mkdtemp(prefix='.wros-restore-incomplete-', dir=target.parent))
         profile = None
         try:
             try:
-                _, profile = self.restore_into(snapshot, stage, phase="Restoring the snapshot")
+                actual, profile = self.restore_into(snapshot, stage, phase="Restoring the snapshot")
+                if brain:
+                    require(profile is None and brain_inventory(stage) == actual, 'Invalid Brain backup layout.')
+                    device = secrets.randbelow((1 << 64) - 2) + 1
+                    write_private(stage/'device-id', (str(device) + '\n').encode(), exclusive=True)
                 publish_directory(stage, target)
             except Exception:
                 # Preserve interrupted/failed restores under an explicit incomplete
@@ -1565,6 +1752,9 @@ def dispatch(service, request):
         return service.backup(request['project'])
     if operation == 'auto-backup':
         return service.backup(request['project'], automatic=True)
+    if operation == 'brain-backup':
+        return service.backup_brain(request['library'], request.get('automatic') is True,
+                                    request.get('revision', ''))
     if operation == 'queue':
         return service.queue_backup(request['project'])
     if operation == 'run-queue':

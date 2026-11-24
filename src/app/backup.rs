@@ -14,6 +14,7 @@ pub enum FormKind {
     Connect,
     Restore,
     RestoreWithSettings,
+    RestoreBrain,
     ExportKey,
     Google,
     GoogleFile,
@@ -42,6 +43,7 @@ impl Form {
             FormKind::Connect => "Connect an existing encrypted repository",
             FormKind::Restore => "Restore snapshot into a NEW folder",
             FormKind::RestoreWithSettings => "Restore snapshot and your settings into a NEW folder",
+            FormKind::RestoreBrain => "Restore Brain into a new isolated folder",
             FormKind::ExportKey => "Export recovery key to a safe separate place",
             FormKind::Google => "Connect Google Drive from a trusted computer",
             FormKind::GoogleFile => "Connect Google Drive from a file on a USB stick",
@@ -60,12 +62,18 @@ impl Form {
                 repository: self.fields[0].to_string(),
                 key: self.fields[1].to_string(),
             },
-            FormKind::Restore | FormKind::RestoreWithSettings => Request::Restore {
-                settings: self.kind == FormKind::RestoreWithSettings,
-                snapshot: self.snapshot,
-                destination: self.fields[0].to_string(),
-                project: project(),
-            },
+            FormKind::Restore | FormKind::RestoreWithSettings | FormKind::RestoreBrain => {
+                Request::Restore {
+                    settings: self.kind == FormKind::RestoreWithSettings,
+                    snapshot: self.snapshot,
+                    destination: self.fields[0].to_string(),
+                    project: if self.kind == FormKind::RestoreBrain {
+                        None
+                    } else {
+                        project()
+                    },
+                }
+            }
             FormKind::ExportKey => Request::ExportKey {
                 destination: self.fields[0].to_string(),
             },
@@ -93,7 +101,9 @@ impl Form {
                 "Repository (absolute path or drive:Folder)",
                 "Recovery key file",
             ],
-            FormKind::Restore | FormKind::RestoreWithSettings => &["New folder (absolute path)"],
+            FormKind::Restore | FormKind::RestoreWithSettings | FormKind::RestoreBrain => {
+                &["New folder (absolute path)"]
+            }
             FormKind::ExportKey => &["New recovery key file (absolute path)"],
             FormKind::Google => &["Paste authorization JSON (hidden)"],
             FormKind::GoogleFile => &["Authorization file (absolute path)"],
@@ -134,6 +144,10 @@ impl Form {
         } else if matches!(self.kind, FormKind::NewLocal | FormKind::NewDrive) {
             rows.push("Creates an encrypted repository and a private recovery key.".into());
             rows.push("Export the key separately; losing it makes backups unreadable.".into());
+        } else if self.kind == FormKind::RestoreBrain {
+            rows.push(
+                "Open the isolated copy to review its notes before bringing them back.".into(),
+            );
         } else if matches!(self.kind, FormKind::Restore | FormKind::RestoreWithSettings) {
             rows.push("Existing folders are refused. Every restored file is hash checked.".into());
             if self.kind == FormKind::RestoreWithSettings {
@@ -545,6 +559,15 @@ impl App {
             return;
         }
         let first = match kind {
+            FormKind::RestoreBrain => self
+                .brain
+                .library_path()
+                .with_file_name(format!(
+                    "Brain-restored-{}",
+                    snapshot.get(..8).unwrap_or("copy")
+                ))
+                .to_string_lossy()
+                .into_owned(),
             FormKind::NewDrive => "drive:WrOS-Backups".into(),
             FormKind::Restore | FormKind::RestoreWithSettings => self
                 .project
@@ -936,6 +959,55 @@ impl App {
         if backup.job.is_none() {
             backup.finish_auto(false);
         }
+    }
+
+    pub(crate) fn tick_brain_backup(&mut self) {
+        if let Some(error) = self.brain.next_copy_error() {
+            self.msg = format!("Could not refresh readable Brain copies · {error}");
+        }
+        let Some(revision) = self.brain.backed_up_version() else {
+            return;
+        };
+        let now = std::time::Instant::now();
+        let library = self.brain.library_path().to_string_lossy().into_owned();
+        let observed = self
+            .brain
+            .backup_observed
+            .get_or_insert_with(|| (revision.clone(), now));
+        if observed.0 != revision {
+            *observed = (revision.clone(), now);
+        }
+        let backup = &mut self.deck.shell.backup;
+        if !backup.status.configured
+            || backup.job.is_some()
+            || backup.status.brain_revisions.get(&library) == Some(&revision)
+            || now.duration_since(observed.1) < AUTO_PAUSE
+            || self
+                .brain
+                .backup_attempted
+                .is_some_and(|last| now.duration_since(last) < AUTO_PAUSE)
+        {
+            return;
+        }
+        self.brain.backup_attempted = Some(now);
+        backup.request(Request::BrainBackup {
+            library,
+            automatic: true,
+            revision,
+        });
+    }
+
+    pub(crate) fn request_brain_backup(&mut self) {
+        if self.deck.shell.backup.job.is_some() || !self.save_brain_panes() {
+            return;
+        }
+        let library = self.brain.library_path().to_string_lossy().into_owned();
+        let revision = self.brain.backed_up_version().unwrap_or_default();
+        self.deck.shell.backup.request(Request::BrainBackup {
+            library,
+            automatic: false,
+            revision,
+        });
     }
     pub fn request_project_backup(&mut self) {
         if self.deck.shell.backup.job.is_some() {

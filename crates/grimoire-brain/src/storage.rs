@@ -66,12 +66,28 @@ pub type DurableStore = Journal<LoroStore>;
 pub struct Journal<S: Replica> {
     root: PathBuf,
     _writer: File,
+    published: File,
     store: S,
     selected: Option<Slot>,
     generation: u64,
     journal_tail: u64,
     recovery: RecoveryReport,
     failed: bool,
+}
+
+struct PublishGuard<'a>(&'a File);
+
+impl<'a> PublishGuard<'a> {
+    fn lock(file: &'a File) -> io::Result<Self> {
+        file.lock()?;
+        Ok(Self(file))
+    }
+}
+
+impl Drop for PublishGuard<'_> {
+    fn drop(&mut self) {
+        let _ = self.0.unlock();
+    }
 }
 
 impl<S: Replica> Journal<S> {
@@ -96,6 +112,13 @@ impl<S: Replica> Journal<S> {
             Err(TryLockError::WouldBlock) => return Err(StorageError::WriterBusy),
             Err(TryLockError::Error(error)) => return Err(error.into()),
         }
+        let published = OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(root.join("publish.lock"))?;
+        let guard = PublishGuard::lock(&published)?;
         let journal = root.join(JOURNAL);
         fs::create_dir_all(&journal)?;
         sync_directory(root)?;
@@ -137,9 +160,11 @@ impl<S: Replica> Journal<S> {
                 Err(error) => return Err(error.into()),
             }
         }
+        drop(guard);
         Ok(Self {
             root: root.to_owned(),
             _writer: writer,
+            published,
             store,
             selected,
             generation,
@@ -209,6 +234,7 @@ impl<S: Replica> Journal<S> {
             },
             has_pending: checkpoint.pending.is_some(),
         };
+        let _guard = PublishGuard::lock(&self.published)?;
         if let Err(error) = publish_checkpoint(&self.root, active, previous, &checkpoint, S::ENGINE)
         {
             self.failed = true;
@@ -222,6 +248,7 @@ impl<S: Replica> Journal<S> {
 
     fn save_update(&mut self, bytes: &[u8]) -> Result<(), StorageError> {
         let saved = next_number(self.journal_tail).and_then(|number| {
+            let _guard = PublishGuard::lock(&self.published)?;
             write_checked(
                 &self.root.join(JOURNAL).join(format!("{number:020}.update")),
                 bytes,

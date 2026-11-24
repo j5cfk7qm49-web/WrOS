@@ -457,6 +457,7 @@ pub(crate) enum SettingsRow {
 }
 
 enum Choice {
+    BackupBrain,
     YoutubePlayToggle,
     BackupRequest(crate::backup_service::Request),
     BackupForm(super::backup::FormKind, String),
@@ -1612,6 +1613,12 @@ fn page_entries(app: &App, route: Route) -> Vec<Entry> {
                 ),
                 Entry::new("Refresh snapshots", Choice::BackupRequest(Request::List)),
             ];
+            if app.brain.library_path().join("store").is_dir() {
+                rows.push(Entry::new(
+                    "Create encrypted backup of Brain",
+                    Choice::BackupBrain,
+                ));
+            }
             rows.extend(links(Route::Backups));
             // Keep action positions stable when an asynchronous job finishes.
             rows.insert(
@@ -1711,6 +1718,16 @@ fn page_entries(app: &App, route: Route) -> Vec<Entry> {
                         Choice::BackupForm(FormKind::RestoreWithSettings, snapshot.id.clone()),
                     ));
                 }
+            }
+            for snapshot in &backup.status.brain_snapshots {
+                rows.push(Entry::new(
+                    format!(
+                        "Restore Brain · {} · {}",
+                        snapshot.time,
+                        snapshot.id.get(..8).unwrap_or("unknown")
+                    ),
+                    Choice::BackupForm(FormKind::RestoreBrain, snapshot.id.clone()),
+                ));
             }
             rows
         }
@@ -2682,6 +2699,7 @@ impl App {
                     Choice::DriveCopyBook(remote) => self.open_drive_import(remote),
                     Choice::YoutubePlayToggle => self.toggle_youtube_play(),
                     Choice::BackupNow => self.request_project_backup(),
+                    Choice::BackupBrain => self.request_brain_backup(),
                     Choice::SyncSwitch(on) => self.request_sync_switch(on),
                     Choice::SyncNow => self.request_sync_run(false),
                     Choice::SyncConfirmDeletes => self.request_sync_run(true),

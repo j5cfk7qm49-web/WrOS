@@ -41,6 +41,11 @@ pub enum Request {
     AutoBackup {
         project: String,
     },
+    BrainBackup {
+        library: String,
+        automatic: bool,
+        revision: String,
+    },
     Queue {
         project: String,
     },
@@ -99,6 +104,7 @@ impl Request {
             Request::Connect { .. } => "Connecting to the backups",
             Request::Backup { .. } => "Backing up this project",
             Request::AutoBackup { .. } => "Backing up this project automatically",
+            Request::BrainBackup { .. } => "Backing up Brain notes and media",
             Request::Queue { .. } => "Queuing a backup for later",
             Request::RunQueue => "Running the queued backups",
             Request::ClearQueue => "Clearing the backup queue",
@@ -144,6 +150,10 @@ pub struct Status {
     #[serde(default)]
     pub drive_entries: Vec<DriveEntry>,
     pub snapshots: Vec<Snapshot>,
+    #[serde(default)]
+    pub brain_snapshots: Vec<Snapshot>,
+    #[serde(default)]
+    pub brain_revisions: std::collections::BTreeMap<String, String>,
     pub notice: String,
 }
 
