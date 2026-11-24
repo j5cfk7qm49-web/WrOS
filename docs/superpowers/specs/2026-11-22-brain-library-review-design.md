@@ -1,6 +1,6 @@
 # Brain, Library and Review (design)
 
-Status: direction approved by the owner, 2026-11-22. The requirements added after design review are awaiting approval. Calls marked "(my call)" are mine and
+Status: direction approved by the owner, 2026-11-22. The owner selected paged Loro on 2026-11-23. The remaining proposals below are awaiting approval. Calls marked "(my call)" are mine and
 need the owner's review. This design replaces the rc25 Zotero client
 ([rc25 design](2026-11-21-rc25-zotero-library-pdfs-design.md)) and removes Zotero from rc24
 ([rc24 design](2026-11-21-rc24-essays-mla-zotero-design.md)). rc24's essays, MLA 9 export,
@@ -154,6 +154,16 @@ or a book beside a note. Stage 1 starts with Brain beside Write (proposed).
 - **Interface:** new features live in menus and panes, not the dashboard (being retired).
 
 ## Approaches
+
+**Stage 0 decision, 2026-11-23.** The owner chose paged Loro for RC25
+because it follows the original design. Loro keeps the authoritative operation
+history and native movable tree. SQLite keeps the rebuildable current view and
+search index. On the HP Stream, this design passed the six steady-state
+benchmark limits and produced a 52 MiB checkpoint. The SQLite ledger also
+passed and remains a comparison candidate with a 396 MiB checkpoint.
+Stage 1 carries forward the measured layout and extends the tests to complex
+editing, projection recovery and keyboard-to-display latency.
+[Decision evidence](../../evidence/rc25-brain-alternatives.md#hp-stream-results)
 
 The main choice was what notes are stored as.
 
