@@ -186,7 +186,7 @@ impl<const PAGED: bool> LoroReplica<PAGED> {
         }
         match edit.content() {
             Change::Create { node, place } => self.create_native(*node, *place)?,
-            Change::CreateWithText { place, .. } => {
+            Change::CreateWithText { place, .. } | Change::CreateWork { place, .. } => {
                 self.create_native(NodeId::Note(edit.id), *place)?;
             }
             Change::Move { node, place } => self.move_native(*node, *place)?,

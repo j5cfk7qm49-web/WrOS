@@ -13,6 +13,12 @@ use unicode_normalization::UnicodeNormalization;
 
 use crate::sync::{self, Fingerprint, SaveOutcome};
 
+mod library;
+pub use library::{
+    LibraryIdentity, LibraryProvenance, accepted_library_record, library_fingerprint,
+    library_provenance, proposed_library_update,
+};
+
 pub const FILENAME: &str = "sources.json";
 const MAX_BYTES: usize = 4 * 1024 * 1024;
 

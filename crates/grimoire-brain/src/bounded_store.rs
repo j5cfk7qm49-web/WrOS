@@ -2,13 +2,13 @@
 
 use std::fs;
 use std::io::{ErrorKind, Write};
-use std::path::Path;
-#[cfg(feature = "qualification")]
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, FixedOffset, NaiveDate};
 use rusqlite::{Connection, TransactionBehavior};
 
+use crate::library::{Edition, EditionKey, Filter, Media, Work, import_media};
+use crate::library_projection;
 use crate::loro_store::PagedLoroStore;
 use crate::model::{Change, Edit, FieldId, NodeId, OpId, Place, Snapshot};
 use crate::projection::{
@@ -36,6 +36,7 @@ const PRE_REVIEW_VIEW: &[u8] = b"paged-outline-v4\0";
 
 pub struct PagedBrain {
     journal: Journal<PagedLoroStore>,
+    library_root: Option<PathBuf>,
     view: Connection,
     device: u64,
     readable: Option<ReadableWorker>,
@@ -58,6 +59,7 @@ impl PagedBrain {
         let device = library_device(library)?;
         let db = cache.join(LIVE_DB);
         let mut brain = Self::open_at(&library.join("store"), &db, device)?;
+        brain.library_root = Some(library.to_owned());
         brain.readable = Some(ReadableWorker::start(db, library.join("readable"))?);
         Ok(brain)
     }
@@ -72,6 +74,7 @@ impl PagedBrain {
         create_view(&view)?;
         Ok(Self {
             journal,
+            library_root: None,
             view,
             device,
             readable: None,
@@ -129,6 +132,94 @@ impl PagedBrain {
     pub fn due_cards(&mut self, now: i64, filter: Option<&SavedQuery>) -> Result<DueCards> {
         self.refresh_view()?;
         review_projection::due(&self.view, now, filter)
+    }
+
+    pub fn library_works(&mut self, filter: &Filter, offset: u32, count: u16) -> Result<Vec<Work>> {
+        self.refresh_view()?;
+        library_projection::works(&self.view, filter, offset, count)
+    }
+
+    pub fn edition(&mut self, key: EditionKey) -> Result<Option<Edition>> {
+        self.refresh_view()?;
+        library_projection::edition(&self.view, key)
+    }
+
+    pub fn work_editions(&mut self, work: NodeId) -> Result<Vec<(EditionKey, Edition)>> {
+        self.refresh_view()?;
+        library_projection::for_work(&self.view, work)
+    }
+
+    pub fn find_editions(&mut self, text: &str, count: u16) -> Result<Vec<(EditionKey, Edition)>> {
+        self.refresh_view()?;
+        library_projection::find_editions(&self.view, text, count)
+    }
+
+    pub fn create_work(&mut self, place: Place, edition: Edition) -> Result<EditionKey> {
+        self.refresh_view()?;
+        self.validate_place(place)?;
+        let edit = self.local_edit(Change::CreateWork { place, edition })?;
+        let key = EditionKey {
+            work: NodeId::Note(edit.id),
+            edition: edit.id,
+        };
+        self.append(edit)?;
+        Ok(key)
+    }
+
+    pub fn add_edition(&mut self, work: NodeId, edition: Edition) -> Result<EditionKey> {
+        self.refresh_view()?;
+        if !library_projection::is_work(&self.view, work)? {
+            return Err("Choose a tagged work first".into());
+        }
+        let (id, dependencies) = self.next_local_id()?;
+        let key = EditionKey { work, edition: id };
+        self.append(Edit {
+            id,
+            dependencies,
+            change: Change::PutEdition { key, edition },
+        })?;
+        Ok(key)
+    }
+
+    pub fn save_edition(&mut self, key: EditionKey, edition: Edition) -> Result<()> {
+        self.refresh_view()?;
+        let current = library_projection::edition(&self.view, key)?
+            .ok_or("This Library edition is no longer available")?;
+        if current != edition {
+            let edit = self.local_edit(Change::PutEdition { key, edition })?;
+            self.append(edit)?;
+        }
+        Ok(())
+    }
+
+    pub fn attach_media(&mut self, key: EditionKey, source: &Path) -> Result<Media> {
+        self.edition(key)?.ok_or("Choose a Library edition first")?;
+        let media = import_media(self.library_root()?, source)?;
+        self.record_media(key, media.clone())?;
+        Ok(media)
+    }
+
+    pub fn library_root(&self) -> Result<&Path> {
+        self.library_root
+            .as_deref()
+            .ok_or("Open the Brain library to attach files".into())
+    }
+
+    pub fn record_media(&mut self, key: EditionKey, media: Media) -> Result<()> {
+        let mut edition = self.edition(key)?.ok_or("Choose a Library edition first")?;
+        if !media.is_valid() {
+            return Err("Invalid media fingerprint".into());
+        }
+        let file = self.library_root()?.join("files").join(&media.sha256);
+        let metadata = file.symlink_metadata()?;
+        if !metadata.is_file() || metadata.len() != media.size {
+            return Err("The stored media is missing or changed".into());
+        }
+        if !edition.files.iter().any(|file| file.sha256 == media.sha256) {
+            edition.files.push(media);
+            self.save_edition(key, edition)?;
+        }
+        Ok(())
     }
 
     pub fn grade_card(

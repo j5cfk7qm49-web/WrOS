@@ -60,6 +60,7 @@ pub(crate) fn affected_root(db: &Connection, change: &Change) -> Result<Option<S
         | Change::SetTag { node, .. }
         | Change::SetLink { node, .. }
         | Change::SetSearch { node, .. } => serde_json::to_string(node)?,
+        Change::PutEdition { key, .. } => serde_json::to_string(&key.work)?,
         Change::EditText { token, .. } => {
             let node = db
                 .prepare_cached("SELECT node FROM live_notes WHERE token=?1")?
@@ -83,7 +84,9 @@ pub(crate) fn mark_edit(
     stamp: &[u8],
 ) -> Result<()> {
     let current = match change {
-        Change::CreateWithText { .. } => root_of(db, &serde_json::to_string(&created)?)?,
+        Change::CreateWithText { .. } | Change::CreateWork { .. } => {
+            root_of(db, &serde_json::to_string(&created)?)?
+        }
         _ => affected_root(db, change)?,
     };
     for page in [previous, current].into_iter().flatten() {

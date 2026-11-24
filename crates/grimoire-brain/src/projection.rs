@@ -6,6 +6,8 @@ use std::time::Duration;
 
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 
+use crate::library::EditionKey;
+use crate::library_projection;
 use crate::model::{Change, Edit, EditFrontier, NodeId, OpId, Place, Snapshot};
 use crate::readable;
 use crate::review::looks_like_card;
@@ -54,6 +56,7 @@ pub(crate) fn create_view(db: &Connection) -> Result<()> {
     )?;
     search::create_tables(db)?;
     review_projection::create_tables(db)?;
+    library_projection::create_tables(db)?;
     readable::create_tables(db)
 }
 
@@ -206,6 +209,7 @@ pub(crate) fn replace_view(db: &mut Connection, stamp: &[u8], snapshot: &Snapsho
     drop(insert);
     drop(outline);
     review_projection::rebuild_events(&transaction, snapshot)?;
+    library_projection::rebuild(&transaction, snapshot)?;
     write_frontier(&transaction, snapshot.frontier())?;
     readable::rebuilt(&transaction, stamp)?;
     stamp_view(&transaction, stamp)?;
@@ -229,6 +233,30 @@ pub(crate) fn apply_paged_edit(db: &Connection, edit: &Edit) -> Result<bool> {
     }
     let applied = match edit.content() {
         Change::Create { node, place } => add_node(db, *node, *place)?,
+        Change::CreateWork { place, edition } => {
+            let node = NodeId::Note(edit.id);
+            let created = add_node(db, node, *place)?
+                && insert_first_text(db, node, edit.id, edition.title())?;
+            if created {
+                search::apply(
+                    db,
+                    &Change::SetTag {
+                        node,
+                        tag: NodeId::Builtin(edition.source_tag()),
+                        present: true,
+                    },
+                )?;
+                library_projection::save(
+                    db,
+                    EditionKey {
+                        work: node,
+                        edition: edit.id,
+                    },
+                    edition,
+                )?;
+            }
+            created
+        }
         Change::CreateWithText { place, text, tag } => {
             let node = NodeId::Note(edit.id);
             let created =
@@ -256,6 +284,10 @@ pub(crate) fn apply_paged_edit(db: &Connection, edit: &Edit) -> Result<bool> {
         }
         Change::ReviewCard { review } if frontier.heads.is_subset(&edit.dependencies) => {
             review_projection::append_event(db, edit.id, review)?;
+            true
+        }
+        Change::PutEdition { key, edition } if frontier.heads.is_subset(&edit.dependencies) => {
+            library_projection::save(db, *key, edition)?;
             true
         }
         change if frontier.heads.is_subset(&edit.dependencies) => search::apply(db, change)?,

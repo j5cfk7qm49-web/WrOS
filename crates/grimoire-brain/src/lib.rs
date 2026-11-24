@@ -6,6 +6,9 @@ pub mod automerge_store;
 pub mod benchmark;
 #[cfg(feature = "runtime")]
 pub mod bounded_store;
+pub mod library;
+#[cfg(feature = "runtime")]
+mod library_projection;
 pub mod loro_store;
 pub mod model;
 #[cfg(feature = "runtime")]

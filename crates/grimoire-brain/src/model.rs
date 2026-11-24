@@ -8,6 +8,7 @@ use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
+use crate::library::{Edition, EditionKey};
 use crate::review::{Card, Review};
 use crate::schema::{FieldSpec, SavedQuery, default_fields};
 
@@ -126,6 +127,15 @@ pub enum Change {
     ReviewCard {
         review: Review,
     },
+    /// Save a tagged work note and its first edition together.
+    CreateWork {
+        place: Place,
+        edition: Edition,
+    },
+    PutEdition {
+        key: EditionKey,
+        edition: Edition,
+    },
     /// Freeze the visible descendants in the deleting device's view.
     Delete {
         members: BTreeSet<NodeId>,
@@ -146,6 +156,7 @@ pub enum ModelError {
     ForeignUndo,
     InvalidReview,
     InvalidCards,
+    InvalidEdition,
 }
 
 #[derive(Debug, Default)]
@@ -176,6 +187,14 @@ impl Edit {
             return Err(ModelError::InvalidDependency);
         }
         match &self.change {
+            Change::CreateWork { edition, .. } | Change::PutEdition { edition, .. }
+                if !edition.is_valid() =>
+            {
+                return Err(ModelError::InvalidEdition);
+            }
+            Change::PutEdition { key, .. } if key.edition > self.id => {
+                return Err(ModelError::InvalidEdition);
+            }
             Change::ReviewCard { review } if !review.is_valid() => {
                 return Err(ModelError::InvalidReview);
             }
@@ -344,6 +363,28 @@ impl Model {
             }
             match content {
                 Change::Create { node, place } => view.create(*node, *place, active),
+                Change::CreateWork { place, edition } => {
+                    let node = NodeId::Note(id);
+                    view.create(node, *place, active);
+                    view.insert_text(id, node, None, edition.title().to_owned(), active);
+                    if active {
+                        view.nodes
+                            .entry(node)
+                            .or_default()
+                            .tags
+                            .entry(NodeId::Builtin(edition.source_tag()))
+                            .or_default()
+                            .assign(self, id, true);
+                        let key = EditionKey {
+                            work: node,
+                            edition: id,
+                        };
+                        view.editions
+                            .entry(key)
+                            .or_default()
+                            .assign(self, id, edition.clone());
+                    }
+                }
                 Change::CreateWithText { place, text, tag } => {
                     let node = NodeId::Note(id);
                     view.create(node, *place, active);
@@ -432,6 +473,11 @@ impl Model {
                     .or_default()
                     .query
                     .assign(self, id, query.clone()),
+                Change::PutEdition { key, edition } => view
+                    .editions
+                    .entry(*key)
+                    .or_default()
+                    .assign(self, id, edition.clone()),
                 _ => {}
             }
         }
@@ -502,6 +548,7 @@ pub struct Snapshot {
     pending: BTreeSet<OpId>,
     card_sets: BTreeMap<NodeId, Values<Vec<Card>>>,
     reviews: BTreeMap<OpId, Review>,
+    editions: BTreeMap<EditionKey, Values<Edition>>,
     #[cfg(feature = "runtime")]
     frontier: EditFrontier,
 }
@@ -526,6 +573,13 @@ impl EditFrontier {
 }
 
 impl Snapshot {
+    pub fn library_editions(&self) -> impl Iterator<Item = (EditionKey, &Edition)> {
+        self.editions
+            .iter()
+            .filter(|(key, _)| self.is_visible(key.work))
+            .filter_map(|(&key, versions)| versions.winner().map(|edition| (key, edition)))
+    }
+
     pub fn review_events(&self) -> impl Iterator<Item = (OpId, &Review)> {
         self.reviews.iter().map(|(&id, review)| (id, review))
     }
