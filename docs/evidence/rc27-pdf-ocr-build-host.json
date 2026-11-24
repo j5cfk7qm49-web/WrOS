@@ -1,0 +1,411 @@
+{
+  "schema": 1,
+  "machine": {
+    "cpu": "Intel(R) Core(TM) i7-9700K CPU @ 3.60GHz",
+    "cpu_flags": [
+      "fpu",
+      "vme",
+      "de",
+      "pse",
+      "tsc",
+      "msr",
+      "pae",
+      "mce",
+      "cx8",
+      "apic",
+      "sep",
+      "mtrr",
+      "pge",
+      "mca",
+      "cmov",
+      "pat",
+      "pse36",
+      "clflush",
+      "mmx",
+      "fxsr",
+      "sse",
+      "sse2",
+      "ss",
+      "ht",
+      "syscall",
+      "nx",
+      "pdpe1gb",
+      "rdtscp",
+      "lm",
+      "arch_perfmon",
+      "rep_good",
+      "nopl",
+      "xtopology",
+      "cpuid",
+      "tsc_known_freq",
+      "pni",
+      "pclmulqdq",
+      "vmx",
+      "ssse3",
+      "fma",
+      "cx16",
+      "pdcm",
+      "pcid",
+      "sse4_1",
+      "sse4_2",
+      "movbe",
+      "popcnt",
+      "aes",
+      "xsave",
+      "avx",
+      "f16c",
+      "rdrand",
+      "hypervisor",
+      "lahf_lm",
+      "abm",
+      "3dnowprefetch",
+      "ssbd",
+      "ibrs",
+      "ibpb",
+      "stibp",
+      "ibrs_enhanced",
+      "tpr_shadow",
+      "ept",
+      "vpid",
+      "ept_ad",
+      "fsgsbase",
+      "bmi1",
+      "avx2",
+      "smep",
+      "bmi2",
+      "erms",
+      "invpcid",
+      "rdseed",
+      "adx",
+      "smap",
+      "clflushopt",
+      "xsaveopt",
+      "xsavec",
+      "xgetbv1",
+      "xsaves",
+      "vnmi",
+      "md_clear",
+      "flush_l1d",
+      "arch_capabilities"
+    ],
+    "kernel": "6.18.58.1-microsoft-standard-WSL2",
+    "memory_kib": 8068764
+  },
+  "renderer": {
+    "PDFium_sha256": "280401d4d672e23b34ab485b61000d15e9f68c3c6ef60a5967813c66090e5a8b",
+    "Poppler": "pdftoppm",
+    "Hayro": null
+  },
+  "ocr": {
+    "program": "tesseract",
+    "custom_models": false
+  },
+  "limits": {
+    "seconds_per_process": 120,
+    "address_space_mib": 1024
+  },
+  "samples": [
+    {
+      "language": "English",
+      "sha256": "cf9888fec03bd324c700537dd592f1f70609af7f9426718a807aa5e4ba6520ae",
+      "page": 1,
+      "render": [
+        {
+          "engine": "PDFium",
+          "dpi": 96,
+          "format": "rgb",
+          "trials": [
+            {
+              "seconds": 0.0995,
+              "peak_rss_kib": 28736,
+              "raster_bytes": 226815
+            },
+            {
+              "seconds": 0.1134,
+              "peak_rss_kib": 28728,
+              "raster_bytes": 226815
+            },
+            {
+              "seconds": 0.0943,
+              "peak_rss_kib": 28728,
+              "raster_bytes": 226815
+            }
+          ],
+          "median_seconds": 0.0995,
+          "peak_rss_kib": 28736
+        },
+        {
+          "engine": "PDFium",
+          "dpi": 96,
+          "format": "gray",
+          "trials": [
+            {
+              "seconds": 0.0906,
+              "peak_rss_kib": 29116,
+              "raster_bytes": 75615
+            },
+            {
+              "seconds": 0.0828,
+              "peak_rss_kib": 29096,
+              "raster_bytes": 75615
+            },
+            {
+              "seconds": 0.0899,
+              "peak_rss_kib": 29140,
+              "raster_bytes": 75615
+            }
+          ],
+          "median_seconds": 0.0899,
+          "peak_rss_kib": 29140
+        },
+        {
+          "engine": "Poppler",
+          "dpi": 96,
+          "format": "rgb",
+          "trials": [
+            {
+              "seconds": 0.0589,
+              "peak_rss_kib": 18860,
+              "raster_bytes": 226815
+            },
+            {
+              "seconds": 0.0223,
+              "peak_rss_kib": 18984,
+              "raster_bytes": 226815
+            },
+            {
+              "seconds": 0.0223,
+              "peak_rss_kib": 18936,
+              "raster_bytes": 226815
+            }
+          ],
+          "median_seconds": 0.0223,
+          "peak_rss_kib": 18984
+        },
+        {
+          "engine": "Poppler",
+          "dpi": 96,
+          "format": "gray",
+          "trials": [
+            {
+              "seconds": 0.0223,
+              "peak_rss_kib": 18688,
+              "raster_bytes": 75615
+            },
+            {
+              "seconds": 0.0225,
+              "peak_rss_kib": 19032,
+              "raster_bytes": 75615
+            },
+            {
+              "seconds": 0.0224,
+              "peak_rss_kib": 19124,
+              "raster_bytes": 75615
+            }
+          ],
+          "median_seconds": 0.0224,
+          "peak_rss_kib": 19124
+        }
+      ],
+      "ocr": [
+        {
+          "model": "eng",
+          "dpi": 200,
+          "trials": [
+            {
+              "seconds": 1.9042,
+              "peak_rss_kib": 90888,
+              "character_error_rate": 0.01282
+            },
+            {
+              "seconds": 1.3846,
+              "peak_rss_kib": 90988,
+              "character_error_rate": 0.01282
+            },
+            {
+              "seconds": 7.6731,
+              "peak_rss_kib": 90896,
+              "character_error_rate": 0.01282
+            }
+          ],
+          "median_seconds": 1.9042,
+          "peak_rss_kib": 90988
+        },
+        {
+          "model": "eng",
+          "dpi": 300,
+          "trials": [
+            {
+              "seconds": 9.0529,
+              "peak_rss_kib": 91048,
+              "character_error_rate": 0.01282
+            },
+            {
+              "seconds": 2.2333,
+              "peak_rss_kib": 90840,
+              "character_error_rate": 0.01282
+            },
+            {
+              "seconds": 2.0173,
+              "peak_rss_kib": 90904,
+              "character_error_rate": 0.01282
+            }
+          ],
+          "median_seconds": 2.2333,
+          "peak_rss_kib": 91048
+        }
+      ]
+    },
+    {
+      "language": "Chinese",
+      "sha256": "7e90272d8e0a06db09ff72067bd2a32c9ad35e3810e6b51d209d06a232ad7f01",
+      "page": 1,
+      "render": [
+        {
+          "engine": "PDFium",
+          "dpi": 96,
+          "format": "rgb",
+          "trials": [
+            {
+              "seconds": 0.0989,
+              "peak_rss_kib": 28764,
+              "raster_bytes": 226815
+            },
+            {
+              "seconds": 0.0785,
+              "peak_rss_kib": 28728,
+              "raster_bytes": 226815
+            },
+            {
+              "seconds": 0.0733,
+              "peak_rss_kib": 28792,
+              "raster_bytes": 226815
+            }
+          ],
+          "median_seconds": 0.0785,
+          "peak_rss_kib": 28792
+        },
+        {
+          "engine": "PDFium",
+          "dpi": 96,
+          "format": "gray",
+          "trials": [
+            {
+              "seconds": 0.0784,
+              "peak_rss_kib": 29068,
+              "raster_bytes": 75615
+            },
+            {
+              "seconds": 0.0787,
+              "peak_rss_kib": 29156,
+              "raster_bytes": 75615
+            },
+            {
+              "seconds": 0.0787,
+              "peak_rss_kib": 29072,
+              "raster_bytes": 75615
+            }
+          ],
+          "median_seconds": 0.0787,
+          "peak_rss_kib": 29156
+        },
+        {
+          "engine": "Poppler",
+          "dpi": 96,
+          "format": "rgb",
+          "trials": [
+            {
+              "seconds": 0.0385,
+              "peak_rss_kib": 18876,
+              "raster_bytes": 226815
+            },
+            {
+              "seconds": 0.0224,
+              "peak_rss_kib": 18856,
+              "raster_bytes": 226815
+            },
+            {
+              "seconds": 0.0414,
+              "peak_rss_kib": 19036,
+              "raster_bytes": 226815
+            }
+          ],
+          "median_seconds": 0.0385,
+          "peak_rss_kib": 19036
+        },
+        {
+          "engine": "Poppler",
+          "dpi": 96,
+          "format": "gray",
+          "trials": [
+            {
+              "seconds": 0.0224,
+              "peak_rss_kib": 18796,
+              "raster_bytes": 75615
+            },
+            {
+              "seconds": 0.0225,
+              "peak_rss_kib": 18796,
+              "raster_bytes": 75615
+            },
+            {
+              "seconds": 0.0225,
+              "peak_rss_kib": 18740,
+              "raster_bytes": 75615
+            }
+          ],
+          "median_seconds": 0.0225,
+          "peak_rss_kib": 18796
+        }
+      ],
+      "ocr": [
+        {
+          "model": "chi_sim",
+          "dpi": 200,
+          "trials": [
+            {
+              "seconds": 4.445,
+              "peak_rss_kib": 159848,
+              "character_error_rate": 0.07843
+            },
+            {
+              "seconds": 2.4691,
+              "peak_rss_kib": 159836,
+              "character_error_rate": 0.07843
+            },
+            {
+              "seconds": 2.6211,
+              "peak_rss_kib": 159772,
+              "character_error_rate": 0.07843
+            }
+          ],
+          "median_seconds": 2.6211,
+          "peak_rss_kib": 159848
+        },
+        {
+          "model": "chi_sim",
+          "dpi": 300,
+          "trials": [
+            {
+              "seconds": 12.7601,
+              "peak_rss_kib": 159820,
+              "character_error_rate": 0.07843
+            },
+            {
+              "seconds": 11.2716,
+              "peak_rss_kib": 159796,
+              "character_error_rate": 0.07843
+            },
+            {
+              "seconds": 4.8418,
+              "peak_rss_kib": 159808,
+              "character_error_rate": 0.07843
+            }
+          ],
+          "median_seconds": 11.2716,
+          "peak_rss_kib": 159820
+        }
+      ]
+    }
+  ]
+}

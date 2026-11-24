@@ -1,5 +1,42 @@
 # Testing and verification
 
+## RC27 Library and PDF/OCR
+
+~~~sh
+cargo test -p grimoire-brain --features runtime --locked --test library
+cargo test -p grimoire-core --locked sources::library
+cargo test -p grimoire-tui --no-default-features --locked --bin grimoire library
+cargo test -p grimoire-tui --no-default-features --locked --bin grimoire citation_picker
+nix run .#brain-pdf-ocr-bench -- --english english.pdf --chinese chinese.pdf \
+    --trials 3 --output hp-stream-pdf-ocr.json
+~~~
+
+Run the benchmark on the HP Stream with one representative page in each
+language. Select a page with `--english-page` or `--chinese-page`. Use
+`--english-truth` and `--chinese-truth` for optional UTF-8 transcripts.
+The JSON records elapsed time, Linux peak RSS and the PDF fingerprints.
+Raster images and recognized text stay in a disposable local directory.
+The render time includes process startup and output conversion. The OCR
+time excludes rasterization.
+
+Generate public scanned-page fixtures and their transcripts for a smoke check.
+
+~~~sh
+python3 tools/brain-pdf-ocr-bench.py fixtures \
+    --unifont assets/fonts/unifont-18.0.01.hex.gz --output /tmp/wros-pdf-ocr-fixtures
+nix run .#brain-pdf-ocr-bench -- \
+    --english /tmp/wros-pdf-ocr-fixtures/english.pdf \
+    --chinese /tmp/wros-pdf-ocr-fixtures/chinese.pdf \
+    --english-truth /tmp/wros-pdf-ocr-fixtures/english.txt \
+    --chinese-truth /tmp/wros-pdf-ocr-fixtures/chinese.txt \
+    --output /tmp/wros-pdf-ocr.json
+~~~
+
+The command pins PDFium, Poppler and Tesseract through the flake. It compares
+colour and grayscale rasterization, then runs Tesseract at 200 and 300 DPI for
+both pages. Pass `--hayro` if an independent Hayro runner accepts the PDF,
+output path, page number, DPI and `gray` or `rgb` arguments in that order.
+
 ## RC26 Review cards
 
 Run the card syntax, identity, grading, clock and rebuild checks in the pinned

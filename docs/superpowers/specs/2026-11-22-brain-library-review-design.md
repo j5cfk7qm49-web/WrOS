@@ -395,7 +395,21 @@ English and Chinese OCR time per page, RSS and character error at 200/300 dpi wi
 workers; 30-minute thermal and input behavior; PP-OCRv5 instruction compatibility, speed and RSS;
 ocrs English time and RSS; Unifont wide Hanzi; and Foot sixel. Use the owner's representative
 PDFs and the full [measurement matrix](2026-11-22-pdf-reader-ocr-research.md#hp-stream-measurement-record).
-Results pending.
+RC27 smoke-tested the kit on the Intel i7-9700K WSL build host with two
+generated scanned-page fixtures and three trials per scenario. PDFium 7749
+and Poppler rendered both pages in colour and grayscale at 96 DPI. Tesseract
+5.5.4 ran English and simplified Chinese at 200 and 300 DPI.
+
+| Fixture | DPI | OCR median | Peak OCR RSS |
+| --- | ---: | ---: | ---: |
+| English | 200 | 1.90 s | 89 MiB |
+| English | 300 | 2.23 s | 89 MiB |
+| Chinese | 200 | 2.62 s | 156 MiB |
+| Chinese | 300 | 11.27 s | 156 MiB |
+
+The host was also assembling a candidate image. These timings establish
+that the measurement path runs. HP Stream timings and representative PDF
+results are pending. [Raw measurements](../../evidence/rc27-pdf-ocr-build-host.json)
 
 ### Review (stage 2)
 

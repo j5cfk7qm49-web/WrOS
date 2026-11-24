@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.0~rc27 · Library
+
+- Browse and filter Library works by title, author, identifier or tag. A
+  work can have separate editions. Identical attachments share one file.
+- Import BibLaTeX and CSL-JSON, or look up a DOI or ISBN before adding an edition.
+- The `@` picker links to a Library edition in Brain and can cite one in
+  Write. Papers keep their accepted bibliography. Review edition changes
+  on project open or export and choose whether to use them.
+- The optional PDF and OCR benchmark measures rendering and recognition
+  using PDFs chosen by the writer.
+
 ## 0.1.0~rc26 · Review cards
 
 - Make a card in a Brain note with `prompt :: answer`, a two-way card with

@@ -142,6 +142,18 @@
           wros-branding;
         wros-iso = wrosIso;
         wros-update-bundle = wrosUpdateBundle;
+        brain-pdf-ocr-bench = pkgs.writeShellApplication {
+          name = "brain-pdf-ocr-bench";
+          runtimeInputs = [
+            pkgs.python3
+            pkgs.poppler-utils
+            (pkgs.tesseract5.override { enableLanguages = [ "eng" "chi_sim" "chi_tra" ]; })
+          ];
+          text = ''
+            exec python3 -B ${./tools/brain-pdf-ocr-bench.py} run \
+              --pdfium "${pkgs.pdfium-binaries}/lib/libpdfium.so" "$@"
+          '';
+        };
         default = wrosPkgs.grimoire;
       };
 
