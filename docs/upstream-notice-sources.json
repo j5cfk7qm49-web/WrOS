@@ -276,12 +276,13 @@
       "name": "priority-queue",
       "version": "2.7.0",
       "package_vcs_commit": "0c76fb8fe75e4457f16f8e6c8e86508d1a89ba1d",
+      "notice_vcs_commit": "d46e94e2c78ceede1cfc63cfa0396472d2798d4c",
       "source_archive": "https://crates.io/api/v1/crates/priority-queue/2.7.0/download",
       "reason": "The crate declares MPL-2.0 terms and omits the separate license text. WrOS uses the MPL-2.0 option for priority-queue. The exact crate archive is combined with the standard license text.",
       "files": [
         {
           "file": "os/licenses/upstream/MPL-2.0.txt",
-          "url": "https://raw.githubusercontent.com/spdx/license-list-data/v3.27.0/text/MPL-2.0.txt",
+          "url": "https://raw.githubusercontent.com/spdx/license-list-data/d46e94e2c78ceede1cfc63cfa0396472d2798d4c/text/MPL-2.0.txt",
           "sha256": "66a3107d5ad6a058aab753eaac2047ccb2ed0e39465dd0fe5844da3e300d5172"
         }
       ]
