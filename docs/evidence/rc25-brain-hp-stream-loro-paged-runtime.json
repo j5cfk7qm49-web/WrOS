@@ -1,0 +1,78 @@
+{
+  "schema": 1,
+  "engine": "loro-paged",
+  "seed": 25001,
+  "profile": "aged",
+  "revision": "03b4d06bbc616552f126d80957b414e4ff8e409e",
+  "measured_at_unix_seconds": 1795494616,
+  "machine": {
+    "os": "linux",
+    "architecture": "x86_64",
+    "kernel": "6.18.63",
+    "cpu": "Intel(R) Celeron(R) N4000 CPU @ 1.10GHz",
+    "memory_bytes": 3932655616,
+    "cgroup_memory_limit": null
+  },
+  "workload": {
+    "visible_nodes": 50000,
+    "deleted_nodes": 10000,
+    "accumulated_edits": 500000,
+    "review_events": 100000,
+    "latency_samples": 20
+  },
+  "initial_disk": {
+    "store_bytes": 193573734,
+    "index_bytes": 77074432,
+    "index_wal_bytes": 0,
+    "markdown_bytes": 52880421
+  },
+  "final_disk": {
+    "store_bytes": 193617801,
+    "index_bytes": 84086784,
+    "index_wal_bytes": 0,
+    "markdown_bytes": 52880478
+  },
+  "background_batches": 1158,
+  "checkpoint_size_bytes": 54341947,
+  "peak_index_wal_bytes": 10720272,
+  "process_write_bytes_during_edit_samples": 3338240,
+  "foreground_write_bytes_per_edit": 16794,
+  "cold_open_peak_rss_bytes": 150917120,
+  "store_open_rss_bytes": 87105536,
+  "first_projection_rss_bytes": 87166976,
+  "checkpoint_start_rss_bytes": 92950528,
+  "storage_only_checkpoint_peak_rss_bytes": 141070336,
+  "metrics": {
+    "checkpoint_peak_rss_bytes": {
+      "observed": 166690816,
+      "limit": 536870912,
+      "passed": true
+    },
+    "checkpoint_temporary_bytes": {
+      "observed": 54342148,
+      "limit": 121450811,
+      "passed": true
+    },
+    "cold_open_p95_ms": {
+      "observed": 412.75867999999997,
+      "limit": 3000,
+      "passed": true
+    },
+    "edit_to_text_p95_ms": {
+      "observed": 43.855891,
+      "limit": 50,
+      "passed": true
+    },
+    "fts_p95_ms": {
+      "observed": 43.101454,
+      "limit": 150,
+      "passed": true
+    },
+    "journal_bytes_per_edit": {
+      "observed": 14464,
+      "limit": 65536,
+      "passed": true
+    }
+  },
+  "within_limits": true
+}

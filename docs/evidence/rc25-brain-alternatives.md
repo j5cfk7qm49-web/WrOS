@@ -117,3 +117,15 @@ after a torn WAL, and an older verified ledger backup that rejoins with a
 fresh identity. Workspace formatting, strict Brain Clippy and the Nix
 benchmark build passed.
 [Test commands](../TESTING.md#rc25-brain-storage)
+
+### Paged Loro runtime retest
+
+The HP Stream reran the aged and smoke workloads on commit `03b4d06` after
+paged Loro became the runtime store, with the indexed outline and the local
+causal frontier persisted in SQLite. Both profiles met their limits on the
+same encrypted eMMC. The aged run measured 413 ms p95 to open and read the
+first note, 43.9 ms p95 from durable edit to text preparation, and 43.1 ms p95
+for FTS. Peak RSS during checkpoint was 159 MiB and journal plus projection
+WAL averaged 14.1 KiB per edit. The installed desk's input-to-display timing
+still needs its own pass.
+[Aged run](rc25-brain-hp-stream-loro-paged-runtime.json)
