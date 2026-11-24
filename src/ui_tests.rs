@@ -2876,6 +2876,7 @@ const EVERY_KEY: &[(&str, &str, &[&str])] = &[
     ("Everywhere", "Super", &[]),
     ("Everywhere", "Super+1", &["Super+3"]),
     ("Everywhere", "Super+3", &[]),
+    ("Everywhere", "Super+4", &[]),
     ("Everywhere", "Tab", &[]),
     ("Everywhere", "Shift-Tab", &[]),
     ("Everywhere", "Ctrl-S", &[]),
@@ -2912,6 +2913,19 @@ const EVERY_KEY: &[(&str, &str, &[&str])] = &[
     ("Brain", "←", &["→"]),
     ("Brain", "p", &[]),
     ("Brain", "t", &["p"]),
+    ("Review cards", "Enter", &[]),
+    ("Review cards", "Space", &[]),
+    ("Review cards", "0", &["Enter"]),
+    ("Review cards", "1", &["Enter"]),
+    ("Review cards", "2", &["Enter"]),
+    ("Review cards", "3", &["Enter"]),
+    ("Review cards", "4", &["Enter"]),
+    ("Review cards", "5", &["Enter"]),
+    ("Review cards", "f", &[]),
+    ("Review cards", "↑", &["Enter", "↓"]),
+    ("Review cards", "↓", &["Enter"]),
+    ("Review cards", "r", &[]),
+    ("Review cards", "Esc", &["f"]),
     ("The outline", "↑", &[]),
     ("The outline", "↓", &["↑"]),
     ("The outline", "j", &["↑"]),
@@ -3032,6 +3046,22 @@ fn desk_for(section: &str) -> (Desk, std::sync::mpsc::Receiver<music::Cmd>) {
                 d.typed(note);
                 d.key(KeyCode::Enter);
             }
+        }
+        "Review cards" => {
+            use grimoire_brain::bounded_store::PagedBrain;
+            use grimoire_brain::model::Place;
+            let library = d.root.join("Brain");
+            let cache = d.root.join("brain-cache");
+            {
+                let mut store = PagedBrain::open_library(&library, &cache).unwrap();
+                store
+                    .create_note_with_text(
+                        Place::default(),
+                        &format!("Which lines follow? :: {long}"),
+                    )
+                    .unwrap();
+            }
+            d.press(key_named("Super+4"));
         }
         "The page" => {
             d.key(KeyCode::Tab);

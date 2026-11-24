@@ -115,7 +115,10 @@ impl ReviewDesk {
             return Ok(None);
         }
         match key.code {
-            KeyCode::Char('r') => self.refresh(store)?,
+            KeyCode::Char('r') => {
+                self.refresh(store)?;
+                return Ok(Some(format!("Refreshed · {} due", self.due.count)));
+            }
             KeyCode::Char('f') => {
                 self.input = Some(Editor::from_text(
                     self.filter.as_ref().map_or("", |(label, _)| label),

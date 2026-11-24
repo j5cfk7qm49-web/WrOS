@@ -67,10 +67,10 @@ each answer line in a child note.
 | Key | Does |
 |---|---|
 | `Enter` or `Space` | reveal the answer |
-| `0` through `5` | grade how well you remembered the answer |
-| `F` | filter by `#tag` or saved search title. Enter an empty filter for all cards |
+| `0` `1` `2` `3` `4` `5` | grade how well you remembered the answer |
+| `f` | filter by #tag or saved search title. Enter an empty filter for all cards |
 | `↑` `↓` | scroll long cards |
-| `R` | check for cards that have come due |
+| `r` | check for cards that have come due |
 | `Esc` | cancel the filter or open the menu |
 
 ## The outline
