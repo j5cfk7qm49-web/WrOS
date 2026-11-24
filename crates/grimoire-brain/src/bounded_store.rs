@@ -33,6 +33,10 @@ impl PagedBrain {
     pub fn open(root: &Path, device: u64) -> Result<Self> {
         let journal = Journal::open(root, device)?;
         let view = open_database(&root.join(LIVE_DB))?;
+        // The checked Loro journal already makes the edit durable. A power
+        // loss can lose recent view transactions, which the version check
+        // detects and rebuilds from the journal.
+        view.pragma_update(None, "synchronous", "NORMAL")?;
         create_view(&view)?;
         Ok(Self {
             journal,

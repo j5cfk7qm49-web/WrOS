@@ -171,3 +171,53 @@ fn sqlite_ledger_retains_pending_ops_across_restart() {
     disk.import(&insert).unwrap();
     assert_eq!(disk.note(node).unwrap().as_deref(), Some("Edited"));
 }
+
+#[test]
+fn sqlite_ledger_keeps_the_last_complete_save_and_view_after_a_torn_wal() {
+    let directory = tempfile::tempdir().unwrap();
+    let source_path = directory.path().join("source");
+    let crash_path = directory.path().join("crash");
+    fs::create_dir(&crash_path).unwrap();
+    let (node, [create, insert, amend]) = history();
+    let mut source = SqliteLedger::open(&source_path, 1).unwrap();
+    source.append(create).unwrap();
+    source.append(insert).unwrap();
+    assert_eq!(source.note(node).unwrap().as_deref(), Some("Old"));
+
+    source.append(amend).unwrap();
+    let complete = fs::metadata(source_path.join("ledger.sqlite-wal"))
+        .unwrap()
+        .len();
+    source
+        .append(edit(
+            4097,
+            Some(4096),
+            Change::EditText {
+                token: id(4095),
+                text: "In the torn transaction".into(),
+            },
+        ))
+        .unwrap();
+    assert!(
+        fs::metadata(source_path.join("ledger.sqlite-wal"))
+            .unwrap()
+            .len()
+            > complete + 100
+    );
+    for name in ["ledger.sqlite", "ledger.sqlite-wal"] {
+        fs::copy(source_path.join(name), crash_path.join(name)).unwrap();
+    }
+    let wal = fs::OpenOptions::new()
+        .write(true)
+        .open(crash_path.join("ledger.sqlite-wal"))
+        .unwrap();
+    wal.set_len(wal.metadata().unwrap().len() - 100).unwrap();
+
+    let mut recovered = SqliteLedger::open(&crash_path, 1).unwrap();
+    assert_eq!(recovered.note(node).unwrap().as_deref(), Some("Edited"));
+    assert_eq!(
+        recovered.project().unwrap().body(node).as_deref(),
+        Some("Edited")
+    );
+    assert_eq!(recovered.edit_count().unwrap(), 3);
+}

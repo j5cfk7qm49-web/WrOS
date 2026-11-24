@@ -59,6 +59,7 @@ fn check_report(engine: &str) {
     assert!(record["background_batches"].as_u64().unwrap() > 0);
     assert!(record["initial_disk"]["store_bytes"].as_u64().unwrap() > 0);
     assert!(record["cold_open_peak_rss_bytes"].as_u64().unwrap() > 0);
+    assert!(record["foreground_write_bytes_per_edit"].as_u64().is_some());
     assert!(record["store_open_rss_bytes"].as_u64().unwrap() > 0);
     assert!(record["first_projection_rss_bytes"].as_u64().unwrap() > 0);
     assert!(record["checkpoint_start_rss_bytes"].as_u64().unwrap() > 0);

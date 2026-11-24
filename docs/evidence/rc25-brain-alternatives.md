@@ -24,6 +24,10 @@ single causal text winner when available. Persist the Loro update first.
 An ordered Loro version vector identifies the projection's contents on
 open and after edits. A crash between updating the two files leaves the
 projection stale, and the next read rebuilds it from the verified history.
+The projection uses SQLite WAL with `synchronous=NORMAL`. The checked Loro
+journal provides durability for acknowledged edits. A power loss can roll
+back the view to an older version, which the stamp detects on reopen.
+[SQLite synchronous modes](https://www.sqlite.org/pragma.html#pragma_synchronous)
 
 ## SQLite ledger
 
@@ -59,4 +63,6 @@ reads the first note. The edit sample includes durable save, reading the
 updated note from that projection and formatting the line. Keyboard-to-
 display timing belongs to the installed app once the UI uses these stores.
 The write metric counts the journal and applicable projection WAL, or the
-ledger WAL. Checkpoint measurements cover publication of real backup files.
+ledger WAL. The separate foreground I/O measurement uses Linux per-thread
+write counters and excludes the background FTS and Markdown writer.
+Checkpoint measurements cover publication of real backup files.

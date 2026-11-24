@@ -141,6 +141,7 @@ struct Report<'a> {
     checkpoint_size_bytes: u64,
     peak_index_wal_bytes: u64,
     process_write_bytes_during_edit_samples: u64,
+    foreground_write_bytes_per_edit: u64,
     cold_open_peak_rss_bytes: u64,
     store_open_rss_bytes: u64,
     first_projection_rss_bytes: u64,
@@ -230,6 +231,7 @@ pub fn run<S: BenchStore>(
         checkpoint_size_bytes: sample.checkpoint_size,
         peak_index_wal_bytes: sample.checkpoint.peak_wal,
         process_write_bytes_during_edit_samples: sample.edit_process_writes,
+        foreground_write_bytes_per_edit: sample.foreground_writes,
         cold_open_peak_rss_bytes: sample.cold_open_peak_rss,
         store_open_rss_bytes: sample.store_open_rss,
         first_projection_rss_bytes: sample.first_projection_rss,
@@ -640,6 +642,7 @@ struct Sample {
     searches: Vec<Duration>,
     edit_bytes: u64,
     edit_process_writes: u64,
+    foreground_writes: u64,
     checkpoint: CheckpointSample,
     checkpoint_size: u64,
 }
@@ -679,6 +682,7 @@ fn sample_workload<S: BenchStore>(
         QUERY
     })?;
     let initial_writes = proc_value("/proc/self/io", "write_bytes:")?;
+    let initial_foreground_writes = proc_value("/proc/thread-self/io", "write_bytes:")?;
     for i in 0..workload.latency_samples {
         let start = Instant::now();
         line.push('.');
@@ -726,6 +730,9 @@ fn sample_workload<S: BenchStore>(
     }
     let edit_process_writes =
         proc_value("/proc/self/io", "write_bytes:")?.saturating_sub(initial_writes);
+    let foreground_writes = proc_value("/proc/thread-self/io", "write_bytes:")?
+        .saturating_sub(initial_foreground_writes)
+        .div_ceil(workload.latency_samples as u64);
     let journal = disk.journal_bytes(&paths.store)?;
     let new_bytes = journal.saturating_sub(initial_journal);
     let checkpoint = measure_checkpoint(&mut disk, paths)?;
@@ -742,6 +749,7 @@ fn sample_workload<S: BenchStore>(
         searches,
         edit_bytes: new_bytes.div_ceil(workload.latency_samples as u64),
         edit_process_writes,
+        foreground_writes,
         checkpoint,
         checkpoint_size,
     })
