@@ -111,10 +111,12 @@ impl SqliteLedger {
             .open(root.join("writer.lock"))?;
         writer.try_lock()?;
         let database = open_database(&root.join(LEDGER_DB))?;
+        // Keep operation payloads in table leaves. The separate logical-ID
+        // index stays small and long text records seldom need overflow pages.
         database.execute_batch(
             "CREATE TABLE IF NOT EXISTS operations(
-                id BLOB PRIMARY KEY, record BLOB NOT NULL
-             ) WITHOUT ROWID;
+                id BLOB PRIMARY KEY NOT NULL, record BLOB NOT NULL
+             );
              CREATE TABLE IF NOT EXISTS reviews(
                 id BLOB PRIMARY KEY, record TEXT NOT NULL
              ) WITHOUT ROWID;
@@ -329,8 +331,8 @@ fn open_database(path: &Path) -> Result<Connection> {
 fn create_view(db: &Connection) -> Result<()> {
     db.execute_batch(
         "CREATE TABLE IF NOT EXISTS live_notes(
-            node TEXT PRIMARY KEY, body TEXT NOT NULL, token BLOB UNIQUE, tip BLOB
-         ) WITHOUT ROWID;
+            node TEXT PRIMARY KEY NOT NULL, body TEXT NOT NULL, token BLOB UNIQUE, tip BLOB
+         );
          CREATE TABLE IF NOT EXISTS view_state(
             singleton INTEGER PRIMARY KEY CHECK(singleton=1), stamp BLOB NOT NULL
          );",

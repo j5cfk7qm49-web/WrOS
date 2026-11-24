@@ -37,6 +37,9 @@ edit and its view visible. A received action is idempotent, and an action
 with missing dependencies stays in the ledger until it can be projected.
 The common model resolves the operation graph, including moves, deletes,
 conflicting fields, splits, joins and Undo.
+The operation and view tables keep text in SQLite table leaves and index
+logical IDs separately. This gives typical note bodies more room per row.
+[SQLite table and index pages](https://www.sqlite.org/fileformat2.html#b_tree_pages)
 
 SQLite's WAL handles interrupted saves on the live database. The prototype
 also takes checksummed backups using SQLite's page-copy API. A verified
