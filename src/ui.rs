@@ -67,6 +67,7 @@ pub fn draw(
         match app.desk_view {
             DeskView::Brain => crate::app::brain::draw(f, app, main, &t, false),
             DeskView::Review => crate::app::brain::review::draw(f, app, main, &t),
+            DeskView::Library => crate::app::brain::library::draw(f, app, main, &t),
             _ => {}
         }
     } else {
@@ -1201,7 +1202,9 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Span::styled(format!("  today {today_text}"), style)
     };
 
-    let mut spans = if app.desk_view == crate::app::brain::DeskView::Review {
+    let mut spans = if app.desk_view == crate::app::brain::DeskView::Library {
+        vec![Span::styled(" Library", Style::default().fg(t.dim))]
+    } else if app.desk_view == crate::app::brain::DeskView::Review {
         vec![Span::styled(" Review cards", Style::default().fg(t.dim))]
     } else if app.desk_view == crate::app::brain::DeskView::Brain {
         vec![Span::styled(" Brain", Style::default().fg(t.dim))]

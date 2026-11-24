@@ -66,7 +66,7 @@ The mouse works everywhere on the bar: click a menu to open it, move across the 
 - **Music player…** (`F7`): while music is on.
 - **Dictionary and thesaurus…** and **Writing checks…**.
 - **Revision ›**: Notes and TKs (`Ctrl-T`), the next TK or note, the next scene still in draft, echo words, Check names, the footnote navigator, the continuity tracker, draft milestones, revision notes and the prose and revision dashboard.
-- **Notes ›**: Look up the name here (`Ctrl-O`), the Pinboard, Pin this document, the writing journal, the scratchpad and the session handoff.
+- **Notes ›**: Library (`Super+2`), Look up the name here (`Ctrl-O`), the Pinboard, Pin this document, the writing journal, the scratchpad and the session handoff.
 - **Progress ›** holds Progress (the project's word count and pace), Goals, Calendar, Sprints, Edits, Collection, Challenges and Story Spark.
 
 ## Settings

@@ -461,6 +461,9 @@ impl App {
         } else {
             self.msg = format!("opened {} · {}", self.project.meta.title, self.msg);
         }
+        if self.overlay == Overlay::None {
+            self.review_library_changes(false);
+        }
         Ok(true)
     }
 }

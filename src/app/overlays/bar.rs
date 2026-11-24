@@ -194,6 +194,11 @@ impl App {
                     return desk_views
                         .into_iter()
                         .chain([
+                            BarRow::new(
+                                "Library",
+                                "Super+2",
+                                Action::SwitchDeskView(DeskView::Library),
+                            ),
                             BarRow::new("Themes…", "F9", Action::Themes),
                             BarRow::new("Workspaces…", "", Action::Workspaces),
                         ])
@@ -427,6 +432,11 @@ impl App {
                 ),
                 BarRow::new("Look up the name here", format!("{m}O"), Action::OpenCodex)
                     .dim_unless(writing, WRITE_FIRST),
+                BarRow::new(
+                    "Library",
+                    "Super+2",
+                    Action::SwitchDeskView(crate::app::brain::DeskView::Library),
+                ),
             ],
             Side::Practice => vec![
                 BarRow::new("Progress…", "", Action::Progress),

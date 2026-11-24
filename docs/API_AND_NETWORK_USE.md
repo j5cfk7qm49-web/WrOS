@@ -107,6 +107,20 @@ the project. A full bundle can be read by any Git client using
 `WrOS-History/<project>/<date>/` copies. It still makes a dated copy before replacing
 or removing a local file if the timeline checkpoint fails.
 
+## Library lookups
+
+- **Crossref** receives the DOI typed into a Library lookup. WrOS requests
+  the single work through HTTPS and shows the result for review. [Crossref REST API](https://www.crossref.org/documentation/retrieve-metadata/rest-api)
+- **Open Library** receives the ISBN typed into a Library lookup. WrOS uses
+  a single HTTPS Books API request to obtain edition details and shows them
+  for review. [Open Library Books API](https://openlibrary.org/dev/docs/api/books)
+
+Both requests use the generic User-Agent `WrOS Library`. They send no
+project text, notes, account identifiers, email or credentials. Lookups
+start only on Enter. The desk keeps up to 16 results in memory and limits
+itself to one request at a time. Imported results remain in the local
+Brain journal.
+
 ## Local system integration
 
 The NixOS backend invokes local `nmcli`, `timedatectl`, `findmnt`,

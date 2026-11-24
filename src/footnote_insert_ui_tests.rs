@@ -28,6 +28,74 @@ fn citation_picker_obeys_word_boundaries_and_inserts_one_undo_step() {
 }
 
 #[test]
+fn citation_picker_keeps_an_accepted_library_edition_until_export_review() {
+    use grimoire_brain::bounded_store::PagedBrain;
+    use grimoire_brain::library::Edition;
+    use grimoire_brain::model::Place;
+    use grimoire_core::sources;
+    use serde_json::json;
+
+    let fixture = tempfile::tempdir().unwrap();
+    let library = fixture.path().join("Brain");
+    let cache = fixture.path().join("cache");
+    {
+        let mut store = PagedBrain::open_library(&library, &cache).unwrap();
+        let record = json!({"id":"atlas","type":"book","title":"The Harbor Atlas",
+            "author":[{"family":"Lin"}]});
+        store
+            .create_work(
+                Place::default(),
+                Edition::new(record.as_object().unwrap().clone(), 1234),
+            )
+            .unwrap();
+    }
+    let mut desk = metric_writer("citation-library-edition", 100, 30);
+    desk.app.brain.set_paths(library, cache);
+    desk.typed("@Harbor");
+    assert!(desk.shows("The Harbor Atlas"));
+    desk.key(KeyCode::Enter);
+    desk.typed("18");
+    desk.key(KeyCode::Enter);
+    let manuscript = desk.app.editor.text();
+    let project = sources::Snapshot::open(&desk.root).unwrap();
+    let (key, record) = project.sources.iter().next().unwrap();
+    assert_eq!(record["title"], "The Harbor Atlas");
+    assert!(sources::library_provenance(record).is_some());
+    assert_eq!(manuscript, format!("[@{key}, p. 18]"));
+
+    desk.press(KeyEvent::new(KeyCode::Char('2'), KeyModifiers::SUPER));
+    desk.key(KeyCode::Enter);
+    desk.key(KeyCode::Char('e'));
+    desk.typed("title = The Updated Harbor Atlas");
+    desk.key(KeyCode::Enter);
+    desk.press(KeyEvent::new(KeyCode::Char('1'), KeyModifiers::SUPER));
+    desk.app.open_export();
+    desk.draw();
+    assert!(desk.shows("Details changed. Update?"));
+    assert!(desk.shows("The Updated Harbor Atlas"));
+    desk.key(KeyCode::Esc);
+    assert!(matches!(desk.app.overlay, Overlay::Export { .. }));
+    assert_eq!(
+        sources::Snapshot::open(&desk.root)
+            .unwrap()
+            .sources
+            .get(key),
+        Some(record)
+    );
+
+    desk.app.open_export();
+    desk.draw();
+    desk.key(KeyCode::Enter);
+    assert!(matches!(desk.app.overlay, Overlay::Export { .. }));
+    let updated = sources::Snapshot::open(&desk.root).unwrap();
+    assert_eq!(
+        updated.sources.get(key).unwrap()["title"],
+        "The Updated Harbor Atlas"
+    );
+    assert_eq!(desk.app.editor.text(), manuscript);
+}
+
+#[test]
 fn insertion_refuses_external_pending_parked_hidden_and_aliased_sources_without_editing() {
     let mut d = metric_writer("footnote-external", 80, 24);
     d.app.editor.set_text("Original λ.");

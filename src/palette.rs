@@ -287,6 +287,11 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
     let mut v = vec![
         Entry::new("Brain", "Super+3", Action::SwitchDeskView(DeskView::Brain)),
         Entry::new(
+            "Library",
+            "Super+2",
+            Action::SwitchDeskView(DeskView::Library),
+        ),
+        Entry::new(
             "Review cards",
             "Super+4",
             Action::SwitchDeskView(DeskView::Review),

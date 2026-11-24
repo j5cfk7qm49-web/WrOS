@@ -933,6 +933,9 @@ impl App {
         let mut app = Self::with(project, Setup::from_config())?;
         app.state_file = Some(books::state_path());
         app.sync_boot_theme_if_changed(Path::new("/etc/wros/boot-theme.toml"));
+        if app.overlay == Overlay::None {
+            app.review_library_changes(false);
+        }
         Ok(app)
     }
 
@@ -2245,8 +2248,8 @@ impl App {
             self.paste_paper_details(text);
             return;
         }
-        if let Overlay::ProjectSources(dialog) = &mut self.overlay {
-            dialog.paste(text);
+        if matches!(self.overlay, Overlay::ProjectSources(_)) {
+            self.paste_project_sources(text);
             return;
         }
         if matches!(
@@ -2480,7 +2483,11 @@ impl App {
                 self.start_delete();
             }
             Action::History => self.open_history(),
-            Action::Save if self.desk_view == brain::DeskView::Review => {}
+            Action::Save
+                if matches!(
+                    self.desk_view,
+                    brain::DeskView::Review | brain::DeskView::Library
+                ) => {}
             Action::Save if self.brain_accepts_input() => {
                 self.save_brain();
             }
@@ -3136,6 +3143,12 @@ impl App {
     // ---- export ----------------------------------------------------------
 
     pub fn open_export(&mut self) {
+        if !self.review_library_changes(true) {
+            self.open_export_ready();
+        }
+    }
+
+    pub(super) fn open_export_ready(&mut self) {
         self.flush();
         if self.office.is_none() {
             self.office = Some(grimoire_core::pdf::find());
@@ -5438,7 +5451,7 @@ impl App {
             self.brain.click(x, y);
             return;
         }
-        if self.desk_view == brain::DeskView::Review && self.overlay == Overlay::None {
+        if self.desk_view != brain::DeskView::Write && self.overlay == Overlay::None {
             return;
         }
         if self.overlay == Overlay::None {

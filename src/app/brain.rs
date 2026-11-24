@@ -4,10 +4,12 @@ use std::path::PathBuf;
 
 use chrono::{Local, NaiveDate};
 use grimoire_brain::bounded_store::{OutlineRow, PagedBrain};
+use grimoire_brain::library::EditionKey;
 use grimoire_brain::model::{NodeId, Place};
 use grimoire_brain::review::looks_like_card;
 use grimoire_brain::schema::SavedQuery;
 use grimoire_core::editor::Editor;
+use grimoire_core::sync::Fingerprint;
 use ratatui::Frame;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -19,6 +21,7 @@ use super::{App, Overlay};
 use crate::theme::Theme;
 
 mod commands;
+pub(crate) mod library;
 pub(crate) mod review;
 use commands::Command;
 
@@ -54,6 +57,7 @@ impl DeskView {
 #[derive(Default)]
 pub struct BrainDesk {
     store: Option<PagedBrain>,
+    library: library::LibraryDesk,
     review: review::ReviewDesk,
     outline: Option<Outline>,
     other_outline: Option<Outline>,
@@ -96,6 +100,15 @@ struct Prompt {
 struct Draft {
     node: Option<NodeId>,
     editor: Editor,
+    work_links: Vec<(String, NodeId)>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BrainReferenceTarget {
+    node: Option<NodeId>,
+    side: bool,
+    position: (usize, usize),
+    revision: Fingerprint,
 }
 
 impl Location {
@@ -166,6 +179,12 @@ impl BrainDesk {
     fn refresh_review(&mut self) -> anyhow::Result<()> {
         self.open_store()?;
         self.review
+            .refresh(self.store.as_mut().expect("Brain store was opened"))
+    }
+
+    fn refresh_library(&mut self) -> anyhow::Result<()> {
+        self.open_store()?;
+        self.library
             .refresh(self.store.as_mut().expect("Brain store was opened"))
     }
 
@@ -240,6 +259,7 @@ impl BrainDesk {
             return Ok(false);
         };
         let body = draft.editor.text();
+        let links = draft.work_links.clone();
         let affects_review = looks_like_card(&body)
             || looks_like_card(&outline.location.title)
             || draft.node.is_some_and(|node| {
@@ -268,6 +288,16 @@ impl BrainDesk {
                 )
                 .map_err(anyhow::Error::msg)?,
         };
+        if let Some(draft) = &mut outline.draft {
+            draft.node = Some(node);
+        }
+        for (marker, target) in links {
+            if body.contains(&marker) {
+                store
+                    .set_link(node, target, true)
+                    .map_err(anyhow::Error::msg)?;
+            }
+        }
         outline.draft = None;
         let location = outline.location.clone();
         outline.load(store, location)?;
@@ -367,6 +397,7 @@ impl BrainDesk {
                 outline.draft = Some(Draft {
                     node: None,
                     editor: Editor::from_text(""),
+                    work_links: Vec::new(),
                 });
             }
             KeyCode::Enter => {
@@ -376,6 +407,7 @@ impl BrainDesk {
                     outline.draft = Some(Draft {
                         node: Some(row.id),
                         editor,
+                        work_links: Vec::new(),
                     });
                     outline.details = None;
                 }
@@ -697,13 +729,6 @@ impl App {
     }
 
     pub fn switch_desk_view(&mut self, view: DeskView) {
-        match view {
-            DeskView::Library => {
-                self.msg = "Library is planned for RC27".into();
-                return;
-            }
-            DeskView::Write | DeskView::Brain | DeskView::Review => {}
-        }
         self.brain.select_side(false);
         if view == self.desk_view {
             return;
@@ -714,7 +739,13 @@ impl App {
             self.msg = format!("Could not open Brain · {error}");
             return;
         }
-        if matches!(view, DeskView::Brain | DeskView::Review)
+        if view == DeskView::Library
+            && let Err(error) = self.brain.refresh_library()
+        {
+            self.msg = format!("Could not open Library · {error}");
+            return;
+        }
+        if view != DeskView::Write
             && let Err(error) = self.brain.refresh_review()
         {
             self.msg = format!("Could not open Review cards · {error}");
@@ -727,29 +758,104 @@ impl App {
         self.msg.clear();
     }
 
-    pub fn paste_brain(&mut self, text: &str) {
-        if self.desk_view == DeskView::Review {
-            self.brain.review.paste(text);
+    pub(crate) fn library_store_if_present(&mut self) -> anyhow::Result<Option<&mut PagedBrain>> {
+        if self.brain.store.is_some() || self.brain.library_path().join("store").is_dir() {
+            return self.brain.open_store().map(Some);
+        }
+        Ok(None)
+    }
+
+    pub(crate) fn brain_reference_target(&self) -> Option<BrainReferenceTarget> {
+        let draft = self.brain.outline.as_ref()?.draft.as_ref()?;
+        let editor = &draft.editor;
+        if editor.has_selection() {
+            return None;
+        }
+        if let Some(previous) = editor
+            .cx
+            .checked_sub(1)
+            .and_then(|index| editor.lines.get(editor.cy)?.chars().nth(index))
+            && (previous.is_alphanumeric() || matches!(previous, '_' | '@'))
+        {
+            return None;
+        }
+        Some(BrainReferenceTarget {
+            node: draft.node,
+            side: self.brain.active_side,
+            position: (editor.cy, editor.cx),
+            revision: Fingerprint::of(&editor.text()),
+        })
+    }
+
+    pub(crate) fn write_brain_reference(
+        &mut self,
+        target: &BrainReferenceTarget,
+        picked: Option<(EditionKey, String)>,
+    ) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            self.brain_reference_target().as_ref() == Some(target),
+            "The note changed. Open the Library picker again."
+        );
+        let draft = self
+            .brain
+            .outline
+            .as_mut()
+            .and_then(|outline| outline.draft.as_mut())
+            .ok_or_else(|| anyhow::anyhow!("The note draft is unavailable"))?;
+        if let Some((edition, title)) = picked {
+            let marker = format!(
+                "brain:{}#{}",
+                edition.work.external_id(),
+                NodeId::Note(edition.edition).external_id()
+            );
+            let mut label = String::new();
+            for c in title.chars().filter(|c| !c.is_control()).take(256) {
+                if matches!(c, '[' | ']' | '\\') {
+                    label.push('\\');
+                }
+                label.push(c);
+            }
+            draft.editor.insert_str(&format!("[{label}]({marker})"));
+            draft.work_links.push((marker, edition.work));
         } else {
-            self.brain.paste(text);
+            draft.editor.insert('@');
+        }
+        Ok(())
+    }
+
+    pub(super) fn tick_library(&mut self) {
+        if let Some(store) = &mut self.brain.store
+            && let Some(result) = self.brain.library.poll(store)
+        {
+            self.msg = result.unwrap_or_else(|error| format!("Library · {error}"));
+        }
+    }
+
+    pub fn paste_brain(&mut self, text: &str) {
+        match self.desk_view {
+            DeskView::Library => self.brain.library.paste(text),
+            DeskView::Review => self.brain.review.paste(text),
+            _ => self.brain.paste(text),
         }
     }
 
     pub(super) fn undo_brain_input(&mut self, redo: bool) {
-        if self.desk_view == DeskView::Review {
-            self.brain.review.edit_history(redo);
-        } else {
-            self.brain.edit_history(redo);
+        match self.desk_view {
+            DeskView::Library => self.brain.library.edit_history(redo),
+            DeskView::Review => self.brain.review.edit_history(redo),
+            _ => self.brain.edit_history(redo),
         }
     }
 
     pub(super) fn scroll_brain(&mut self, down: bool) {
-        if self.desk_view == DeskView::Review {
-            self.brain.review.scroll(down);
-            return;
-        }
-        if let Err(error) = self.brain.scroll(down) {
-            self.msg = format!("Could not open Brain notes · {error}");
+        match self.desk_view {
+            DeskView::Library => self.brain.library.scroll(down),
+            DeskView::Review => self.brain.review.scroll(down),
+            _ => {
+                if let Err(error) = self.brain.scroll(down) {
+                    self.msg = format!("Could not open Brain notes · {error}");
+                }
+            }
         }
     }
 
@@ -780,6 +886,10 @@ impl App {
     }
 
     pub fn on_brain_key(&mut self, key: KeyEvent) {
+        if self.desk_view == DeskView::Library {
+            self.on_library_key(key);
+            return;
+        }
         if self.desk_view == DeskView::Review {
             self.on_review_card_key(key);
             return;
@@ -797,6 +907,13 @@ impl App {
             } else {
                 self.msg.clear();
             }
+            return;
+        }
+        if key.code == KeyCode::Char('@')
+            && key.modifiers.difference(KeyModifiers::SHIFT).is_empty()
+            && let Some(target) = self.brain_reference_target()
+        {
+            self.open_brain_library_picker(target);
             return;
         }
         let draft = self
@@ -894,10 +1011,8 @@ pub(crate) fn draw_view_bar(f: &mut Frame, app: &mut App, area: Rect, theme: &Th
                 .fg(theme.accent)
                 .bg(theme.sel)
                 .add_modifier(Modifier::BOLD)
-        } else if view != DeskView::Library {
-            Style::default().fg(theme.text)
         } else {
-            Style::default().fg(theme.dim)
+            Style::default().fg(theme.text)
         };
         f.render_widget(Line::styled(format!(" {label} "), style), rect);
         app.brain.view_hits.push((rect, view));

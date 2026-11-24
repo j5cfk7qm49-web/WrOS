@@ -1,6 +1,9 @@
 //! The project bibliography and the keyboard citation picker.
 
 use super::*;
+use crate::app::brain::BrainReferenceTarget;
+use grimoire_brain::library::EditionKey;
+use grimoire_brain::model::NodeId;
 use grimoire_core::sync::Fingerprint;
 use grimoire_core::{citations, sources};
 use serde_json::{Value, json};
@@ -13,11 +16,18 @@ pub struct SourceDialog {
     query: String,
     selected: usize,
     notice: String,
+    library: Vec<LibraryPick>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 enum Page {
     List,
+    BrainPick(BrainReferenceTarget),
+    LibraryChanges {
+        changes: std::collections::VecDeque<LibraryChange>,
+        export: bool,
+        scroll: usize,
+    },
     Remove(String),
     Restore {
         version: sources::Sources,
@@ -62,6 +72,22 @@ struct Citation {
     key: String,
     page: String,
     suppress: bool,
+    library: Option<Box<LibraryPick>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct LibraryPick {
+    key: String,
+    edition: EditionKey,
+    record: sources::Record,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct LibraryChange {
+    project_key: String,
+    edition: EditionKey,
+    before: sources::Record,
+    proposed: sources::Record,
 }
 
 const TYPES: [(&str, &str); 4] = [
@@ -89,18 +115,25 @@ const FIELDS: [(&str, &str); 13] = [
 impl App {
     fn sources_dialog(&mut self, page: Page) {
         let book = self.project.root.clone();
-        let (snapshot, notice) = match sources::Snapshot::open(&book) {
-            Ok(snapshot) => (Some(snapshot), String::new()),
-            Err(e) => (None, format!("{e:#}")),
+        let (snapshot, notice) = if matches!(page, Page::BrainPick(_)) {
+            (None, String::new())
+        } else {
+            match sources::Snapshot::open(&book) {
+                Ok(snapshot) => (Some(snapshot), String::new()),
+                Err(e) => (None, format!("{e:#}")),
+            }
         };
-        self.overlay = Overlay::ProjectSources(Box::new(SourceDialog {
+        let mut dialog = Box::new(SourceDialog {
             book,
             snapshot,
             page,
             query: String::new(),
             selected: 0,
             notice,
-        }));
+            library: Vec::new(),
+        });
+        self.refresh_citation_library(&mut dialog);
+        self.overlay = Overlay::ProjectSources(dialog);
     }
 
     pub fn open_project_sources(&mut self) {
@@ -222,6 +255,153 @@ impl App {
         true
     }
 
+    pub(crate) fn open_brain_library_picker(&mut self, target: BrainReferenceTarget) {
+        self.sources_dialog(Page::BrainPick(target));
+    }
+
+    pub(crate) fn paste_project_sources(&mut self, text: &str) {
+        let Overlay::ProjectSources(mut dialog) =
+            std::mem::replace(&mut self.overlay, Overlay::None)
+        else {
+            return;
+        };
+        let before = dialog.query.clone();
+        dialog.paste(text);
+        if before != dialog.query {
+            self.refresh_citation_library(&mut dialog);
+        }
+        self.overlay = Overlay::ProjectSources(dialog);
+    }
+
+    fn refresh_citation_library(&mut self, dialog: &mut SourceDialog) {
+        let brain = matches!(dialog.page, Page::BrainPick(_));
+        if !brain && !matches!(dialog.page, Page::Pick { .. }) {
+            return;
+        }
+        dialog.library.clear();
+        let project = dialog.snapshot.as_ref().map(|snapshot| &snapshot.sources);
+        if !brain && project.is_none() {
+            return;
+        }
+        let Ok(Some(store)) = self.library_store_if_present() else {
+            return;
+        };
+        let query = dialog.query.trim();
+        let Ok(editions) = store.find_editions(query, 48) else {
+            return;
+        };
+        let linked: std::collections::BTreeSet<_> = project
+            .into_iter()
+            .filter(|_| !brain)
+            .flat_map(sources::Sources::iter)
+            .filter_map(|(_, record)| sources::library_provenance(record).map(|link| link.identity))
+            .collect();
+        for (edition, metadata) in editions {
+            let identity = sources::LibraryIdentity {
+                work_id: edition.work.external_id(),
+                edition_id: NodeId::Note(edition.edition).external_id(),
+            };
+            if linked.contains(&identity) {
+                continue;
+            }
+            let base = format!(
+                "library-{:x}-{:x}",
+                edition.edition.device, edition.edition.clock
+            );
+            let occupied = |key: &str| project.is_some_and(|sources| sources.get(key).is_some());
+            let key = if !occupied(&base) {
+                base
+            } else {
+                (2..)
+                    .map(|index| format!("{base}-{index}"))
+                    .find(|key| !occupied(key))
+                    .expect("an available citation key")
+            };
+            if let Ok(record) =
+                sources::accepted_library_record(&key, identity, &metadata.bibliography)
+            {
+                dialog.library.push(LibraryPick {
+                    key,
+                    edition,
+                    record,
+                });
+            }
+        }
+    }
+
+    pub(crate) fn review_library_changes(&mut self, export: bool) -> bool {
+        let Ok(sources) = sources::Snapshot::open(&self.project.root) else {
+            return false;
+        };
+        let linked: Vec<_> = sources
+            .sources
+            .iter()
+            .filter_map(|(key, record)| {
+                let link = sources::library_provenance(record)?;
+                let work = link.identity.work_id.parse().ok()?;
+                let NodeId::Note(edition) = link.identity.edition_id.parse().ok()? else {
+                    return None;
+                };
+                Some((key, record, EditionKey { work, edition }))
+            })
+            .collect();
+        if linked.is_empty() {
+            return false;
+        }
+        let Ok(Some(store)) = self.library_store_if_present() else {
+            return false;
+        };
+        let mut changes = std::collections::VecDeque::new();
+        for (key, record, edition) in linked {
+            if let Ok(Some(current)) = store.edition(edition)
+                && let Ok(Some(proposed)) =
+                    sources::proposed_library_update(record, &current.bibliography)
+            {
+                changes.push_back(LibraryChange {
+                    project_key: key.into(),
+                    edition,
+                    before: record.clone(),
+                    proposed,
+                });
+            }
+        }
+        if changes.is_empty() {
+            return false;
+        }
+        self.sources_dialog(Page::LibraryChanges {
+            changes,
+            export,
+            scroll: 0,
+        });
+        true
+    }
+
+    fn accept_library_change(&mut self, book: &Path, change: &LibraryChange) -> Result<()> {
+        anyhow::ensure!(self.project.root == book, "The open project changed");
+        let mut sources_file = sources::Snapshot::open(book)?;
+        anyhow::ensure!(
+            sources_file.sources.get(&change.project_key) == Some(&change.before),
+            "The project source changed. Open the review again."
+        );
+        let current = self
+            .library_store_if_present()?
+            .ok_or_else(|| anyhow::anyhow!("The Library is unavailable"))?
+            .edition(change.edition)
+            .map_err(anyhow::Error::msg)?
+            .ok_or_else(|| anyhow::anyhow!("The edition disappeared from Library"))?;
+        anyhow::ensure!(
+            sources::proposed_library_update(&change.before, &current.bibliography)?.as_ref()
+                == Some(&change.proposed),
+            "The Library edition changed. Open the review again."
+        );
+        sources_file
+            .sources
+            .update(&change.project_key, change.proposed.clone())?;
+        sources_file.save(book)?;
+        self.sources_saved();
+        Ok(())
+    }
+
     fn insert_citation(
         &mut self,
         target: &Target,
@@ -253,19 +433,47 @@ impl App {
         let text = if literal {
             "@".to_owned()
         } else {
-            let on_disk = sources::Snapshot::open(&from.book)?;
+            let mut on_disk = sources::Snapshot::open(&from.book)?;
             let previous = &from
                 .snapshot
                 .as_ref()
                 .ok_or_else(|| anyhow::anyhow!("The project source list is unavailable."))?
                 .sources;
             let mut items = Vec::new();
+            let mut adding = false;
             for citation in picked {
-                anyhow::ensure!(
-                    on_disk.sources.get(&citation.key).is_some()
-                        && on_disk.sources.get(&citation.key) == previous.get(&citation.key),
-                    "The project source changed. Open the picker again."
-                );
+                if let Some(pick) = &citation.library {
+                    let accepted = sources::library_provenance(&pick.record).ok_or_else(|| {
+                        anyhow::anyhow!("The Library record has no accepted details")
+                    })?;
+                    let current = self
+                        .library_store_if_present()?
+                        .ok_or_else(|| anyhow::anyhow!("The Library is unavailable"))?
+                        .edition(pick.edition)
+                        .map_err(anyhow::Error::msg)?
+                        .ok_or_else(|| anyhow::anyhow!("The Library edition is unavailable"))?;
+                    anyhow::ensure!(
+                        sources::library_fingerprint(&current.bibliography)?
+                            == accepted.fingerprint,
+                        "The Library edition changed. Open the picker again."
+                    );
+                    match on_disk.sources.get(&citation.key) {
+                        Some(existing) => anyhow::ensure!(
+                            existing == &pick.record,
+                            "A project source now uses that key. Open the picker again."
+                        ),
+                        None => {
+                            on_disk.sources.add(pick.record.clone())?;
+                            adding = true;
+                        }
+                    }
+                } else {
+                    anyhow::ensure!(
+                        on_disk.sources.get(&citation.key).is_some()
+                            && on_disk.sources.get(&citation.key) == previous.get(&citation.key),
+                        "The project source changed. Open the picker again."
+                    );
+                }
                 let page = citation.page.trim();
                 let mut item = format!(
                     "{}@{}",
@@ -286,6 +494,10 @@ impl App {
                 }
                 items.push(item);
             }
+            if adding {
+                on_disk.save(&from.book)?;
+                self.sources_saved();
+            }
             format!("[{}]", items.join("; "))
         };
         self.editor
@@ -301,14 +513,75 @@ impl App {
             return;
         };
         if key == Key::Esc {
+            if matches!(dialog.page, Page::LibraryChanges { export: true, .. }) {
+                self.open_export_ready();
+            }
             return;
         }
         let mut pending = None;
+        let query_before = dialog.query.clone();
         let current = dialog
             .matches()
             .get(dialog.selected)
             .map(|(key, _)| (*key).to_owned());
         match &mut dialog.page {
+            Page::BrainPick(target) => match key {
+                Key::Char('@') if dialog.query.is_empty() => {
+                    if let Err(error) = self.write_brain_reference(target, None) {
+                        self.msg = format!("{error:#}");
+                    }
+                    return;
+                }
+                Key::Enter => {
+                    if let Some(pick) = dialog
+                        .library
+                        .iter()
+                        .find(|pick| current.as_ref() == Some(&pick.key))
+                    {
+                        match self.write_brain_reference(
+                            target,
+                            Some((pick.edition, text(&pick.record, "title").to_owned())),
+                        ) {
+                            Ok(()) => return,
+                            Err(error) => dialog.notice = format!("{error:#}"),
+                        }
+                    }
+                }
+                _ => update_search(&mut dialog.query, &mut dialog.selected, key),
+            },
+            Page::LibraryChanges {
+                changes,
+                export,
+                scroll,
+            } => {
+                match key {
+                    Key::Up => *scroll = scroll.saturating_sub(1),
+                    Key::Down => *scroll = scroll.saturating_add(1),
+                    Key::Char('k') => {
+                        changes.pop_front();
+                        *scroll = 0;
+                    }
+                    Key::Enter => {
+                        if let Some(change) = changes.front() {
+                            match self.accept_library_change(&dialog.book, change) {
+                                Ok(()) => {
+                                    changes.pop_front();
+                                    *scroll = 0;
+                                    dialog.notice.clear();
+                                }
+                                Err(error) => dialog.notice = format!("{error:#}"),
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                if changes.is_empty() {
+                    if *export {
+                        self.open_export_ready();
+                    }
+                    return;
+                }
+            }
             Page::List => match key {
                 Key::Delete => {
                     if let Some(key) = current {
@@ -439,10 +712,17 @@ impl App {
                 }
                 (None, Key::Enter) => {
                     if let Some(key) = current {
+                        let library = dialog
+                            .library
+                            .iter()
+                            .find(|entry| entry.key == key)
+                            .cloned()
+                            .map(Box::new);
                         *chosen = Some(Citation {
                             key,
                             page: String::new(),
                             suppress: false,
+                            library,
                         });
                         *field = 0;
                     }
@@ -580,6 +860,9 @@ impl App {
                 Err(e) => dialog.notice = format!("{e:#}"),
             }
         }
+        if query_before != dialog.query {
+            self.refresh_citation_library(&mut dialog);
+        }
         dialog.selected = dialog
             .selected
             .min(dialog.matches().len().saturating_sub(1));
@@ -600,6 +883,7 @@ impl SourceDialog {
         let query = self.query.trim().to_lowercase();
         self.snapshot
             .iter()
+            .filter(|_| !matches!(self.page, Page::BrainPick(_)))
             .flat_map(|s| s.sources.iter())
             .filter(|(key, source)| {
                 key.to_lowercase().contains(&query)
@@ -608,12 +892,19 @@ impl SourceDialog {
                         .to_lowercase()
                         .contains(&query)
             })
+            .chain(
+                self.library
+                    .iter()
+                    .map(|pick| (pick.key.as_str(), &pick.record)),
+            )
             .collect()
     }
 
     pub fn paste(&mut self, input: &str) {
         let target = match &mut self.page {
-            Page::List | Page::Pick { chosen: None, .. } => Some(&mut self.query),
+            Page::List | Page::BrainPick(_) | Page::Pick { chosen: None, .. } => {
+                Some(&mut self.query)
+            }
             Page::Pick {
                 chosen: Some(cite),
                 field: 0,
@@ -803,6 +1094,8 @@ pub(super) fn draw(f: &mut Frame, dialog: &SourceDialog, area: Rect, t: &Theme) 
     f.render_widget(Clear, r);
     let title = match &dialog.page {
         Page::List => "Project sources",
+        Page::BrainPick(_) => "Link a Library edition",
+        Page::LibraryChanges { .. } => "Details changed. Update?",
         Page::Remove(_) => "Delete source",
         Page::Restore { .. } => "Restore project sources",
         Page::Drive { .. } => "Resolve source conflict",
@@ -820,6 +1113,50 @@ pub(super) fn draw(f: &mut Frame, dialog: &SourceDialog, area: Rect, t: &Theme) 
     let active = Style::default().fg(t.accent);
     let mut lines = Vec::new();
     let help = match &dialog.page {
+        Page::LibraryChanges {
+            changes, scroll, ..
+        } => {
+            if let Some(change) = changes.front() {
+                lines.push(Line::styled(
+                    format!("{} · {} to review", change.project_key, changes.len()),
+                    active,
+                ));
+                let fields: std::collections::BTreeSet<_> = change
+                    .before
+                    .keys()
+                    .chain(change.proposed.keys())
+                    .filter(|key| {
+                        !key.starts_with("x-wros")
+                            && change.before.get(*key) != change.proposed.get(*key)
+                    })
+                    .collect();
+                let width = usize::from(inner.width);
+                let mut preview = Vec::new();
+                for field in fields {
+                    preview.push(format!(
+                        "{field} · {}",
+                        field_value(Some(&change.before), field)
+                    ));
+                    preview.push(format!(
+                        "  → {}",
+                        field_value(Some(&change.proposed), field)
+                    ));
+                }
+                if preview.is_empty() {
+                    preview.push("Your local details stay as they are.".into());
+                }
+                let room = usize::from(inner.height.saturating_sub(5).max(1));
+                let scroll = (*scroll).min(preview.len().saturating_sub(room));
+                lines.extend(
+                    preview
+                        .iter()
+                        .skip(scroll)
+                        .take(room)
+                        .map(|line| Line::from(truncate(line, width))),
+                );
+            }
+            "Enter update   K keep accepted   ↑/↓ scroll   Esc keep all"
+        }
         Page::Remove(key) => {
             lines.push(Line::from(format!(
                 "Remove {key} from this project's sources?"
@@ -895,7 +1232,7 @@ pub(super) fn draw(f: &mut Frame, dialog: &SourceDialog, area: Rect, t: &Theme) 
                 "Enter save   Shift-Tab back   Esc cancel"
             }
         }
-        Page::List | Page::Pick { chosen: None, .. } => {
+        Page::List | Page::BrainPick(_) | Page::Pick { chosen: None, .. } => {
             lines.push(Line::styled(format!("Find [{}]", dialog.query), active));
             if let Page::Pick { cluster, .. } = &dialog.page
                 && !cluster.is_empty()

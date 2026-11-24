@@ -75,8 +75,7 @@ fn brain_today_can_edit_nested_notes_and_reopen_them_without_touching_the_prose(
     desk.draw();
     assert!(desk.shows("Research"));
     desk.press(KeyEvent::new(KeyCode::Char('2'), KeyModifiers::SUPER));
-    assert!(desk.shows("Research"));
-    assert!(desk.status().contains("Library is planned for RC27"));
+    assert!(desk.shows("No matching works"));
     desk.press(KeyEvent::new(KeyCode::Char('4'), KeyModifiers::SUPER));
     assert!(desk.shows("Review cards"));
     assert!(desk.shows("No cards due"));
@@ -192,6 +191,78 @@ fn review_cards_use_a_saved_search_and_never_type_into_the_manuscript() {
     let events: Vec<_> = snapshot.review_events().collect();
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].1.grade, 5);
+}
+
+#[test]
+fn library_adds_editions_and_edits_the_selected_record_without_rewriting_the_work() {
+    let folder = tempfile::tempdir().unwrap();
+    let library = folder.path().join("Brain");
+    let cache = folder.path().join("cache");
+    let mut desk = Desk::open(book("library-editions", true), 100, 28);
+    desk.app.brain.set_paths(library.clone(), cache.clone());
+    desk.menu(&["Tools", "Notes", "Library"]);
+    desk.key(KeyCode::Char('n'));
+    desk.typed("The Garden Book");
+    desk.key(KeyCode::Enter);
+    assert!(desk.shows("The Garden Book"));
+    desk.key(KeyCode::Char('b'));
+    desk.typed("Revised");
+    desk.key(KeyCode::Enter);
+    assert!(desk.shows("Revised"));
+    desk.key(KeyCode::Char('e'));
+    desk.typed("title = Gardens, revised");
+    desk.key(KeyCode::Enter);
+    assert!(desk.shows("Gardens, revised"));
+    desk.key(KeyCode::Esc);
+    assert!(desk.shows("The Garden Book"));
+    assert!(!desk.shows("Gardens, revised"));
+    desk.key(KeyCode::Char('f'));
+    desk.typed("revised");
+    desk.key(KeyCode::Enter);
+    assert!(desk.shows("The Garden Book"));
+}
+
+#[test]
+fn library_picker_links_a_brain_note_to_a_stable_work_and_edition() {
+    use grimoire_brain::bounded_store::PagedBrain;
+    use grimoire_brain::library::Edition;
+    use grimoire_brain::model::{NodeId, Place};
+    use serde_json::json;
+
+    let fixture = tempfile::tempdir().unwrap();
+    let library = fixture.path().join("Brain");
+    let cache = fixture.path().join("cache");
+    let edition = {
+        let mut store = PagedBrain::open_library(&library, &cache).unwrap();
+        let record = json!({"type":"book","title":"A History of Gardens"});
+        store
+            .create_work(
+                Place::default(),
+                Edition::new(record.as_object().unwrap().clone(), 1234),
+            )
+            .unwrap()
+    };
+    let mut desk = Desk::open(book("library-brain-link", true), 100, 28);
+    desk.app.brain.set_paths(library.clone(), cache.clone());
+    desk.press(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::SUPER));
+    desk.key(KeyCode::Char('n'));
+    desk.typed("@Gardens");
+    assert!(desk.shows("Link a Library edition"));
+    desk.key(KeyCode::Enter);
+    desk.key(KeyCode::Enter);
+    assert!(desk.shows("A History of Gardens"));
+    drop(desk);
+
+    let mut store = PagedBrain::open_library(&library, &cache).unwrap();
+    let today = NodeId::Today(chrono::Local::now().date_naive());
+    let row = store.children(Some(today), 0, 10).unwrap().remove(0);
+    let marker = format!(
+        "brain:{}#{}",
+        edition.work.external_id(),
+        NodeId::Note(edition.edition).external_id()
+    );
+    assert!(row.body.contains(&marker));
+    assert_eq!(store.details(row.id).unwrap().links, [edition.work]);
 }
 
 #[test]
@@ -2875,6 +2946,7 @@ const EVERY_KEY: &[(&str, &str, &[&str])] = &[
     ("Everywhere", "Ctrl-K", &[]),
     ("Everywhere", "Super", &[]),
     ("Everywhere", "Super+1", &["Super+3"]),
+    ("Everywhere", "Super+2", &[]),
     ("Everywhere", "Super+3", &[]),
     ("Everywhere", "Super+4", &[]),
     ("Everywhere", "Tab", &[]),
