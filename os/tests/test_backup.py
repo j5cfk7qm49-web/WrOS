@@ -514,7 +514,12 @@ class EncryptedBackup(unittest.TestCase):
         # to the repository, but restore verification was interrupted before completion.
         snap_id = 'a' * 64
         expected_inv = module.inventory(self.project)
-        def fake_snapshots(queue_id=None):
+        def fake_snapshots(queue_id=None, setup=False, kind=module.TAG):
+            self.assertFalse(setup)
+            if kind == module.BRAIN_TAG:
+                self.assertIsNone(queue_id)
+                return []
+            self.assertEqual(kind, module.TAG)
             if queue_id is not None:
                 self.assertEqual(queue_id, reloaded.queue[0]['id'])
             return [{'id': snap_id, 'time': '2026-10-31T05:00:00Z', 'path': '/staged/book',
