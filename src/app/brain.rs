@@ -149,6 +149,20 @@ impl BrainDesk {
         draft.editor.insert_str(&text);
     }
 
+    pub(super) fn edit_history(&mut self, redo: bool) {
+        if let Some(draft) = self
+            .outline
+            .as_mut()
+            .and_then(|outline| outline.draft.as_mut())
+        {
+            if redo {
+                draft.editor.redo();
+            } else {
+                draft.editor.undo();
+            }
+        }
+    }
+
     fn save(&mut self) -> anyhow::Result<bool> {
         let (Some(store), Some(outline)) = (&mut self.store, &mut self.outline) else {
             return Ok(false);
@@ -385,16 +399,7 @@ impl App {
                     self.save_brain();
                 }
                 KeyCode::Char('v') if draft.is_some() => self.paste_brain(&self.clipboard_text()),
-                KeyCode::Char('z') => {
-                    if let Some(draft) = draft {
-                        draft.editor.undo();
-                    }
-                }
-                KeyCode::Char('y') => {
-                    if let Some(draft) = draft {
-                        draft.editor.redo();
-                    }
-                }
+                KeyCode::Char('z' | 'y') => self.brain.edit_history(key.code == KeyCode::Char('y')),
                 _ => {}
             }
             return;

@@ -2483,6 +2483,22 @@ impl App {
                 self.save_brain();
             }
             Action::Save => self.save(),
+            Action::Undo | Action::Redo if self.desk_view == brain::DeskView::Brain => {
+                self.brain.edit_history(action == Action::Redo);
+            }
+            Action::Paste if self.desk_view == brain::DeskView::Brain => {
+                self.paste_brain(&self.clipboard_text());
+            }
+            Action::Cut
+            | Action::Copy
+            | Action::SelectAll
+            | Action::Italic
+            | Action::Bold
+            | Action::InsertFootnote
+                if self.desk_view == brain::DeskView::Brain =>
+            {
+                self.msg = "Open Write to use this manuscript command".into();
+            }
             Action::Undo | Action::Redo => {
                 // The tree's own actions are undone from anywhere but the
                 // editor; from the editor, it's the typing.

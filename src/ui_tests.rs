@@ -67,6 +67,13 @@ fn brain_today_can_edit_nested_notes_and_reopen_them_without_touching_the_prose(
     assert!(desk.shows("Today"));
     desk.key(KeyCode::Char('n'));
     desk.typed("Research");
+    desk.app.run_action(palette::Action::Undo);
+    desk.draw();
+    assert!(!desk.shows("Research"));
+    assert_eq!(desk.app.editor.text(), prose);
+    desk.app.run_action(palette::Action::Redo);
+    desk.draw();
+    assert!(desk.shows("Research"));
     desk.press(KeyEvent::new(KeyCode::Char('2'), KeyModifiers::SUPER));
     assert!(desk.shows("Research"));
     assert!(desk.status().contains("Library is planned for RC26"));

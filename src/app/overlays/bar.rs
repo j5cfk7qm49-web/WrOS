@@ -127,6 +127,11 @@ impl App {
                 ));
                 rows
             }
+            Title::Edit if self.desk_view == crate::app::brain::DeskView::Brain => vec![
+                BarRow::new("Undo", format!("{m}Z"), Action::Undo),
+                BarRow::new("Redo", format!("{m}Y"), Action::Redo),
+                BarRow::new("Paste", format!("{m}V"), Action::Paste),
+            ],
             Title::Edit => {
                 let mut rows = vec![
                     BarRow::new("Undo", format!("{m}Z"), Action::Undo)
