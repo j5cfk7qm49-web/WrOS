@@ -264,7 +264,7 @@ impl Keyboard {
             use xkb::keysyms::{KEY_Super_L, KEY_Super_R};
             if matches!(symbol.raw(), KEY_Super_L | KEY_Super_R) {
                 // Super on its own: a tap reaches the app on release, as the
-                // Super key itself. Held with another key it is nothing.
+                // Super key itself. Chords are handled by the non-modifier key.
                 if pressed {
                     self.super_alone = self.held.is_empty();
                     return vec![];
@@ -281,16 +281,29 @@ impl Keyboard {
             }
             // Any other key going down or up spoils a tap.
             self.super_alone = false;
+            let was_held = self.held.contains(&evdev);
             if pressed {
-                if !self.held.contains(&evdev) {
+                if !was_held {
                     self.held.push(evdev);
                 }
             } else {
                 self.held.retain(|&k| k != evdev);
             }
-            // On WrOS Super is not a second Ctrl: a chord with it does nothing
-            // and never types its letter into the page.
             if modifiers.contains(KeyModifiers::SUPER) {
+                if modifiers == KeyModifiers::SUPER
+                    && pressed
+                    && !was_held
+                    && let Some(slot) = evdev.checked_sub(2).filter(|slot| *slot < 4)
+                {
+                    self.compose.reset();
+                    // Physical 1–4 have the same meaning across layouts.
+                    return vec![Event::Key(KeyEvent::new(
+                        char::from_digit(slot + 1, 10)
+                            .map(KeyCode::Char)
+                            .expect("desk slot"),
+                        modifiers,
+                    ))];
+                }
                 return vec![];
             }
         }
@@ -423,6 +436,25 @@ mod tests {
         keys.key(125, true);
         keys.reset();
         assert!(keys.key(125, false).is_empty());
+    }
+
+    #[test]
+    fn super_view_chords_emit_once_and_preserve_the_next_tap() {
+        let mut keys = keyboard();
+        for (evdev, digit) in (2..=5).zip('1'..='4') {
+            assert!(keys.key(125, true).is_empty());
+            let event = keys.key(evdev, true);
+            assert!(matches!(event.as_slice(), [Event::Key(k)]
+                if k.code == KeyCode::Char(digit)
+                    && k.modifiers == KeyModifiers::SUPER
+                    && k.kind == KeyEventKind::Press));
+            assert!(keys.key(evdev, true).is_empty(), "repeat");
+            assert!(keys.key(evdev, false).is_empty(), "digit release");
+            assert!(keys.key(125, false).is_empty(), "chord release");
+        }
+        keys.key(126, true);
+        assert!(matches!(keys.key(126, false).as_slice(), [Event::Key(k)]
+            if matches!(k.code, KeyCode::Modifier(_))));
     }
 
     #[test]

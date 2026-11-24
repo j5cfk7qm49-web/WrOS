@@ -1013,7 +1013,11 @@ fn dispatch_event(app: &mut App, ev: Event, confirm_quit: &mut bool) -> bool {
             return false;
         }
         if matches!(app.overlay, Overlay::None) {
-            app.paste(text);
+            if app.desk_view == app::brain::DeskView::Brain {
+                app.paste_brain(text);
+            } else {
+                app.paste(text);
+            }
         } else {
             for c in text.chars().filter(|c| !c.is_control()) {
                 app.on_overlay_key(Key::Char(c));
@@ -1089,8 +1093,16 @@ fn route_key(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
         }
         return false;
     }
-    // On WrOS Super is not a second Ctrl: Super with a key does nothing, and
-    // never types its letter into the page. A Mac keeps Cmd.
+    if k.modifiers == KeyModifiers::SUPER
+        && let KeyCode::Char(digit) = k.code
+        && let Some(view) = app::brain::DeskView::from_shortcut(digit)
+    {
+        if k.kind == KeyEventKind::Press && app.overlay == Overlay::None {
+            app.switch_desk_view(view);
+        }
+        return false;
+    }
+    // Other Super combinations send no writing commands on WrOS. A Mac keeps Cmd.
     if !cfg!(target_os = "macos") && k.modifiers.contains(KeyModifiers::SUPER) {
         return false;
     }
@@ -1218,6 +1230,30 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
         }
         _ => k,
     };
+    if app.overlay == Overlay::None && app.desk_view == app::brain::DeskView::Brain {
+        let command = k.modifiers == KeyModifiers::CONTROL
+            || cfg!(target_os = "macos") && k.modifiers == KeyModifiers::SUPER;
+        if command && k.code == KeyCode::Char('q') {
+            if app.deck.quit_offered {
+                return quit_or_arm(app, confirm_quit);
+            }
+            app.msg = NO_QUIT.into();
+            return false;
+        }
+        *confirm_quit = false;
+        match k.code {
+            KeyCode::Char('k') if command => app.open_palette(),
+            KeyCode::F(1) => app.open_help(None),
+            KeyCode::F(9) => app.open_theme_picker(),
+            KeyCode::F(n) => app.on_function_key(n),
+            _ => app.on_brain_key(if command {
+                KeyEvent::new_with_kind(k.code, KeyModifiers::CONTROL, k.kind)
+            } else {
+                k
+            }),
+        }
+        return false;
+    }
     // The page's own moves with Shift, Ctrl and Alt: selecting from the
     // keyboard, and going (or deleting) a word at a time.
     if matches!(app.overlay, Overlay::None) && app.focus.is_editor() && app.open.is_some() {

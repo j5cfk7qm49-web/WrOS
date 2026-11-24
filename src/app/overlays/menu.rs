@@ -322,6 +322,12 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
         Action::Workspaces => ("Restores a saved writing layout.", "wros"),
         Action::Tutorial => ("Opens replayable, event-verified lessons.", "wros"),
         Action::ToggleOutline => ("Shows or hides the outline independently.", "wros"),
+        Action::SwitchDeskView(crate::app::brain::DeskView::Write) => {
+            ("Returns to your writing.", "wros")
+        }
+        Action::SwitchDeskView(crate::app::brain::DeskView::Brain) => {
+            ("Opens Brain and its Today outline.", "wros")
+        }
         Action::Scratchpad => (
             "Original Notes linked to scenes; explicit independent promotion keeps the original.",
             "scratchpad",

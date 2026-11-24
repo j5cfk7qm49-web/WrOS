@@ -45,9 +45,11 @@ pub fn draw(
     // The menu bar takes the top line, except in focus mode, where it only
     // shows while a menu is up.
     app.bar_hits.borrow_mut().clear();
-    let bar_line = !app.focus_mode;
-    let [bar, main, status] = Layout::vertical([
+    let brain_open = app.desk_view == crate::app::brain::DeskView::Brain;
+    let bar_line = brain_open || !app.focus_mode;
+    let [bar, view_bar, main, status] = Layout::vertical([
         Constraint::Length(u16::from(bar_line)),
+        Constraint::Length(u16::from(brain_open)),
         Constraint::Min(3),
         Constraint::Length(1),
     ])
@@ -55,73 +57,14 @@ pub fn draw(
     app.rect_scene = Rect::default();
     app.view_hits.clear();
     app.music_row_hits.clear();
+    crate::app::brain::draw_view_bar(f, app, view_bar, &t);
 
-    let edit_area = if app.focus_mode {
-        // Focus mode: the prose alone. No tree, clearing or music, and
-        // nothing left behind for a click to land on.
+    if brain_open {
         app.rect_tree = Rect::default();
         app.create_hits.clear();
-        app.scene_visible = false;
-        main
-    } else if app.deck.state.current().outline {
-        draw_left(f, app, main, &t)
+        crate::app::brain::draw(f, app, main, &t);
     } else {
-        app.rect_tree = Rect::default();
-        app.create_hits.clear();
-        app.scene_visible = false;
-        if app.focus == Focus::Tree {
-            app.focus = app.editor_focus();
-        }
-        main
-    };
-
-    let edit_area = crate::app::pins::sidebar(f, app, edit_area, &t);
-
-    // Editable documents have independent contexts. Wide terminals put them
-    // side by side; 80x24 remains useful by stacking prose vertically. Hidden
-    // views retain their buffers but never receive Tab or mouse input.
-    let secondary =
-        !app.focus_mode && app.views.secondary_visible && app.view_open(Pane::Secondary).is_some();
-    app.views.secondary_room = secondary && (edit_area.width >= 72 || edit_area.height >= 12);
-    app.side_room = !app.focus_mode && !app.views.secondary_room && edit_area.width >= 70;
-    app.rect_codex = Rect::default();
-    app.rect_beside = Rect::default();
-    if app.views.secondary_room {
-        let percent = app.deck.state.current().secondary_percent;
-        let parts = if edit_area.width >= 72 {
-            Layout::horizontal([
-                Constraint::Percentage(100 - percent),
-                Constraint::Percentage(percent),
-            ])
-            .areas::<2>(edit_area)
-        } else {
-            Layout::vertical([
-                Constraint::Percentage(100 - percent),
-                Constraint::Percentage(percent),
-            ])
-            .areas::<2>(edit_area)
-        };
-        app.with_editor_view(Pane::Primary, |app| draw_editor(f, app, parts[0], &t));
-        app.with_editor_view(Pane::Secondary, |app| draw_editor(f, app, parts[1], &t));
-    } else {
-        if app.focus == Focus::Secondary {
-            app.activate_editor(Pane::Primary);
-        }
-        if app.side_room && (app.codex.is_some() || app.beside.is_some()) {
-            let [ed, side] = Layout::horizontal([Constraint::Min(34), Constraint::Percentage(38)])
-                .areas(edit_area);
-            app.with_editor_view(Pane::Primary, |app| draw_editor(f, app, ed, &t));
-            if app.codex.is_some() {
-                draw_codex(f, app, side, &t);
-            } else {
-                draw_beside(f, app, side, &t);
-            }
-        } else {
-            app.with_editor_view(Pane::Primary, |app| draw_editor(f, app, edit_area, &t));
-        }
-    }
-    if matches!(app.focus, Focus::Codex | Focus::Beside) && !app.side_room {
-        app.activate_editor(Pane::Primary);
+        draw_write(f, app, main, &t);
     }
     draw_status(f, app, status, &t);
     let band = bar_band(&t, app.linux_console);
@@ -170,6 +113,76 @@ pub fn draw(
         paint_rainbow(f.buffer_mut(), t.accent, rainbow_phase());
     }
     animating
+}
+
+fn draw_write(f: &mut Frame, app: &mut App, main: Rect, t: &Theme) {
+    let edit_area = if app.focus_mode {
+        // Focus mode: the prose alone. No tree, clearing or music, and
+        // nothing left behind for a click to land on.
+        app.rect_tree = Rect::default();
+        app.create_hits.clear();
+        app.scene_visible = false;
+        main
+    } else if app.deck.state.current().outline {
+        draw_left(f, app, main, t)
+    } else {
+        app.rect_tree = Rect::default();
+        app.create_hits.clear();
+        app.scene_visible = false;
+        if app.focus == Focus::Tree {
+            app.focus = app.editor_focus();
+        }
+        main
+    };
+
+    let edit_area = crate::app::pins::sidebar(f, app, edit_area, t);
+
+    // Editable documents have independent contexts. Wide terminals put them
+    // side by side; 80x24 remains useful by stacking prose vertically. Hidden
+    // views retain their buffers but never receive Tab or mouse input.
+    let secondary =
+        !app.focus_mode && app.views.secondary_visible && app.view_open(Pane::Secondary).is_some();
+    app.views.secondary_room = secondary && (edit_area.width >= 72 || edit_area.height >= 12);
+    app.side_room = !app.focus_mode && !app.views.secondary_room && edit_area.width >= 70;
+    app.rect_codex = Rect::default();
+    app.rect_beside = Rect::default();
+    if app.views.secondary_room {
+        let percent = app.deck.state.current().secondary_percent;
+        let parts = if edit_area.width >= 72 {
+            Layout::horizontal([
+                Constraint::Percentage(100 - percent),
+                Constraint::Percentage(percent),
+            ])
+            .areas::<2>(edit_area)
+        } else {
+            Layout::vertical([
+                Constraint::Percentage(100 - percent),
+                Constraint::Percentage(percent),
+            ])
+            .areas::<2>(edit_area)
+        };
+        app.with_editor_view(Pane::Primary, |app| draw_editor(f, app, parts[0], t));
+        app.with_editor_view(Pane::Secondary, |app| draw_editor(f, app, parts[1], t));
+    } else {
+        if app.focus == Focus::Secondary {
+            app.activate_editor(Pane::Primary);
+        }
+        if app.side_room && (app.codex.is_some() || app.beside.is_some()) {
+            let [ed, side] = Layout::horizontal([Constraint::Min(34), Constraint::Percentage(38)])
+                .areas(edit_area);
+            app.with_editor_view(Pane::Primary, |app| draw_editor(f, app, ed, t));
+            if app.codex.is_some() {
+                draw_codex(f, app, side, t);
+            } else {
+                draw_beside(f, app, side, t);
+            }
+        } else {
+            app.with_editor_view(Pane::Primary, |app| draw_editor(f, app, edit_area, t));
+        }
+    }
+    if matches!(app.focus, Focus::Codex | Focus::Beside) && !app.side_room {
+        app.activate_editor(Pane::Primary);
+    }
 }
 
 /// The ground of the menu bar and status line: the theme's own line colour, so the two bars frame
@@ -1166,7 +1179,9 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Span::styled(format!("  today {today_text}"), style)
     };
 
-    let mut spans = if app.focus_mode {
+    let mut spans = if app.desk_view == crate::app::brain::DeskView::Brain {
+        vec![Span::styled(" Brain", Style::default().fg(t.dim))]
+    } else if app.focus_mode {
         let (title, words) = app.open.map_or((String::new(), 0), |i| {
             (
                 app.project.nodes[i].title.clone(),

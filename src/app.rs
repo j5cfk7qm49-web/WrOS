@@ -35,6 +35,7 @@ use grimoire_core::timeline::Entry;
 
 mod aids;
 pub(crate) mod backup;
+pub(crate) mod brain;
 pub(crate) mod checks;
 pub(crate) mod continuity;
 pub(crate) mod documents;
@@ -207,6 +208,8 @@ pub struct App {
     pub journal: journal::Journal,
     pub workflow: workflow::Workflow,
     pub views: documents::Views,
+    pub desk_view: brain::DeskView,
+    pub brain: brain::BrainDesk,
     pub project: Project,
     pub visible: Vec<usize>,
     pub parents: Vec<Option<usize>>,
@@ -1017,6 +1020,8 @@ impl App {
             journal,
             workflow,
             views,
+            desk_view: brain::DeskView::default(),
+            brain: brain::BrainDesk::default(),
             project,
             visible,
             parents,
@@ -1934,7 +1939,7 @@ impl App {
     /// if session history is on. False (with a message) if something couldn't
     /// be saved; its words are in recovery either way.
     pub fn try_quit(&mut self) -> bool {
-        if !self.commit_saves() || self.project.dirty_count() != 0 {
+        if !self.commit_saves() || self.project.dirty_count() != 0 || !self.save_brain() {
             return false;
         }
         if !self.checkpoint_productivity(true) {
@@ -2454,7 +2459,9 @@ impl App {
     pub fn run_action(&mut self, action: Action) {
         self.overlay = Overlay::None;
         match action {
+            Action::SwitchDeskView(view) => self.switch_desk_view(view),
             Action::NewScene | Action::NewChapter | Action::NewPart | Action::NewFolder => {
+                self.switch_desk_view(brain::DeskView::Write);
                 self.select_open_scene();
                 self.start_create(match action {
                     Action::NewScene => New::Scene,
@@ -2472,6 +2479,9 @@ impl App {
                 self.start_delete();
             }
             Action::History => self.open_history(),
+            Action::Save if self.desk_view == brain::DeskView::Brain => {
+                self.save_brain();
+            }
             Action::Save => self.save(),
             Action::Undo | Action::Redo => {
                 // The tree's own actions are undone from anywhere but the
@@ -2569,6 +2579,7 @@ impl App {
                 let _ = self.open_book(&root);
             }
             Action::Open(path) => {
+                self.switch_desk_view(brain::DeskView::Write);
                 if let Some(i) = self.source_node_at(&path) {
                     self.reveal(i);
                     self.open_scene(i);
@@ -5395,6 +5406,20 @@ impl App {
         if self.bar_click(x, y) || self.settings_click(x, y) {
             return;
         }
+        if self.overlay == Overlay::None
+            && let Some(&(_, view)) = self
+                .brain
+                .view_hits
+                .iter()
+                .find(|(rect, _)| hit(*rect, x, y))
+        {
+            self.switch_desk_view(view);
+            return;
+        }
+        if self.desk_view == brain::DeskView::Brain && self.overlay == Overlay::None {
+            self.brain.click(x, y);
+            return;
+        }
         if self.pin_click(x, y) {
             return;
         }
@@ -5556,6 +5581,9 @@ impl App {
     /// Extend the editor selection while the left button is held — or, in the
     /// tree, track where a dragged row would land.
     pub fn on_drag(&mut self, x: u16, y: u16) {
+        if self.desk_view == brain::DeskView::Brain && self.overlay == Overlay::None {
+            return;
+        }
         if matches!(
             self.overlay,
             Overlay::Pins
@@ -5630,6 +5658,10 @@ impl App {
     pub fn on_scroll(&mut self, x: u16, y: u16, down: bool) {
         const STEP: usize = 3;
         if self.bar_scroll(down) || self.settings_wheel(down) {
+            return;
+        }
+        if self.desk_view == brain::DeskView::Brain && self.overlay == Overlay::None {
+            self.scroll_brain(down);
             return;
         }
         if self.pin_wheel(x, y, down) {

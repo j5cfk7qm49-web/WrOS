@@ -166,6 +166,20 @@ impl App {
                 rows
             }
             Title::View => {
+                use crate::app::brain::DeskView;
+                let desk_views = [
+                    BarRow::new("Write", "Super+1", Action::SwitchDeskView(DeskView::Write)),
+                    BarRow::new("Brain", "Super+3", Action::SwitchDeskView(DeskView::Brain)),
+                ];
+                if self.desk_view == DeskView::Brain {
+                    return desk_views
+                        .into_iter()
+                        .chain([
+                            BarRow::new("Themes…", "F9", Action::Themes),
+                            BarRow::new("Workspaces…", "", Action::Workspaces),
+                        ])
+                        .collect();
+                }
                 let mut rows = vec![];
                 if writing || self.focus_mode {
                     rows.push(BarRow::new(
@@ -223,6 +237,7 @@ impl App {
                     BarRow::new("Themes…", "F9", Action::Themes),
                     BarRow::new("Workspaces…", "", Action::Workspaces),
                 ]);
+                rows.extend(desk_views);
                 rows
             }
             Title::Book => {

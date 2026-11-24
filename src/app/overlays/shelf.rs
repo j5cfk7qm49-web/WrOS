@@ -421,6 +421,7 @@ impl App {
             background: self.background,
         };
         let mut next = App::with(project, setup).map_err(cant)?;
+        next.brain = std::mem::take(&mut self.brain);
         if let (Some(next), Some(previous)) = (&mut next.timeline, &self.timeline) {
             next.carry_notice(previous);
         }

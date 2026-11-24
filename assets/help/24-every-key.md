@@ -10,6 +10,9 @@
 | `F1` | this help, on the topic for where you are |
 | `?` | this help too, wherever you aren't typing; on the page it's a question mark |
 | `Ctrl-K` | find anything: actions, scenes, notes, themes |
+| `Super` tap | open Find anything beneath the menu bar |
+| `Super+1` | switch to Write |
+| `Super+3` | switch to Brain |
 | `Tab` | the next pane; `Shift-Tab` the one before |
 | `Ctrl-S` | save now (autosave already does) |
 | `Ctrl-Q` | quit in a desktop session; installed WrOS keeps the writing app open |
@@ -34,6 +37,19 @@
 | `F9` | themes |
 | `F10` | open the menu bar |
 | `F11` | show or hide an independent editable document |
+
+## Brain
+
+| Key | Does |
+|---|---|
+| `n` | start a new note or named page |
+| `Enter` | edit the selected note or save the draft |
+| `Ctrl-S` | save the draft |
+| `Esc` | cancel the draft or open the menu |
+| `↑` `↓` | choose a note |
+| `→` `←` | open a note's children or go back |
+| `p` | open Pages |
+| `t` | open Today |
 
 ## The outline
 

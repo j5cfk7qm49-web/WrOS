@@ -50,6 +50,108 @@ fn first_scene(root: &Path) -> PathBuf {
     ch.join("01-Scene-One.md")
 }
 
+#[test]
+fn brain_today_can_edit_nested_notes_and_reopen_them_without_touching_the_prose() {
+    let fixture = tempfile::tempdir().unwrap();
+    let library = fixture.path().join("Brain");
+    let cache = fixture.path().join("cache");
+    let mut desk = Desk::open(book("brain-today", true), 80, 24);
+    desk.app.brain.set_paths(library.clone(), cache.clone());
+    let prose = desk.app.editor.text();
+    assert!(!library.exists());
+
+    desk.menu(&["View", "Brain"]);
+    assert!(desk.shows("Today"));
+    desk.key(KeyCode::Char('n'));
+    desk.typed("Research");
+    desk.press(KeyEvent::new(KeyCode::Char('2'), KeyModifiers::SUPER));
+    assert!(desk.shows("Research"));
+    assert!(desk.status().contains("Library is planned for RC26"));
+    desk.press(KeyEvent::new(KeyCode::Char('4'), KeyModifiers::SUPER));
+    assert!(desk.status().contains("Review is planned for RC27"));
+    desk.press(KeyEvent::new(
+        KeyCode::Modifier(ModifierKeyCode::LeftSuper),
+        KeyModifiers::NONE,
+    ));
+    assert!(matches!(
+        desk.app.overlay,
+        Overlay::Palette {
+            under_bar: true,
+            ..
+        }
+    ));
+    desk.press(KeyEvent::new(KeyCode::Char('1'), KeyModifiers::SUPER));
+    assert!(matches!(
+        desk.app.overlay,
+        Overlay::Palette {
+            under_bar: true,
+            ..
+        }
+    ));
+    desk.key(KeyCode::Esc);
+    desk.press(KeyEvent::new(KeyCode::Char('1'), KeyModifiers::SUPER));
+    assert!(!desk.shows("Research"));
+    desk.press(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::SUPER));
+    assert!(desk.shows("Research"));
+    desk.key(KeyCode::Enter);
+    desk.key(KeyCode::Right);
+    desk.key(KeyCode::Char('n'));
+    dispatch_event(
+        &mut desk.app,
+        Event::Paste("A note from the library".into()),
+        &mut desk.armed,
+    );
+    desk.ctrl('s');
+    assert!(desk.shows("A note from the library"));
+    desk.key(KeyCode::Left);
+    assert!(desk.shows("Research"));
+    assert!(!desk.shows("A note from the library"));
+
+    desk.key(KeyCode::Char('n'));
+    desk.typed("Discard this");
+    desk.key(KeyCode::Esc);
+    assert!(!desk.shows("Discard this"));
+    assert_eq!(desk.app.editor.text(), prose);
+    drop(desk);
+
+    let mut desk = Desk::open(book("brain-reopen", true), 80, 24);
+    desk.app.brain.set_paths(library, cache);
+    desk.press(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::SUPER));
+    desk.key(KeyCode::Right);
+    assert!(desk.shows("A note from the library"));
+    assert_eq!(desk.app.editor.text(), prose);
+}
+
+#[test]
+fn named_brain_pages_are_reachable_from_today_and_exclude_day_pages() {
+    let fixture = tempfile::tempdir().unwrap();
+    let mut desk = Desk::open(book("brain-pages", true), 80, 24);
+    desk.app
+        .brain
+        .set_paths(fixture.path().join("Brain"), fixture.path().join("cache"));
+    desk.menu(&["View", "Brain"]);
+    assert!(desk.shows("Write │ Library │ Brain │ Review"));
+    desk.key(KeyCode::Char('p'));
+    assert!(desk.shows("Brain · Pages"));
+    assert!(desk.shows("No pages yet"));
+    desk.key(KeyCode::Char('n'));
+    desk.typed("Reading list");
+    desk.key(KeyCode::Enter);
+    assert!(desk.shows("Reading list"));
+    desk.key(KeyCode::Right);
+    desk.key(KeyCode::Char('n'));
+    desk.typed("A history of maps");
+    desk.key(KeyCode::Enter);
+    assert!(desk.shows("A history of maps"));
+    desk.key(KeyCode::Char('t'));
+    assert!(desk.shows("Brain · Today"));
+    assert!(!desk.shows("Reading list"));
+    desk.key(KeyCode::Char('p'));
+    assert!(desk.shows("Reading list"));
+    desk.key(KeyCode::Right);
+    assert!(desk.shows("A history of maps"));
+}
+
 impl Desk {
     fn open(root: PathBuf, w: u16, h: u16) -> Desk {
         let setup = Setup {
@@ -2564,11 +2666,15 @@ fn key_named(name: &str) -> KeyEvent {
         } else if let Some(r) = rest.strip_prefix("Shift-") {
             mods |= KeyModifiers::SHIFT;
             rest = r;
+        } else if let Some(r) = rest.strip_prefix("Super+") {
+            mods |= KeyModifiers::SUPER;
+            rest = r;
         } else {
             break;
         }
     }
     let code = match rest {
+        "Super" => KeyCode::Modifier(ModifierKeyCode::LeftSuper),
         "Esc" => KeyCode::Esc,
         "Enter" => KeyCode::Enter,
         "Tab" if mods.contains(KeyModifiers::SHIFT) => KeyCode::BackTab,
@@ -2631,6 +2737,9 @@ const EVERY_KEY: &[(&str, &str, &[&str])] = &[
     ("Everywhere", "F1", &[]),
     ("Everywhere", "?", &[]),
     ("Everywhere", "Ctrl-K", &[]),
+    ("Everywhere", "Super", &[]),
+    ("Everywhere", "Super+1", &["Super+3"]),
+    ("Everywhere", "Super+3", &[]),
     ("Everywhere", "Tab", &[]),
     ("Everywhere", "Shift-Tab", &[]),
     ("Everywhere", "Ctrl-S", &[]),
@@ -2657,6 +2766,16 @@ const EVERY_KEY: &[(&str, &str, &[&str])] = &[
     ("Everywhere", "F9", &[]),
     ("Everywhere", "F10", &[]),
     ("Everywhere", "F11", &[]),
+    ("Brain", "n", &[]),
+    ("Brain", "Enter", &[]),
+    ("Brain", "Ctrl-S", &["n", "c"]),
+    ("Brain", "Esc", &["n"]),
+    ("Brain", "↑", &[]),
+    ("Brain", "↓", &["↑"]),
+    ("Brain", "→", &[]),
+    ("Brain", "←", &["→"]),
+    ("Brain", "p", &[]),
+    ("Brain", "t", &["p"]),
     ("The outline", "↑", &[]),
     ("The outline", "↓", &["↑"]),
     ("The outline", "j", &["↑"]),
@@ -2762,11 +2881,22 @@ fn desk_for(section: &str) -> (Desk, std::sync::mpsc::Receiver<music::Cmd>) {
         fs::write(&two, "---\ntitle: \"Scene Two\"\n---\n\nWren again.\n").unwrap();
     }
     let (mut d, rx) = music_desk_at(root);
+    d.app
+        .brain
+        .set_paths(d.root.join("Brain"), d.root.join("brain-cache"));
     let long: String = (1..=80)
         .map(|n| format!("Wren walked on, line {n}.\n\n"))
         .collect();
     match section {
         "Everywhere" | "The outline" => {}
+        "Brain" => {
+            d.press(key_named("Super+3"));
+            for note in ["First note", "Second note"] {
+                d.key(KeyCode::Char('n'));
+                d.typed(note);
+                d.key(KeyCode::Enter);
+            }
+        }
         "The page" => {
             d.key(KeyCode::Tab);
             for c in long.chars().take(2000) {

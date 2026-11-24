@@ -41,6 +41,7 @@ impl Home {
     fn env(dir: &Path) -> Vec<(&'static str, PathBuf)> {
         let home = dir.join("home");
         vec![
+            ("XDG_CACHE_HOME", home.join("cache")),
             ("XDG_DATA_HOME", home.join("data")),
             ("XDG_CONFIG_HOME", home.join("config")),
             ("HOME", home),
@@ -564,6 +565,28 @@ fn typed_words_reach_the_book_and_the_published_tree_carries_no_prose() {
     });
     let tree = app.driver.tree().to_string();
     assert!(!tree.contains("Typed through the terminal"), "{tree}");
+}
+
+#[test]
+fn brain_today_saves_and_reopens_through_the_terminal() {
+    let home = Home::new("brain-today");
+    let open_brain = |app: &App| {
+        app.send(b"\x0bBrain\r");
+        app.until("Brain Today", |screen, _| screen.contains("Brain · Today"));
+    };
+    let app = App::start(&home, 80, 24);
+    open_brain(&app);
+    app.send(b"nNote from the terminal\r");
+    app.until("the saved note", |screen, _| {
+        screen.contains("• Note from the terminal")
+    });
+    drop(app);
+
+    let app = App::start(&home, 80, 24);
+    open_brain(&app);
+    app.until("the reopened note", |screen, _| {
+        screen.contains("• Note from the terminal")
+    });
 }
 
 #[cfg(all(target_os = "linux", feature = "gui-wgpu"))]

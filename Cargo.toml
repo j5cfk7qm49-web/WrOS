@@ -17,6 +17,7 @@ name = "grimoire"
 path = "src/main.rs"
 
 [dependencies]
+grimoire-brain = { path = "crates/grimoire-brain", features = ["runtime"] }
 grimoire-core = { path = "crates/grimoire-core", version = "0.7" }
 wros-sys = { path = "crates/wros-sys" }
 wros-shell = { path = "crates/wros-shell" }
