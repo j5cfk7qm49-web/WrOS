@@ -147,7 +147,8 @@ process reached 1,188 MiB after projecting the operation history. Automerge
 used 739 MiB at store open and 1,295 MiB in its standalone checkpoint.
 [Raw Loro result](rc25-brain-hp-stream-loro.json) · [Raw Automerge result](rc25-brain-hp-stream-automerge.json)
 
-Stage 0 remains closed.
+The whole-document designs failed the Stage 0 performance gate.
+[Follow-up HP Stream prototypes](rc25-brain-alternatives.md#hp-stream-results)
 
 ### Automated checks
 

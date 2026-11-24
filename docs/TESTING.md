@@ -16,6 +16,9 @@ nix build -L .#brain-bench
 Keep the benchmark JSON with the candidate and run the aged profile on the HP
 Stream before approving the Brain view. [Workload and limits](evidence/rc25-brain-bench.md)
 
+The runner also accepts `loro-paged` and `sqlite-ledger`.
+[HP Stream alternatives](evidence/rc25-brain-alternatives.md)
+
 ## RC24 essay and citations
 
 From the candidate checkout in the pinned NixOS development shell:

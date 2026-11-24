@@ -69,3 +69,51 @@ The write metric counts the journal and applicable projection WAL, or the
 ledger WAL. The separate foreground I/O measurement uses Linux per-thread
 write counters and excludes the background FTS and Markdown writer.
 Checkpoint measurements cover publication of real backup files.
+
+## Reproducing the comparison
+
+```sh
+nix build -L .#brain-bench
+./result/bin/brain-bench --engine loro-paged --profile aged --seed 25001 \
+  --revision CANDIDATE_COMMIT --output "$HOME/loro-paged-aged.json"
+./result/bin/brain-bench --engine sqlite-ledger --profile aged --seed 25001 \
+  --revision CANDIDATE_COMMIT --output "$HOME/sqlite-ledger-aged.json"
+```
+
+Copy the executable to the HP Stream and run the two commands there, using
+the executable's actual path and the commit used to build it.
+
+## HP Stream results
+
+The final comparison ran commit f93d346 on the HP Stream 11-ah0XX with
+WrOS RC24. The Celeron N4000 and internal encrypted eMMC ran both smoke
+and aged profiles sequentially. The aged workload retained all 500,000
+operations, 50,000 visible nodes, 10,000 deleted nodes and 100,000 review
+events. Each latency result uses 20 samples.
+
+| Measurement | Limit | Paged Loro | SQLite ledger |
+| --- | ---: | ---: | ---: |
+| Cold open and first note, p95 | 3,000 ms | 413 ms | 6.2 ms |
+| Durable edit through text preparation, p95 | 50 ms | 45.4 ms | 27.8 ms |
+| Foreground FTS, p95 | 150 ms | 43.2 ms | 47.0 ms |
+| Peak RSS during checkpoint | 512 MiB | 158 MiB | 28 MiB |
+| Journal and projection WAL per edit | 64 KiB | 10.1 KiB | 28.8 KiB |
+| Temporary store growth at checkpoint | Checkpoint + 64 MiB | 51.8 MiB | 396.1 MiB |
+| Linux-attributed foreground writes per edit | 64 KiB | 12.4 KiB | 32.8 KiB |
+
+Both prototypes met the six benchmark limits and stayed under 64 KiB on the
+separate foreground write counter. Checkpoint files were 51.8 MiB and
+396.1 MiB respectively. The SQLite layout change reduced its checkpoint from
+about 713 MiB on the first run. Including the active store and two retained
+generations, storage started at 173 MiB for paged Loro and 1,188 MiB for
+SQLite, plus the shared FTS index and Markdown copies.
+[Paged Loro raw results](rc25-brain-hp-stream-loro-paged.json) · [SQLite ledger raw results](rc25-brain-hp-stream-sqlite-ledger.json)
+
+All 26 focused qualification tests and 16 default-feature tests passed.
+Each candidate converged against the reference model in 16 two- and
+three-device schedules. The tests also cover a stale Loro projection after
+a saved update, updates that cross a Loro map boundary, SQLite recovery
+after a torn WAL, and an older verified ledger backup that rejoins with a
+fresh identity. Workspace formatting, strict Brain Clippy and the Nix
+benchmark build passed.
+[Test commands](../TESTING.md#rc25-brain-storage)

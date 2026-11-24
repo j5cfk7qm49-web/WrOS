@@ -81,6 +81,7 @@ trait TestPeer: Sized {
     fn accept_update(&mut self, bytes: &[u8]) -> Result<()>;
     fn build_view(&self) -> Result<Snapshot>;
     fn waiting(&self) -> Result<bool>;
+    #[cfg(feature = "qualification")]
     fn operation_count(&self) -> Result<usize>;
 }
 
@@ -107,6 +108,7 @@ impl<R: Replica> TestPeer for R {
     fn waiting(&self) -> Result<bool> {
         Ok(self.has_pending()?)
     }
+    #[cfg(feature = "qualification")]
     fn operation_count(&self) -> Result<usize> {
         Ok(self.edit_count())
     }
@@ -356,6 +358,7 @@ fn run_schedule<S: TestPeer>(seed: u64, device_count: u64) {
             expected,
             "seed {seed}, receiver {target}\n{trace:#?}"
         );
+        #[cfg(feature = "qualification")]
         assert_eq!(
             peer.operation_count().unwrap(),
             trace.len(),
