@@ -196,12 +196,19 @@ impl Model {
     pub fn snapshot(&self) -> Snapshot {
         let mut pending = BTreeSet::new();
         let mut view = Snapshot::default();
+        #[cfg(feature = "runtime")]
+        {
+            view.frontier.clock = self.edits.last_key_value().map_or(0, |(id, _)| id.clock);
+        }
         // Every valid dependency sorts before the edit that refers to it.
         for (&id, edit) in &self.edits {
             if edit.dependencies.iter().any(|dependency| {
                 pending.contains(dependency) || !self.edits.contains_key(dependency)
             }) {
                 pending.insert(id);
+            } else {
+                #[cfg(feature = "runtime")]
+                view.frontier.observe(id, &edit.dependencies);
             }
         }
         let ready = || self.edits.iter().filter(|(id, _)| !pending.contains(*id));
@@ -298,6 +305,10 @@ impl Model {
             }
         }
         view.pending = pending;
+        #[cfg(feature = "runtime")]
+        {
+            view.frontier.complete = view.pending.is_empty();
+        }
         view
     }
 }
@@ -343,9 +354,47 @@ pub struct Snapshot {
     hidden: BTreeSet<NodeId>,
     aliases: BTreeMap<NodeId, NodeId>,
     pending: BTreeSet<OpId>,
+    #[cfg(feature = "runtime")]
+    frontier: EditFrontier,
+}
+
+#[cfg(feature = "runtime")]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+pub(crate) struct EditFrontier {
+    pub clock: u64,
+    pub heads: BTreeSet<OpId>,
+    pub complete: bool,
+}
+
+#[cfg(feature = "runtime")]
+impl EditFrontier {
+    pub fn observe<'a>(&mut self, id: OpId, dependencies: impl IntoIterator<Item = &'a OpId>) {
+        self.clock = self.clock.max(id.clock);
+        for dependency in dependencies {
+            self.heads.remove(dependency);
+        }
+        self.heads.insert(id);
+    }
 }
 
 impl Snapshot {
+    #[cfg(feature = "runtime")]
+    pub(crate) fn frontier(&self) -> &EditFrontier {
+        &self.frontier
+    }
+
+    #[cfg(feature = "runtime")]
+    pub(crate) fn known_nodes(&self) -> impl Iterator<Item = NodeId> + '_ {
+        self.nodes.keys().copied()
+    }
+
+    #[cfg(feature = "runtime")]
+    pub(crate) fn has_live_text(&self, node: NodeId) -> bool {
+        self.nodes
+            .get(&node)
+            .is_some_and(|note| note.text.iter().any(|id| self.tokens[id].present))
+    }
+
     pub fn pending(&self) -> &BTreeSet<OpId> {
         &self.pending
     }
@@ -394,7 +443,7 @@ impl Snapshot {
 
     /// Fast replacement is valid only when the complete visible body has one
     /// live token with one causal winner.
-    #[cfg(feature = "qualification")]
+    #[cfg(feature = "runtime")]
     pub(crate) fn single_text_winner(&self, node: NodeId) -> Option<(OpId, OpId)> {
         let note = self.nodes.get(&node)?;
         let mut live = note.text.iter().filter(|id| self.tokens[id].present);

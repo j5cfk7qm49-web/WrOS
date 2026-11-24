@@ -34,6 +34,7 @@ pub enum StoreError {
     Loro(#[from] loro::LoroError),
     #[error("Loro could not export the document: {0}")]
     Encode(#[from] loro::LoroEncodeError),
+    #[cfg(feature = "qualification")]
     #[error("Automerge could not apply an operation: {0}")]
     Automerge(#[from] automerge::AutomergeError),
     #[error("Invalid Brain record: {0}")]

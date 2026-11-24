@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
 use chrono::NaiveDate;
+#[cfg(feature = "qualification")]
 use grimoire_brain::automerge_store::AutomergeStore;
 #[cfg(feature = "qualification")]
 use grimoire_brain::bounded_store::SqliteLedger;
@@ -166,6 +167,7 @@ fn three_peers_converge_with_pending_dependencies() {
 }
 
 #[test]
+#[cfg(feature = "qualification")]
 fn automerge_peers_converge_with_pending_dependencies() {
     run_schedules::<AutomergeStore>();
 }

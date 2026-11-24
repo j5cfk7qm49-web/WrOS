@@ -2,6 +2,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+#[cfg(feature = "qualification")]
 use grimoire_brain::automerge_store::AutomergeStore;
 use grimoire_brain::loro_store::LoroStore;
 use grimoire_brain::model::{Change, Edit, NodeId, OpId, Place};
@@ -66,6 +67,7 @@ fn interrupted_checkpoint_keeps_pending_update() {
 }
 
 #[test]
+#[cfg(feature = "qualification")]
 fn interrupted_automerge_checkpoint_keeps_pending_update() {
     checkpoint_keeps_pending_update::<AutomergeStore>();
 }
@@ -147,6 +149,7 @@ fn a_damaged_latest_checkpoint_uses_the_previous_one_and_replays_saves() {
 }
 
 #[test]
+#[cfg(feature = "qualification")]
 fn damaged_automerge_checkpoint_uses_previous() {
     damaged_checkpoint_uses_previous::<AutomergeStore>();
 }

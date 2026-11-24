@@ -75,7 +75,7 @@ pub struct Journal<S: Replica> {
 }
 
 impl<S: Replica> Journal<S> {
-    #[cfg(feature = "qualification")]
+    #[cfg(feature = "runtime")]
     pub(crate) fn replica(&self) -> &S {
         &self.store
     }
@@ -169,13 +169,14 @@ impl<S: Replica> Journal<S> {
             Ok(bytes) => bytes,
             Err(error) => {
                 // A failed export can happen after the engine applied the edit.
-                self.failed |= matches!(
-                    error,
-                    StoreError::Encode(_)
-                        | StoreError::Loro(_)
-                        | StoreError::Automerge(_)
-                        | StoreError::InvalidDocument
-                );
+                self.failed |= match error {
+                    StoreError::Encode(_) | StoreError::Loro(_) | StoreError::InvalidDocument => {
+                        true
+                    }
+                    #[cfg(feature = "qualification")]
+                    StoreError::Automerge(_) => true,
+                    _ => false,
+                };
                 return Err(error.into());
             }
         };
@@ -467,12 +468,12 @@ fn checksum_error(path: &Path) -> io::Error {
 }
 
 #[cfg(unix)]
-fn sync_directory(path: &Path) -> io::Result<()> {
+pub(crate) fn sync_directory(path: &Path) -> io::Result<()> {
     File::open(path)?.sync_all()
 }
 
 #[cfg(not(unix))]
-fn sync_directory(_path: &Path) -> io::Result<()> {
+pub(crate) fn sync_directory(_path: &Path) -> io::Result<()> {
     // The Stage 0 durability gate runs on WrOS. Rust does not provide a
     // portable directory synchronization operation on the other targets.
     Ok(())

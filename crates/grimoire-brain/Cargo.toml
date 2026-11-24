@@ -7,7 +7,8 @@ description = "Brain operations and reference model for Grimoire"
 publish = false
 
 [features]
-qualification = ["dep:rusqlite", "dep:tempfile"]
+runtime = ["dep:rusqlite", "dep:tempfile"]
+qualification = ["runtime", "dep:automerge", "rusqlite/backup"]
 
 [[bin]]
 name = "brain-bench"
@@ -15,10 +16,10 @@ path = "src/bin/brain-bench.rs"
 required-features = ["qualification"]
 
 [dependencies]
-automerge = { version = "=0.12.0", default-features = false }
+automerge = { version = "=0.12.0", default-features = false, optional = true }
 chrono = { version = "0.4.45", default-features = false, features = ["serde", "std"] }
 loro = { version = "=1.18.0", default-features = false }
-rusqlite = { version = "=0.43.0", features = ["backup", "bundled"], optional = true }
+rusqlite = { version = "=0.43.0", features = ["bundled"], optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.151"
 sha2 = "0.10"

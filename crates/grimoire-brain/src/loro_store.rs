@@ -125,7 +125,7 @@ impl<const PAGED: bool> Replica for LoroReplica<PAGED> {
 }
 
 impl<const PAGED: bool> LoroReplica<PAGED> {
-    #[cfg(feature = "qualification")]
+    #[cfg(feature = "runtime")]
     pub(crate) fn projection_stamp(&self) -> Vec<u8> {
         let version = self.doc.oplog_vv();
         let mut entries: Vec<_> = version.iter().collect();
