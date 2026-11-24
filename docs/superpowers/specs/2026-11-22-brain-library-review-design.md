@@ -396,20 +396,25 @@ workers; 30-minute thermal and input behavior; PP-OCRv5 instruction compatibilit
 ocrs English time and RSS; Unifont wide Hanzi; and Foot sixel. Use the owner's representative
 PDFs and the full [measurement matrix](2026-11-22-pdf-reader-ocr-research.md#hp-stream-measurement-record).
 RC27 smoke-tested the kit on the Intel i7-9700K WSL build host with two
-generated scanned-page fixtures and three trials per scenario. PDFium 7749
-and Poppler rendered both pages in colour and grayscale at 96 DPI. Tesseract
-5.5.4 ran English and simplified Chinese at 200 and 300 DPI.
+generated scanned-page fixtures and three trials per scenario. Render timing
+includes process startup and image output at 96 DPI. Peak RSS is the highest
+of the trials in either colour format.
 
-| Fixture | DPI | OCR median | Peak OCR RSS |
+| Renderer | English colour / grayscale | Chinese colour / grayscale | Peak RSS |
 | --- | ---: | ---: | ---: |
-| English | 200 | 1.90 s | 89 MiB |
-| English | 300 | 2.23 s | 89 MiB |
-| Chinese | 200 | 2.62 s | 156 MiB |
-| Chinese | 300 | 11.27 s | 156 MiB |
+| PDFium 7749 | 89 / 84 ms | 84 / 84 ms | 29 MiB |
+| Poppler 26.10 | 27 / 27 ms | 33 / 28 ms | 19 MiB |
+| Hayro 0.9.0 | 12 / 12 ms | 13 / 12 ms | 16 MiB |
 
-The host was also assembling a candidate image. These timings establish
-that the measurement path runs. HP Stream timings and representative PDF
-results are pending. [Raw measurements](../../evidence/rc27-pdf-ocr-build-host.json)
+| Tesseract 5.5.4 model | DPI | OCR median | Peak OCR RSS | Character error |
+| --- | ---: | ---: | ---: | ---: |
+| English | 200 | 0.24 s | 89 MiB | 1.3% |
+| English | 300 | 0.28 s | 89 MiB | 1.3% |
+| Simplified Chinese | 200 | 0.51 s | 156 MiB | 7.8% |
+| Simplified Chinese | 300 | 0.50 s | 156 MiB | 7.8% |
+
+HP Stream timings and results on representative PDFs are pending.
+[Raw measurements](../../evidence/rc27-pdf-ocr-build-host.json)
 
 ### Review (stage 2)
 

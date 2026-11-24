@@ -94,7 +94,7 @@
   "renderer": {
     "PDFium_sha256": "280401d4d672e23b34ab485b61000d15e9f68c3c6ef60a5967813c66090e5a8b",
     "Poppler": "pdftoppm",
-    "Hayro": null
+    "Hayro": "wros-hayro-bench"
   },
   "ocr": {
     "program": "tesseract",
@@ -116,23 +116,23 @@
           "format": "rgb",
           "trials": [
             {
-              "seconds": 0.0995,
-              "peak_rss_kib": 28736,
+              "seconds": 0.0896,
+              "peak_rss_kib": 28916,
               "raster_bytes": 226815
             },
             {
-              "seconds": 0.1134,
-              "peak_rss_kib": 28728,
+              "seconds": 0.089,
+              "peak_rss_kib": 28924,
               "raster_bytes": 226815
             },
             {
-              "seconds": 0.0943,
-              "peak_rss_kib": 28728,
+              "seconds": 0.0838,
+              "peak_rss_kib": 28940,
               "raster_bytes": 226815
             }
           ],
-          "median_seconds": 0.0995,
-          "peak_rss_kib": 28736
+          "median_seconds": 0.089,
+          "peak_rss_kib": 28940
         },
         {
           "engine": "PDFium",
@@ -140,23 +140,23 @@
           "format": "gray",
           "trials": [
             {
-              "seconds": 0.0906,
-              "peak_rss_kib": 29116,
+              "seconds": 0.0838,
+              "peak_rss_kib": 29432,
               "raster_bytes": 75615
             },
             {
-              "seconds": 0.0828,
-              "peak_rss_kib": 29096,
+              "seconds": 0.0841,
+              "peak_rss_kib": 29412,
               "raster_bytes": 75615
             },
             {
-              "seconds": 0.0899,
-              "peak_rss_kib": 29140,
+              "seconds": 0.0835,
+              "peak_rss_kib": 29468,
               "raster_bytes": 75615
             }
           ],
-          "median_seconds": 0.0899,
-          "peak_rss_kib": 29140
+          "median_seconds": 0.0838,
+          "peak_rss_kib": 29468
         },
         {
           "engine": "Poppler",
@@ -164,23 +164,23 @@
           "format": "rgb",
           "trials": [
             {
-              "seconds": 0.0589,
-              "peak_rss_kib": 18860,
+              "seconds": 0.0744,
+              "peak_rss_kib": 18976,
               "raster_bytes": 226815
             },
             {
-              "seconds": 0.0223,
-              "peak_rss_kib": 18984,
+              "seconds": 0.0272,
+              "peak_rss_kib": 18704,
               "raster_bytes": 226815
             },
             {
-              "seconds": 0.0223,
-              "peak_rss_kib": 18936,
+              "seconds": 0.0273,
+              "peak_rss_kib": 18720,
               "raster_bytes": 226815
             }
           ],
-          "median_seconds": 0.0223,
-          "peak_rss_kib": 18984
+          "median_seconds": 0.0273,
+          "peak_rss_kib": 18976
         },
         {
           "engine": "Poppler",
@@ -188,23 +188,71 @@
           "format": "gray",
           "trials": [
             {
-              "seconds": 0.0223,
+              "seconds": 0.0275,
+              "peak_rss_kib": 19020,
+              "raster_bytes": 75615
+            },
+            {
+              "seconds": 0.0273,
               "peak_rss_kib": 18688,
               "raster_bytes": 75615
             },
             {
-              "seconds": 0.0225,
-              "peak_rss_kib": 19032,
-              "raster_bytes": 75615
-            },
-            {
-              "seconds": 0.0224,
-              "peak_rss_kib": 19124,
+              "seconds": 0.0273,
+              "peak_rss_kib": 18724,
               "raster_bytes": 75615
             }
           ],
-          "median_seconds": 0.0224,
-          "peak_rss_kib": 19124
+          "median_seconds": 0.0273,
+          "peak_rss_kib": 19020
+        },
+        {
+          "engine": "Hayro",
+          "dpi": 96,
+          "format": "rgb",
+          "trials": [
+            {
+              "seconds": 0.0118,
+              "peak_rss_kib": 15892,
+              "raster_bytes": 225303
+            },
+            {
+              "seconds": 0.0116,
+              "peak_rss_kib": 15892,
+              "raster_bytes": 225303
+            },
+            {
+              "seconds": 0.0118,
+              "peak_rss_kib": 15892,
+              "raster_bytes": 225303
+            }
+          ],
+          "median_seconds": 0.0118,
+          "peak_rss_kib": 15892
+        },
+        {
+          "engine": "Hayro",
+          "dpi": 96,
+          "format": "gray",
+          "trials": [
+            {
+              "seconds": 0.0222,
+              "peak_rss_kib": 15892,
+              "raster_bytes": 75111
+            },
+            {
+              "seconds": 0.0118,
+              "peak_rss_kib": 15892,
+              "raster_bytes": 75111
+            },
+            {
+              "seconds": 0.012,
+              "peak_rss_kib": 15892,
+              "raster_bytes": 75111
+            }
+          ],
+          "median_seconds": 0.012,
+          "peak_rss_kib": 15892
         }
       ],
       "ocr": [
@@ -213,46 +261,46 @@
           "dpi": 200,
           "trials": [
             {
-              "seconds": 1.9042,
-              "peak_rss_kib": 90888,
+              "seconds": 0.2645,
+              "peak_rss_kib": 90912,
               "character_error_rate": 0.01282
             },
             {
-              "seconds": 1.3846,
-              "peak_rss_kib": 90988,
+              "seconds": 0.2444,
+              "peak_rss_kib": 90920,
               "character_error_rate": 0.01282
             },
             {
-              "seconds": 7.6731,
-              "peak_rss_kib": 90896,
+              "seconds": 0.2287,
+              "peak_rss_kib": 90984,
               "character_error_rate": 0.01282
             }
           ],
-          "median_seconds": 1.9042,
-          "peak_rss_kib": 90988
+          "median_seconds": 0.2444,
+          "peak_rss_kib": 90984
         },
         {
           "model": "eng",
           "dpi": 300,
           "trials": [
             {
-              "seconds": 9.0529,
-              "peak_rss_kib": 91048,
+              "seconds": 0.2804,
+              "peak_rss_kib": 90600,
               "character_error_rate": 0.01282
             },
             {
-              "seconds": 2.2333,
-              "peak_rss_kib": 90840,
+              "seconds": 0.2811,
+              "peak_rss_kib": 91028,
               "character_error_rate": 0.01282
             },
             {
-              "seconds": 2.0173,
-              "peak_rss_kib": 90904,
+              "seconds": 0.2749,
+              "peak_rss_kib": 90980,
               "character_error_rate": 0.01282
             }
           ],
-          "median_seconds": 2.2333,
-          "peak_rss_kib": 91048
+          "median_seconds": 0.2804,
+          "peak_rss_kib": 91028
         }
       ]
     },
@@ -267,23 +315,23 @@
           "format": "rgb",
           "trials": [
             {
-              "seconds": 0.0989,
-              "peak_rss_kib": 28764,
+              "seconds": 0.0868,
+              "peak_rss_kib": 28932,
               "raster_bytes": 226815
             },
             {
-              "seconds": 0.0785,
-              "peak_rss_kib": 28728,
+              "seconds": 0.0789,
+              "peak_rss_kib": 28924,
               "raster_bytes": 226815
             },
             {
-              "seconds": 0.0733,
-              "peak_rss_kib": 28792,
+              "seconds": 0.0842,
+              "peak_rss_kib": 28992,
               "raster_bytes": 226815
             }
           ],
-          "median_seconds": 0.0785,
-          "peak_rss_kib": 28792
+          "median_seconds": 0.0842,
+          "peak_rss_kib": 28992
         },
         {
           "engine": "PDFium",
@@ -291,23 +339,23 @@
           "format": "gray",
           "trials": [
             {
-              "seconds": 0.0784,
-              "peak_rss_kib": 29068,
+              "seconds": 0.0843,
+              "peak_rss_kib": 29360,
               "raster_bytes": 75615
             },
             {
-              "seconds": 0.0787,
-              "peak_rss_kib": 29156,
+              "seconds": 0.0809,
+              "peak_rss_kib": 29384,
               "raster_bytes": 75615
             },
             {
-              "seconds": 0.0787,
-              "peak_rss_kib": 29072,
+              "seconds": 0.0858,
+              "peak_rss_kib": 29412,
               "raster_bytes": 75615
             }
           ],
-          "median_seconds": 0.0787,
-          "peak_rss_kib": 29156
+          "median_seconds": 0.0843,
+          "peak_rss_kib": 29412
         },
         {
           "engine": "Poppler",
@@ -315,23 +363,23 @@
           "format": "rgb",
           "trials": [
             {
-              "seconds": 0.0385,
-              "peak_rss_kib": 18876,
+              "seconds": 0.0326,
+              "peak_rss_kib": 18732,
               "raster_bytes": 226815
             },
             {
-              "seconds": 0.0224,
-              "peak_rss_kib": 18856,
+              "seconds": 0.0271,
+              "peak_rss_kib": 18776,
               "raster_bytes": 226815
             },
             {
-              "seconds": 0.0414,
-              "peak_rss_kib": 19036,
+              "seconds": 0.0327,
+              "peak_rss_kib": 18800,
               "raster_bytes": 226815
             }
           ],
-          "median_seconds": 0.0385,
-          "peak_rss_kib": 19036
+          "median_seconds": 0.0326,
+          "peak_rss_kib": 18800
         },
         {
           "engine": "Poppler",
@@ -339,23 +387,71 @@
           "format": "gray",
           "trials": [
             {
-              "seconds": 0.0224,
-              "peak_rss_kib": 18796,
+              "seconds": 0.0325,
+              "peak_rss_kib": 18904,
               "raster_bytes": 75615
             },
             {
-              "seconds": 0.0225,
-              "peak_rss_kib": 18796,
+              "seconds": 0.0275,
+              "peak_rss_kib": 18660,
               "raster_bytes": 75615
             },
             {
-              "seconds": 0.0225,
-              "peak_rss_kib": 18740,
+              "seconds": 0.0275,
+              "peak_rss_kib": 18976,
               "raster_bytes": 75615
             }
           ],
-          "median_seconds": 0.0225,
-          "peak_rss_kib": 18796
+          "median_seconds": 0.0275,
+          "peak_rss_kib": 18976
+        },
+        {
+          "engine": "Hayro",
+          "dpi": 96,
+          "format": "rgb",
+          "trials": [
+            {
+              "seconds": 0.0133,
+              "peak_rss_kib": 15904,
+              "raster_bytes": 225303
+            },
+            {
+              "seconds": 0.0136,
+              "peak_rss_kib": 15904,
+              "raster_bytes": 225303
+            },
+            {
+              "seconds": 0.0119,
+              "peak_rss_kib": 15904,
+              "raster_bytes": 225303
+            }
+          ],
+          "median_seconds": 0.0133,
+          "peak_rss_kib": 15904
+        },
+        {
+          "engine": "Hayro",
+          "dpi": 96,
+          "format": "gray",
+          "trials": [
+            {
+              "seconds": 0.0119,
+              "peak_rss_kib": 15904,
+              "raster_bytes": 75111
+            },
+            {
+              "seconds": 0.0118,
+              "peak_rss_kib": 15904,
+              "raster_bytes": 75111
+            },
+            {
+              "seconds": 0.0131,
+              "peak_rss_kib": 15904,
+              "raster_bytes": 75111
+            }
+          ],
+          "median_seconds": 0.0119,
+          "peak_rss_kib": 15904
         }
       ],
       "ocr": [
@@ -364,46 +460,46 @@
           "dpi": 200,
           "trials": [
             {
-              "seconds": 4.445,
-              "peak_rss_kib": 159848,
+              "seconds": 0.5646,
+              "peak_rss_kib": 159832,
               "character_error_rate": 0.07843
             },
             {
-              "seconds": 2.4691,
-              "peak_rss_kib": 159836,
+              "seconds": 0.5054,
+              "peak_rss_kib": 159864,
               "character_error_rate": 0.07843
             },
             {
-              "seconds": 2.6211,
-              "peak_rss_kib": 159772,
+              "seconds": 0.4951,
+              "peak_rss_kib": 159792,
               "character_error_rate": 0.07843
             }
           ],
-          "median_seconds": 2.6211,
-          "peak_rss_kib": 159848
+          "median_seconds": 0.5054,
+          "peak_rss_kib": 159864
         },
         {
           "model": "chi_sim",
           "dpi": 300,
           "trials": [
             {
-              "seconds": 12.7601,
-              "peak_rss_kib": 159820,
+              "seconds": 0.5054,
+              "peak_rss_kib": 159744,
               "character_error_rate": 0.07843
             },
             {
-              "seconds": 11.2716,
-              "peak_rss_kib": 159796,
+              "seconds": 0.504,
+              "peak_rss_kib": 159412,
               "character_error_rate": 0.07843
             },
             {
-              "seconds": 4.8418,
-              "peak_rss_kib": 159808,
+              "seconds": 0.4937,
+              "peak_rss_kib": 159856,
               "character_error_rate": 0.07843
             }
           ],
-          "median_seconds": 11.2716,
-          "peak_rss_kib": 159820
+          "median_seconds": 0.504,
+          "peak_rss_kib": 159856
         }
       ]
     }
