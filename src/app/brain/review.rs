@@ -21,6 +21,10 @@ pub(super) struct ReviewDesk {
 }
 
 impl ReviewDesk {
+    pub(super) fn has_input(&self) -> bool {
+        self.input.is_some()
+    }
+
     pub(super) fn refresh(&mut self, store: &mut PagedBrain) -> anyhow::Result<()> {
         let now = Local::now().timestamp();
         let all = store.due_cards(now, None).map_err(anyhow::Error::msg)?;
@@ -108,6 +112,8 @@ impl ReviewDesk {
                 KeyCode::Char(c) if !c.is_control() => input.insert(c),
                 KeyCode::Left => input.left(),
                 KeyCode::Right => input.right(),
+                KeyCode::Home => input.scene_start(),
+                KeyCode::End => input.scene_end(),
                 KeyCode::Backspace => input.backspace(),
                 KeyCode::Delete => input.delete(),
                 _ => {}
@@ -154,10 +160,6 @@ impl App {
             self.open_menu();
             return;
         }
-        if key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char('v') {
-            self.paste_brain(&self.clipboard_text());
-            return;
-        }
         if let Some(store) = &mut self.brain.store {
             self.msg = match self.brain.review.key(store, key) {
                 Ok(message) => message.unwrap_or_default(),
@@ -192,7 +194,7 @@ pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) 
     } else if desk.revealed {
         "0–5 Grade · ↑↓ Scroll · F Filter"
     } else if desk.due.next.is_some() {
-        "Enter Reveal · F Filter"
+        "Enter Reveal · ↑↓ Scroll · F Filter"
     } else {
         "F Filter · R Refresh"
     };

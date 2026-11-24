@@ -56,6 +56,7 @@ impl App {
     pub fn bar_rows(&self, title: Title) -> Vec<BarRow> {
         let m = self.mod_label();
         let writing = self.open.is_some();
+        let write_key = |key| if self.brain_accepts_input() { "" } else { key };
         let key = |action: wros_sys::shortcuts::Action, default: &str| {
             self.deck
                 .shortcuts
@@ -131,6 +132,7 @@ impl App {
                 BarRow::new("Undo", format!("{m}Z"), Action::Undo),
                 BarRow::new("Redo", format!("{m}Y"), Action::Redo),
                 BarRow::new("Paste", format!("{m}V"), Action::Paste),
+                BarRow::new("Search the whole project…", "", Action::FindInBook),
             ],
             Title::Edit => {
                 let mut rows = vec![
@@ -172,91 +174,85 @@ impl App {
             }
             Title::View => {
                 use crate::app::brain::DeskView;
-                let desk_views = [
-                    BarRow::new("Write", "Super+1", Action::SwitchDeskView(DeskView::Write)),
-                    BarRow::new("Brain", "Super+3", Action::SwitchDeskView(DeskView::Brain)),
-                    BarRow::new(
-                        "Review cards",
-                        "Super+4",
-                        Action::SwitchDeskView(DeskView::Review),
-                    ),
-                    BarRow::new(
-                        if self.brain.side_visible && self.desk_view == DeskView::Write {
-                            "Hide Brain beside Write"
-                        } else {
-                            "Brain beside Write"
-                        },
-                        "",
-                        Action::BrainBeside,
-                    ),
-                ];
-                if self.desk_view != DeskView::Write {
-                    return desk_views
-                        .into_iter()
-                        .chain([
-                            BarRow::new(
-                                "Library",
-                                "Super+2",
-                                Action::SwitchDeskView(DeskView::Library),
-                            ),
-                            BarRow::new("Themes…", "F9", Action::Themes),
-                            BarRow::new("Workspaces…", "", Action::Workspaces),
-                        ])
-                        .collect();
-                }
-                let mut rows = vec![];
-                if writing || self.focus_mode {
-                    rows.push(BarRow::new(
-                        if self.focus_mode {
-                            "Leave focus mode"
-                        } else {
-                            "Focus mode"
-                        },
-                        format!("{m}D"),
-                        Action::FocusMode,
-                    ));
-                }
+                let mut rows: Vec<_> = DeskView::ALL
+                    .into_iter()
+                    .enumerate()
+                    .filter(|(_, view)| *view != self.desk_view)
+                    .map(|(index, view)| {
+                        BarRow::new(
+                            if view == DeskView::Review {
+                                "Review cards"
+                            } else {
+                                view.label()
+                            },
+                            format!("Super+{}", index + 1),
+                            Action::SwitchDeskView(view),
+                        )
+                    })
+                    .collect();
                 rows.push(BarRow::new(
-                    if self.deck.state.current().outline {
-                        "Hide the outline"
+                    if self.brain.side_visible && self.desk_view == DeskView::Write {
+                        "Hide Brain beside Write"
                     } else {
-                        "Show the outline"
+                        "Brain beside Write"
                     },
-                    key(Shortcut::Outline, ""),
-                    Action::ToggleOutline,
+                    "",
+                    Action::BrainBeside,
                 ));
-                rows.push(BarRow::new(
-                    if self.pins.state().sidebar_visible {
-                        "Hide the pins sidebar"
-                    } else {
-                        "Show the pins sidebar"
-                    },
-                    key(Shortcut::Pins, ""),
-                    Action::TogglePins,
-                ));
-                if writing {
+                if self.desk_view == DeskView::Write {
+                    if writing || self.focus_mode {
+                        rows.push(BarRow::new(
+                            if self.focus_mode {
+                                "Leave focus mode"
+                            } else {
+                                "Focus mode"
+                            },
+                            format!("{m}D"),
+                            Action::FocusMode,
+                        ));
+                    }
                     rows.push(BarRow::new(
-                        "Open a scene beside…",
-                        "v",
-                        Action::BesidePicker,
+                        if self.deck.state.current().outline {
+                            "Hide the outline"
+                        } else {
+                            "Show the outline"
+                        },
+                        key(Shortcut::Outline, ""),
+                        Action::ToggleOutline,
                     ));
+                    rows.push(BarRow::new(
+                        if self.pins.state().sidebar_visible {
+                            "Hide the pins sidebar"
+                        } else {
+                            "Show the pins sidebar"
+                        },
+                        key(Shortcut::Pins, ""),
+                        Action::TogglePins,
+                    ));
+                    if writing {
+                        rows.push(BarRow::new(
+                            "Open a scene beside…",
+                            "v",
+                            Action::BesidePicker,
+                        ));
+                    }
+                    rows.extend([
+                        BarRow::new(
+                            if self.views.secondary_visible {
+                                "Hide the second pane"
+                            } else {
+                                "Show the second pane"
+                            },
+                            key(Shortcut::Secondary, ""),
+                            Action::ToggleSecondary,
+                        ),
+                        BarRow::new("Choose second document…", "", Action::SecondaryPicker),
+                    ]);
                 }
                 rows.extend([
-                    BarRow::new(
-                        if self.views.secondary_visible {
-                            "Hide the second pane"
-                        } else {
-                            "Show the second pane"
-                        },
-                        key(Shortcut::Secondary, ""),
-                        Action::ToggleSecondary,
-                    ),
-                    BarRow::new("Choose second document…", "", Action::SecondaryPicker),
-                    BarRow::new("Corkboard…", "b", Action::Corkboard),
                     BarRow::new("Themes…", "F9", Action::Themes),
                     BarRow::new("Workspaces…", "", Action::Workspaces),
                 ]);
-                rows.extend(desk_views.into_iter().skip(1));
                 rows
             }
             Title::Book => {
@@ -268,17 +264,21 @@ impl App {
                     } else {
                         "New scene…"
                     },
-                    "n",
+                    write_key("n"),
                     Action::NewScene,
                 )];
                 if !self.project.meta.is_essay() {
                     rows.extend([
-                        BarRow::new("New chapter…", "c", Action::NewChapter),
-                        BarRow::new(format!("New {part}…"), "p", Action::NewPart),
+                        BarRow::new("New chapter…", write_key("c"), Action::NewChapter),
+                        BarRow::new(format!("New {part}…"), write_key("p"), Action::NewPart),
                     ]);
                 }
                 if !section {
-                    rows.push(BarRow::new("New folder…", "N", Action::NewFolder));
+                    rows.push(BarRow::new(
+                        "New folder…",
+                        write_key("N"),
+                        Action::NewFolder,
+                    ));
                 }
                 rows.extend([
                     BarRow::new("Rename…", "r", Action::Rename),
@@ -367,14 +367,14 @@ impl App {
             title.label(),
             rows.len()
         );
-        rows
+        self.scope_rows(rows)
     }
 
     /// The rows of one of Tools' side groups.
     pub fn side_rows(&self, side: Side) -> Vec<BarRow> {
         let m = self.mod_label();
         let writing = self.open.is_some();
-        match side {
+        let rows = match side {
             Side::Revision => {
                 let mut rows = vec![BarRow::new(
                     "Notes and TKs…",
@@ -402,6 +402,11 @@ impl App {
                 }
                 rows.extend([
                     BarRow::new("Check names…", "", Action::CheckNames),
+                    BarRow::new(
+                        "Corkboard…",
+                        if self.brain_accepts_input() { "" } else { "b" },
+                        Action::Corkboard,
+                    ),
                     BarRow::new("Footnote navigator…", "", Action::Footnotes),
                     BarRow::new("Read footnote at caret…", "", Action::FootnoteAtCaret),
                     BarRow::new("Continuity tracker…", "", Action::Continuity),
@@ -448,7 +453,18 @@ impl App {
                 BarRow::new("Challenges…", "", Action::DailyChallenges),
                 BarRow::new("Story Spark…", "", Action::StorySpark),
             ],
+        };
+        self.scope_rows(rows)
+    }
+
+    fn scope_rows(&self, mut rows: Vec<BarRow>) -> Vec<BarRow> {
+        for row in &mut rows {
+            if let Some(reason) = self.unavailable_action(&row.action) {
+                row.dim = Some(reason);
+                row.key.clear();
+            }
         }
+        rows
     }
 
     /// Where `action` lives on the bar, as "Tools › Notes" (Find anything

@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.1.0~rc28 · Save, sync and Review fixes
+## 0.1.0~rc28 · Navigation, save and sync fixes
+
+- Switch between Write, Library, Brain and Review from View. Commands for
+  selected project items require Write, and opening a project search result
+  returns to its source. Find anything keeps the highlighted result visible
+  on short screens.
+- Library shows the active filter and page controls. Catalog replies stay
+  out of the way while another Library prompt is open. Brain, Library and
+  Review text fields support keyboard undo and redo.
 
 - Open another project as soon as local saves finish. The previous project's
   Drive sync continues in the background.

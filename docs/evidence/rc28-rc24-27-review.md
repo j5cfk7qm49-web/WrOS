@@ -24,3 +24,12 @@ export after a pending save clears, an unchanged cloze among identical
 answers, attachment reuse on a read-only directory, and a cache rebuilt
 from a note saved with a link and Review card. See the Brain, Core and
 desk commands in [Testing](../TESTING.md).
+
+## Desk and menu follow-up
+
+Six added cases failed against the earlier RC28 build. They cover hidden
+project actions, a search result left behind another view, inconsistent View
+destinations, Find anything clipping its selection at 80×16, a lost Library
+tag filter, and a catalog preview appearing during an unfinished edit.
+View navigation and manuscript isolation are checked in the desk tests.
+Catalog replies use local fixtures. The HP Stream was offline for this pass.

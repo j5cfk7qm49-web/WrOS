@@ -43,6 +43,41 @@ fn everything_offered_at(tag: &str, width: u16, height: u16) -> Desk {
 }
 
 #[test]
+fn rc28_find_anything_keeps_the_highlight_visible_on_a_short_screen() {
+    for under_bar in [false, true] {
+        let mut d = Desk::open(book("rc28-short-command-palette", true), 80, 16);
+        if under_bar {
+            d.press(KeyEvent::new(
+                KeyCode::Modifier(ModifierKeyCode::LeftSuper),
+                KeyModifiers::NONE,
+            ));
+        } else {
+            d.ctrl('k');
+        }
+        for _ in 0..13 {
+            d.key(KeyCode::Down);
+        }
+        let Overlay::Palette {
+            query,
+            sel,
+            entries,
+            ..
+        } = &d.app.overlay
+        else {
+            panic!("Find anything should stay open");
+        };
+        let hits = palette::filter(entries, query);
+        let selected = &hits[*sel];
+        assert!(
+            d.shows(&format!("▸ {}", selected.label)),
+            "{}",
+            d.rows().join("\n")
+        );
+        assert!(d.shows("esc close"));
+    }
+}
+
+#[test]
 fn the_bar_has_eight_titles_in_order() {
     let labels: Vec<&str> = Title::ALL.iter().map(|t| t.label()).collect();
     assert_eq!(

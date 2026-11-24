@@ -16,7 +16,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
 use ratatui::text::Line;
-use ratatui::widgets::{Block, Paragraph};
+use ratatui::widgets::{Block, Paragraph, Wrap};
 
 use super::{App, Theme, commands, draw_draft};
 
@@ -62,6 +62,7 @@ impl Input {
 #[derive(Default)]
 pub(super) struct LibraryDesk {
     filter: Filter,
+    filter_input: String,
     sort: usize,
     kind: usize,
     works: Vec<Work>,
@@ -81,6 +82,10 @@ pub(super) struct LibraryDesk {
 }
 
 impl LibraryDesk {
+    pub(super) fn has_input(&self) -> bool {
+        self.prompt.is_some()
+    }
+
     pub(super) fn refresh(&mut self, store: &mut PagedBrain) -> anyhow::Result<()> {
         let mut works = store
             .library_works(&self.filter, self.offset, PAGE + 1)
@@ -137,8 +142,10 @@ impl LibraryDesk {
     fn page(&mut self, store: &mut PagedBrain, next: bool) -> anyhow::Result<()> {
         if next && self.more {
             self.offset = self.offset.saturating_add(u32::from(PAGE));
-        } else if !next {
+        } else if !next && self.offset > 0 {
             self.offset = self.offset.saturating_sub(u32::from(PAGE));
+        } else {
+            return Ok(());
         }
         self.selected = 0;
         self.refresh(store)
@@ -167,6 +174,7 @@ impl LibraryDesk {
                 } else {
                     value.into()
                 };
+                self.filter_input = value.into();
                 self.offset = 0;
                 self.selected = 0;
             }
@@ -327,6 +335,8 @@ impl LibraryDesk {
                 KeyCode::Delete => editor.delete(),
                 KeyCode::Left => editor.left(),
                 KeyCode::Right => editor.right(),
+                KeyCode::Home => editor.scene_start(),
+                KeyCode::End => editor.scene_end(),
                 _ => {}
             }
             return Ok(None);
@@ -342,6 +352,20 @@ impl LibraryDesk {
         match key.code {
             KeyCode::Up => self.move_selection(false),
             KeyCode::Down => self.move_selection(true),
+            KeyCode::Home => {
+                if self.open.is_some() {
+                    self.edition = 0;
+                } else {
+                    self.selected = 0;
+                }
+            }
+            KeyCode::End => {
+                if self.open.is_some() {
+                    self.edition = self.editions.len().saturating_sub(1);
+                } else {
+                    self.selected = self.works.len().saturating_sub(1);
+                }
+            }
             KeyCode::Left | KeyCode::Esc if self.open.is_some() => {
                 self.open = None;
                 self.editions.clear();
@@ -373,7 +397,7 @@ impl LibraryDesk {
             KeyCode::Char('d') => self.prompt(Input::Lookup(LookupKind::Doi), ""),
             KeyCode::Char('l') => self.prompt(Input::Lookup(LookupKind::Isbn), ""),
             KeyCode::Char('f' | '/') if self.open.is_none() => {
-                let text = self.filter.text.clone();
+                let text = self.filter_input.clone();
                 self.prompt(Input::Filter, &text);
             }
             KeyCode::Char('s') if self.open.is_none() => {
@@ -402,7 +426,11 @@ impl LibraryDesk {
         self.prompt.is_none() && self.import.is_none() && self.open.is_none()
     }
 
-    pub(super) fn poll(&mut self, store: &mut PagedBrain) -> Option<anyhow::Result<String>> {
+    pub(super) fn poll(
+        &mut self,
+        store: &mut PagedBrain,
+        show_preview: bool,
+    ) -> Option<anyhow::Result<String>> {
         if let Some((_, receiver)) = &self.lookup {
             match receiver.try_recv() {
                 Ok(result) => {
@@ -412,7 +440,7 @@ impl LibraryDesk {
                             self.recent_lookups.pop_front();
                         }
                         self.recent_lookups.push_back((query, record.clone()));
-                        if self.import.is_none() {
+                        if show_preview && self.can_open_menu() {
                             self.import = Some((vec![record].into(), Vec::new()));
                             "Catalog match ready in Library".into()
                         } else {
@@ -521,10 +549,6 @@ impl App {
             self.open_menu();
             return;
         }
-        if key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char('v') {
-            self.paste_brain(&self.clipboard_text());
-            return;
-        }
         if let Some(store) = &mut self.brain.store {
             self.msg = match self.brain.library.key(store, key) {
                 Ok(notice) => notice.unwrap_or_default(),
@@ -555,22 +579,37 @@ pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) 
     if inner.is_empty() {
         return;
     }
-    let [header, entry, body] = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Length(u16::from(library.prompt.is_some())),
-        Constraint::Min(1),
-    ])
-    .areas(inner);
     let hint = match (&library.prompt, &library.import, &library.open) {
         (Some((input, _)), _, _) => input.hint(),
         (_, Some(_), _) => "Enter Add works · Esc Cancel",
         (_, _, Some(_)) => "↑↓ Edition · B Add edition · E Edit details · M Attach file · Esc Back",
         _ => "Enter Editions · F Filter · S Sort · T Type · D DOI · L ISBN · N New · I Import",
     };
-    frame.render_widget(
-        Paragraph::new(hint).style(Style::default().fg(theme.dim)),
-        header,
-    );
+    let mut controls = vec![Line::raw(hint)];
+    if library.can_open_menu() {
+        if !library.filter_input.is_empty() {
+            controls.push(Line::raw(format!("Filter: {}", library.filter_input)));
+        }
+        if library.more || library.offset > 0 {
+            let page = library.offset / u32::from(PAGE) + 1;
+            controls.push(Line::raw(format!("Page {page} · PgUp / PgDn")));
+        }
+    }
+    let controls = Paragraph::new(controls)
+        .style(Style::default().fg(theme.dim))
+        .wrap(Wrap { trim: true });
+    let editing = u16::from(library.prompt.is_some());
+    let max_header = inner.height.saturating_sub(editing + 1);
+    let header_height = controls
+        .line_count(inner.width)
+        .min(usize::from(max_header)) as u16;
+    let [header, entry, body] = Layout::vertical([
+        Constraint::Length(header_height),
+        Constraint::Length(editing),
+        Constraint::Min(1),
+    ])
+    .areas(inner);
+    frame.render_widget(controls, header);
     if let Some((_, editor)) = &mut library.prompt {
         draw_draft(frame, editor, entry, Style::default().fg(theme.text), true);
     }
@@ -670,5 +709,35 @@ fn row_style(theme: &Theme, selected: bool) -> Style {
         Style::default().fg(theme.accent).bg(theme.sel)
     } else {
         Style::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rc28_library_catalog_preview_waits_for_the_current_input() {
+        let fixture = tempfile::tempdir().unwrap();
+        let mut store = PagedBrain::open(fixture.path(), 1).unwrap();
+        let mut library = LibraryDesk::default();
+        library.prompt(Input::New, "An unfinished title");
+        let catalog = Lookup::new(LookupKind::Doi, "10.1000/fixture").unwrap();
+        let (send, receive) = mpsc::channel();
+        let record = serde_json::json!({"type":"book", "title":"Catalog title"});
+        send.send(Ok(record.as_object().unwrap().clone())).unwrap();
+        library.lookup = Some((catalog.clone(), receive));
+
+        library.poll(&mut store, true).unwrap().unwrap();
+        assert!(library.import.is_none());
+        assert_eq!(
+            library.prompt.as_ref().unwrap().1.text(),
+            "An unfinished title"
+        );
+        assert_eq!(library.recent_lookups[0].0, catalog);
+        library.prompt(Input::Lookup(LookupKind::Doi), "10.1000/fixture");
+        library.save_prompt(&mut store).unwrap();
+        assert!(library.import.is_some());
+        assert!(library.lookup.is_none(), "use the cached reply");
     }
 }

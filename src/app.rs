@@ -2463,7 +2463,62 @@ impl App {
         );
     }
 
+    pub(crate) fn unavailable_action(&self, action: &Action) -> Option<&'static str> {
+        if self.desk_view != brain::DeskView::Write
+            && matches!(
+                action,
+                Action::Rename
+                    | Action::Delete
+                    | Action::Restore
+                    | Action::MoveUp
+                    | Action::MoveDown
+                    | Action::Details
+                    | Action::History
+                    | Action::Corkboard
+                    | Action::NextTk
+                    | Action::NextDraft
+                    | Action::FocusMode
+                    | Action::ToggleOutline
+                    | Action::TogglePins
+                    | Action::ToggleSecondary
+                    | Action::SecondaryPicker
+                    | Action::BesidePicker
+                    | Action::EditSecondary(_)
+                    | Action::Beside(_)
+            )
+        {
+            return Some("Switch to Write to use this project command.");
+        }
+        if !self.brain_accepts_input() {
+            return None;
+        }
+        match action {
+            Action::Undo | Action::Redo | Action::Paste if !self.has_active_brain_editor() => {
+                Some("Open a note or text field first.")
+            }
+            Action::Save if !self.has_active_brain_draft() => Some("Open a Brain note to save it."),
+            Action::Cut
+            | Action::Copy
+            | Action::SelectAll
+            | Action::Italic
+            | Action::Bold
+            | Action::InsertFootnote
+            | Action::FindInScene
+            | Action::FootnoteAtCaret
+            | Action::PinCurrent
+            | Action::OpenCodex
+            | Action::SpellingSuggestions => {
+                Some("Focus the manuscript in Write to use this command.")
+            }
+            _ => None,
+        }
+    }
+
     pub fn run_action(&mut self, action: Action) {
+        if let Some(reason) = self.unavailable_action(&action) {
+            self.msg = reason.into();
+            return;
+        }
         self.overlay = Overlay::None;
         match action {
             Action::BrainBeside => self.toggle_brain_beside(),
@@ -2487,11 +2542,6 @@ impl App {
                 self.start_delete();
             }
             Action::History => self.open_history(),
-            Action::Save
-                if matches!(
-                    self.desk_view,
-                    brain::DeskView::Review | brain::DeskView::Library
-                ) => {}
             Action::Save if self.brain_accepts_input() => {
                 self.save_brain();
             }
@@ -2501,16 +2551,6 @@ impl App {
             }
             Action::Paste if self.brain_accepts_input() => {
                 self.paste_brain(&self.clipboard_text());
-            }
-            Action::Cut
-            | Action::Copy
-            | Action::SelectAll
-            | Action::Italic
-            | Action::Bold
-            | Action::InsertFootnote
-                if self.brain_accepts_input() =>
-            {
-                self.msg = "Open Write to use this manuscript command".into();
             }
             Action::Undo | Action::Redo => {
                 // The tree's own actions are undone from anywhere but the
@@ -2923,6 +2963,7 @@ impl App {
         let Some(i) = self.project.nodes.iter().position(|n| n.path == path) else {
             return;
         };
+        self.switch_desk_view(brain::DeskView::Write);
         self.reveal(i);
         if self.open != Some(i) {
             self.open_scene(i);
@@ -2932,6 +2973,7 @@ impl App {
     }
 
     fn replace_in_book(&mut self, query: &str, with: &str) {
+        self.switch_desk_view(brain::DeskView::Write);
         let opts = self.find_opts;
         let (total, scenes) = self.replace_book_sources(
             format!("replace “{query}” with “{with}”"),

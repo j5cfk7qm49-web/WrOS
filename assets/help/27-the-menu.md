@@ -33,7 +33,8 @@ The mouse works everywhere on the bar: click a menu to open it, move across the 
 
 ## View
 
-- **Write** (`Super+1`) returns to the manuscript. **Brain** (`Super+3`) opens your personal outline. Both are also available in **Find anything**. Brain shows the view bar above its outline.
+- **Write** (`Super+1`) returns to the manuscript. **Library** (`Super+2`) shows works and editions. **Brain** (`Super+3`) opens your personal outline. The View menu lists the other views in shortcut order. You can also use **Find anything**.
+- In Library, press `F` to edit the active filter. An empty filter shows all works. Use `Page Up` and `Page Down` when the list spans several pages.
 - **Review cards** (`Super+4`) opens cards made in Brain notes. Press Enter to reveal an answer, then choose a grade from 0 to 5. Press F for a tag or saved search. The view bar shows how many cards are due.
 - Brain opens to **Today**. Press `N` to add a note, `Enter` to edit or save, and `Esc` to cancel an edit. Use `↑` and `↓` to choose a note, `→` to open its children, and `←` to go back. `P` shows named pages, where `N` adds a page. `T` returns to Today.
 - **Brain beside Write** opens the notes tagged for this project. A note created in that list receives the project tag. Press `Esc` outside an edit to return to the manuscript, or select Write from the view bar. You can also click either pane.
@@ -45,7 +46,6 @@ The mouse works everywhere on the bar: click a menu to open it, move across the 
 - **Show the pins sidebar** / **Hide the pins sidebar**. See *Pins*.
 - **Open a scene beside…** (`v`).
 - **Show the second pane** (`F11`) and **Choose second document…**: a second document you can edit beside the first.
-- **Corkboard…** (`b` in the outline): every scene as an index card. See *The corkboard*.
 - **Themes…** (`F9`) and **Workspaces…**.
 
 ## Project
@@ -54,6 +54,7 @@ The mouse works everywhere on the bar: click a menu to open it, move across the 
 - **Rename…** (`r`) and **Delete…** (`d`): the file is renamed to match; deleting moves it to the Trash and asks first.
 - **Restore from the Trash** (`u`): with something in the Trash selected.
 - **Move up** (`K`) and **Move down** (`J`): you can also drag rows with the mouse.
+- Switch to Write to move, rename, restore or delete a selected project item.
 - **Scene details…**: status, POV, synopsis, word target, and whether it goes in exports. See *The outline*.
 - **Scene history…** (`H`): the scene's versions from the timeline and saved copies. See *History & recovery*.
 - **Goals…**: how many words the project is aiming for, and each day.
@@ -65,7 +66,7 @@ The mouse works everywhere on the bar: click a menu to open it, move across the 
 - **Read aloud**, **Read chapter aloud** and **Read manuscript aloud**. See *Revision*.
 - **Music player…** (`F7`): while music is on.
 - **Dictionary and thesaurus…** and **Writing checks…**.
-- **Revision ›**: Notes and TKs (`Ctrl-T`), the next TK or note, the next scene still in draft, echo words, Check names, the footnote navigator, the continuity tracker, draft milestones, revision notes and the prose and revision dashboard.
+- **Revision ›**: Notes and TKs (`Ctrl-T`), the next TK or note, the next scene still in draft, echo words, Check names, the corkboard, the footnote navigator, the continuity tracker, draft milestones, revision notes and the prose and revision dashboard.
 - **Notes ›**: Library (`Super+2`), Look up the name here (`Ctrl-O`), the Pinboard, Pin this document, the writing journal, the scratchpad and the session handoff.
 - **Progress ›** holds Progress (the project's word count and pace), Goals, Calendar, Sprints, Edits, Collection, Challenges and Story Spark.
 

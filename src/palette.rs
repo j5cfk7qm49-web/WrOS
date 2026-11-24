@@ -639,8 +639,24 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         });
     }
     // In WrOS, leaving the writing app only ends the login: there is nothing to quit to.
-    if !app.deck.quit_offered {
-        v.retain(|e| e.action != Action::Quit);
+    v.retain(|e| {
+        (app.deck.quit_offered || e.action != Action::Quit)
+            && app.unavailable_action(&e.action).is_none()
+    });
+    if app.brain_accepts_input() {
+        for entry in &mut v {
+            if matches!(
+                entry.action,
+                Action::NewScene
+                    | Action::NewChapter
+                    | Action::NewPart
+                    | Action::NewFolder
+                    | Action::FindInBook
+                    | Action::Corkboard
+            ) {
+                entry.key.clear();
+            }
+        }
     }
     v
 }

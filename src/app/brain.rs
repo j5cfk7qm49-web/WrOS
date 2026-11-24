@@ -39,7 +39,7 @@ pub enum DeskView {
 impl DeskView {
     pub const ALL: [Self; 4] = [Self::Write, Self::Library, Self::Brain, Self::Review];
 
-    fn label(self) -> &'static str {
+    pub(super) fn label(self) -> &'static str {
         match self {
             Self::Write => "Write",
             Self::Library => "Library",
@@ -238,15 +238,17 @@ impl BrainDesk {
     }
 
     pub(super) fn edit_history(&mut self, redo: bool) {
-        if let Some(draft) = self
-            .outline
-            .as_mut()
-            .and_then(|outline| outline.draft.as_mut())
-        {
-            if redo {
-                draft.editor.redo();
+        if let Some(editor) = self.outline.as_mut().and_then(|outline| {
+            if let Some(prompt) = &mut outline.prompt {
+                Some(&mut prompt.editor)
             } else {
-                draft.editor.undo();
+                outline.draft.as_mut().map(|draft| &mut draft.editor)
+            }
+        }) {
+            if redo {
+                editor.redo();
+            } else {
+                editor.undo();
             }
         }
     }
@@ -667,6 +669,27 @@ impl App {
         self.desk_view != DeskView::Write || self.brain.active_side
     }
 
+    pub(super) fn has_active_brain_editor(&self) -> bool {
+        match self.desk_view {
+            DeskView::Library => self.brain.library.has_input(),
+            DeskView::Review => self.brain.review.has_input(),
+            _ => self
+                .brain
+                .outline
+                .as_ref()
+                .is_some_and(|outline| outline.prompt.is_some() || outline.draft.is_some()),
+        }
+    }
+
+    pub(super) fn has_active_brain_draft(&self) -> bool {
+        matches!(self.desk_view, DeskView::Brain | DeskView::Write)
+            && self
+                .brain
+                .outline
+                .as_ref()
+                .is_some_and(|outline| outline.draft.is_some())
+    }
+
     pub fn toggle_brain_beside(&mut self) {
         if self.desk_view == DeskView::Write && self.brain.side_visible {
             self.brain.select_side(false);
@@ -823,8 +846,9 @@ impl App {
     }
 
     pub(super) fn tick_library(&mut self) {
+        let show_preview = self.desk_view == DeskView::Library && self.overlay == Overlay::None;
         if let Some(store) = &mut self.brain.store
-            && let Some(result) = self.brain.library.poll(store)
+            && let Some(result) = self.brain.library.poll(store, show_preview)
         {
             self.msg = result.unwrap_or_else(|error| format!("Library · {error}"));
         }
@@ -885,6 +909,19 @@ impl App {
     }
 
     pub fn on_brain_key(&mut self, key: KeyEvent) {
+        if key.modifiers == KeyModifiers::CONTROL {
+            match key.code {
+                KeyCode::Char('v') => {
+                    self.paste_brain(&self.clipboard_text());
+                    return;
+                }
+                KeyCode::Char('z' | 'y') => {
+                    self.undo_brain_input(key.code == KeyCode::Char('y'));
+                    return;
+                }
+                _ => {}
+            }
+        }
         if self.desk_view == DeskView::Library {
             self.on_library_key(key);
             return;
@@ -899,9 +936,7 @@ impl App {
             .as_ref()
             .is_some_and(|outline| outline.prompt.is_some())
         {
-            if key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char('v') {
-                self.paste_brain(&self.clipboard_text());
-            } else if let Err(error) = self.brain.prompt_key(key) {
+            if let Err(error) = self.brain.prompt_key(key) {
                 self.msg = error.to_string();
             } else {
                 self.msg.clear();
@@ -921,13 +956,8 @@ impl App {
             .as_mut()
             .and_then(|outline| outline.draft.as_mut());
         if key.modifiers == KeyModifiers::CONTROL {
-            match key.code {
-                KeyCode::Char('s') => {
-                    self.save_brain();
-                }
-                KeyCode::Char('v') if draft.is_some() => self.paste_brain(&self.clipboard_text()),
-                KeyCode::Char('z' | 'y') => self.brain.edit_history(key.code == KeyCode::Char('y')),
-                _ => {}
+            if key.code == KeyCode::Char('s') {
+                self.save_brain();
             }
             return;
         }

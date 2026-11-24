@@ -266,6 +266,165 @@ fn library_picker_links_a_brain_note_to_a_stable_work_and_edition() {
 }
 
 #[test]
+fn rc28_view_menu_reaches_each_other_desk_in_shortcut_order() {
+    use crate::app::brain::DeskView;
+    use crate::palette::{Action, Title};
+
+    for (width, height) in [(80, 24), (100, 30), (120, 40), (170, 48)] {
+        let fixture = tempfile::tempdir().unwrap();
+        let mut desk = Desk::open(
+            book(&format!("rc28-desk-navigation-{width}"), true),
+            width,
+            height,
+        );
+        desk.app
+            .brain
+            .set_paths(fixture.path().join("Brain"), fixture.path().join("cache"));
+        for current in DeskView::ALL {
+            desk.app.switch_desk_view(current);
+            let rows = desk.app.bar_rows(Title::View);
+            let destinations: Vec<_> = rows
+                .iter()
+                .filter_map(|row| match row.action {
+                    Action::SwitchDeskView(view) => Some((view, row.key.as_str())),
+                    _ => None,
+                })
+                .collect();
+            let expected: Vec<_> = [
+                (DeskView::Write, "Super+1"),
+                (DeskView::Library, "Super+2"),
+                (DeskView::Brain, "Super+3"),
+                (DeskView::Review, "Super+4"),
+            ]
+            .into_iter()
+            .filter(|(view, _)| *view != current)
+            .collect();
+            assert_eq!(destinations, expected, "{current:?}");
+        }
+        desk.menu(&["View", "Write"]);
+        desk.menu(&["View", "Library"]);
+        assert_eq!(desk.app.desk_view, DeskView::Library);
+    }
+}
+
+#[test]
+fn rc28_outline_commands_explain_their_scope_and_cannot_move_hidden_scenes() {
+    use crate::app::brain::DeskView;
+    use crate::palette::{Action, Title};
+
+    let fixture = tempfile::tempdir().unwrap();
+    let mut desk = Desk::open(book("rc28-outline-command-scope", true), 80, 24);
+    desk.app
+        .brain
+        .set_paths(fixture.path().join("Brain"), fixture.path().join("cache"));
+    let scene = first_scene(&desk.root);
+    let before = fs::read_to_string(&scene).unwrap();
+    for view in [DeskView::Library, DeskView::Brain, DeskView::Review] {
+        desk.app.switch_desk_view(view);
+        desk.menu(&["Project", "Move down"]);
+        assert!(
+            desk.menu_open(),
+            "an unavailable action should keep its menu open"
+        );
+        assert!(desk.status().contains("Switch to Write"));
+        desk.key(KeyCode::Esc);
+        assert!(desk.app.bar_rows(Title::Edit).iter().any(|row| {
+            row.action == Action::Undo && row.dim == Some("Open a note or text field first.")
+        }));
+        assert!(desk.app.bar_rows(Title::Book).iter().any(|row| {
+            row.action == Action::NewScene && row.key.is_empty() && row.dim.is_none()
+        }));
+        let palette = palette::entries(&desk.app);
+        for action in [Action::Rename, Action::Delete, Action::MoveDown] {
+            assert!(!palette.iter().any(|entry| entry.action == action));
+            desk.app.run_action(action);
+            assert_eq!(desk.app.overlay, Overlay::None);
+            assert!(desk.app.msg.contains("Switch to Write"));
+        }
+        assert_eq!(desk.app.desk_view, view);
+        assert_eq!(fs::read_to_string(&scene).unwrap(), before);
+    }
+    desk.app.switch_desk_view(DeskView::Write);
+    assert!(
+        desk.app
+            .bar_rows(Title::Book)
+            .iter()
+            .any(|row| { row.action == Action::MoveDown && row.dim.is_none() })
+    );
+}
+
+#[test]
+fn rc28_project_search_from_library_opens_the_result_in_write() {
+    use crate::app::brain::DeskView;
+
+    let fixture = tempfile::tempdir().unwrap();
+    let root = book("rc28-project-search-context", true);
+    fs::write(
+        first_scene(&root),
+        "The observatory has a brass telescope.\n",
+    )
+    .unwrap();
+    let mut desk = Desk::open(root, 80, 24);
+    desk.app
+        .brain
+        .set_paths(fixture.path().join("Brain"), fixture.path().join("cache"));
+    desk.app.switch_desk_view(DeskView::Library);
+    desk.app.run_action(palette::Action::FindInBook);
+    desk.typed("telescope");
+    desk.key(KeyCode::Enter);
+    assert_eq!(desk.app.desk_view, DeskView::Write);
+    assert_eq!(
+        desk.app.editor.selected_text().as_deref(),
+        Some("telescope")
+    );
+    assert!(desk.shows("The observatory"));
+}
+
+#[test]
+fn rc28_library_keeps_a_tag_filter_when_reopened_and_undoes_prompt_edits() {
+    use grimoire_brain::bounded_store::PagedBrain;
+    use grimoire_brain::library::Edition;
+    use grimoire_brain::model::{Builtin, NodeId, Place};
+    use serde_json::json;
+
+    let fixture = tempfile::tempdir().unwrap();
+    let library = fixture.path().join("Brain");
+    let cache = fixture.path().join("cache");
+    let mut store = PagedBrain::open_library(&library, &cache).unwrap();
+    for title in ["Saffron Gardens", "Bridge Atlas"] {
+        let data = json!({"type":"book", "title":title});
+        let work = store
+            .create_work(
+                Place::default(),
+                Edition::new(data.as_object().unwrap().clone(), 1234),
+            )
+            .unwrap();
+        if title == "Saffron Gardens" {
+            store
+                .set_tag(work.work, NodeId::Builtin(Builtin::Concept), true)
+                .unwrap();
+        }
+    }
+    drop(store);
+    let mut desk = Desk::open(book("rc28-library-filter", true), 80, 24);
+    desk.app.brain.set_paths(library, cache);
+    desk.press(KeyEvent::new(KeyCode::Char('2'), KeyModifiers::SUPER));
+    desk.typed("f#concept");
+    desk.key(KeyCode::Enter);
+    assert!(desk.shows("Saffron Gardens"));
+    assert!(!desk.shows("Bridge Atlas"));
+    desk.key(KeyCode::Char('f'));
+    assert!(desk.shows("#concept"));
+    desk.key(KeyCode::End);
+    desk.key(KeyCode::Char('x'));
+    desk.ctrl('z');
+    desk.key(KeyCode::Enter);
+    assert!(desk.shows("Saffron Gardens"));
+    assert!(!desk.shows("Bridge Atlas"));
+    assert!(desk.shows("Filter: #concept"));
+}
+
+#[test]
 fn named_brain_pages_are_reachable_from_today_and_exclude_day_pages() {
     let fixture = tempfile::tempdir().unwrap();
     let mut desk = Desk::open(book("brain-pages", true), 80, 24);

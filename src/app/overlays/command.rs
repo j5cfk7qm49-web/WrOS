@@ -59,9 +59,9 @@ pub(super) fn draw_palette(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         return;
     };
     let hits = crate::palette::filter(entries, query);
-    let rows = 14usize;
+    const MAX_RESULTS: u16 = 14;
     let w = area.width.saturating_sub(4).min(84);
-    let h = rows as u16 + 5;
+    let h = MAX_RESULTS + 5;
     // Opened by Super, it hangs just under the bar's left end.
     let box_area = if *under_bar {
         Rect {
@@ -82,6 +82,7 @@ pub(super) fn draw_palette(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let block = pane_block("FIND ANYTHING", true, t);
     let inner = block.inner(box_area);
     f.render_widget(block, box_area);
+    let rows = usize::from(inner.height.saturating_sub(3).min(MAX_RESULTS));
     let iw = inner.width as usize;
     let dim = Style::default().fg(t.dim);
     let sel = (*sel).min(hits.len().saturating_sub(1));
