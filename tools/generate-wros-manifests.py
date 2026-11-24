@@ -24,7 +24,7 @@ def main():
     records, notices, missing, missing_selected = [], [], [], []
     for package in sorted(metadata['packages'], key=lambda p: (p['name'], p['version'])):
         base = Path(package['manifest_path']).parent
-        candidates = [p for p in base.iterdir() if p.is_file() and any(word in p.name.lower() for word in ('license', 'copying', 'copyright', 'notice')) and p.stat().st_size <= 262144]
+        candidates = [p for p in base.iterdir() if p.is_file() and any(word in p.name.lower() for word in ('license', 'licence', 'copying', 'copyright', 'notice')) and p.stat().st_size <= 262144]
         if not package.get('source') and base.is_relative_to(ROOT) and not candidates:
             candidates = [ROOT / 'LICENSE']
         if package.get('license_file'):

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0~rc26 · Review cards
+
+- Make a card in a Brain note with `prompt :: answer`, a two-way card with
+  `prompt ::: answer`, or a blank with `{{hidden text}}`. For a list answer,
+  leave the answer empty and add child notes.
+- Open **Review cards** to reveal answers and grade recall from 0 to 5. Filter
+  a session by tag or saved search, and see how many cards are due in the view bar.
+- Card identities and grades live in the Brain journal and survive rebuilding
+  the search cache. The schedule uses the pinned FSRS-6 parameters.
+
 ## 0.1.0~rc25 · Brain
 
 - Brain opens to Today and supports named pages, nested notes, links, backlinks,

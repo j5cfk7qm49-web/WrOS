@@ -180,6 +180,123 @@
           "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
         }
       ]
+    },
+    {
+      "name": "append-only-bytes",
+      "version": "0.1.12",
+      "package_vcs_commit": "5ee04bd3e3249c6bfeb9c3d31644ada87bb90cbe",
+      "source_archive": "https://crates.io/api/v1/crates/append-only-bytes/0.1.12/download",
+      "reason": "The crate omits the repository-root notice. Retained verbatim from the packaged VCS revision.",
+      "files": [
+        {
+          "file": "os/licenses/upstream/append-only-bytes-LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/zxch3n/append-only-bytes/5ee04bd3e3249c6bfeb9c3d31644ada87bb90cbe/LICENSE",
+          "sha256": "a9ec532f4f11817f427e4f3ca0432b176138721e0866f152864b17ebdeac6bbf"
+        }
+      ]
+    },
+    {
+      "name": "arref",
+      "version": "0.1.0",
+      "package_vcs_commit": "57fb0d2eedc68c3d9a9bd3fc4fd8fa5b6f9ae78f",
+      "source_archive": "https://crates.io/api/v1/crates/arref/0.1.0/download",
+      "reason": "The crate omits the repository-root notice. Retained verbatim from the packaged VCS revision.",
+      "files": [
+        {
+          "file": "os/licenses/upstream/arref-LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/zxch3n/arref/57fb0d2eedc68c3d9a9bd3fc4fd8fa5b6f9ae78f/LICENSE",
+          "sha256": "a9ec532f4f11817f427e4f3ca0432b176138721e0866f152864b17ebdeac6bbf"
+        }
+      ]
+    },
+    {
+      "name": "generic-btree",
+      "version": "0.10.8",
+      "package_vcs_commit": "f36db225c31b2cf5f43aca3aa3edf4b42a71b153",
+      "source_archive": "https://crates.io/api/v1/crates/generic-btree/0.10.8/download",
+      "reason": "The crate omits the repository-root notice. Retained verbatim from the packaged VCS revision.",
+      "files": [
+        {
+          "file": "os/licenses/upstream/generic-btree-LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/loro-dev/generic-btree/f36db225c31b2cf5f43aca3aa3edf4b42a71b153/LICENSE",
+          "sha256": "732d8393fd664a8126a46f0b7a4c23c577fdfc9658e9ad1620d5354050fb9f51"
+        }
+      ]
+    },
+    {
+      "name": "loro-internal",
+      "version": "1.18.0",
+      "package_vcs_commit": "3f5f37d250700e68d02b1d3d8448d68b8ba61b1c",
+      "source_archive": "https://crates.io/api/v1/crates/loro-internal/1.18.0/download",
+      "reason": "The crate omits the repository-root notice. Retained verbatim from the packaged VCS revision.",
+      "files": [
+        {
+          "file": "os/licenses/upstream/loro-internal-LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/loro-dev/loro/3f5f37d250700e68d02b1d3d8448d68b8ba61b1c/LICENSE",
+          "sha256": "b8f4ce0898a20a1610b25df6b60099c7088960ee31fae5f099caf1ae8265a33d"
+        },
+        {
+          "file": "os/licenses/upstream/loro-internal-diff-LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/loro-dev/loro/3f5f37d250700e68d02b1d3d8448d68b8ba61b1c/crates/loro-internal/src/diff/LICENSE",
+          "sha256": "43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1"
+        }
+      ]
+    },
+    {
+      "name": "serde_columnar",
+      "version": "0.3.14",
+      "package_vcs_commit": "06663cfc569c6c770b28688f015f8a87fc04e156",
+      "source_archive": "https://crates.io/api/v1/crates/serde_columnar/0.3.14/download",
+      "reason": "The crate omits the repository-root notice. Retained verbatim from the packaged VCS revision.",
+      "files": [
+        {
+          "file": "os/licenses/upstream/serde_columnar-LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/loro-dev/columnar/06663cfc569c6c770b28688f015f8a87fc04e156/LICENSE",
+          "sha256": "a9af0e3a3ded007f9914a1125b736ec526d469105c6577e367e2a9ca4de39d6b"
+        }
+      ]
+    },
+    {
+      "name": "serde_columnar_derive",
+      "version": "0.3.7",
+      "package_vcs_commit": "82588626dfa4332971c1e98f2839eb6d1c3dae1d",
+      "source_archive": "https://crates.io/api/v1/crates/serde_columnar_derive/0.3.7/download",
+      "reason": "The crate omits the repository-root notice. Retained verbatim from the packaged VCS revision.",
+      "files": [
+        {
+          "file": "os/licenses/upstream/serde_columnar_derive-LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/loro-dev/columnar/82588626dfa4332971c1e98f2839eb6d1c3dae1d/LICENSE",
+          "sha256": "a9af0e3a3ded007f9914a1125b736ec526d469105c6577e367e2a9ca4de39d6b"
+        }
+      ]
+    },
+    {
+      "name": "priority-queue",
+      "version": "2.7.0",
+      "package_vcs_commit": "0c76fb8fe75e4457f16f8e6c8e86508d1a89ba1d",
+      "source_archive": "https://crates.io/api/v1/crates/priority-queue/2.7.0/download",
+      "reason": "The crate declares MPL-2.0 terms and omits the separate license text. WrOS uses the MPL-2.0 option for priority-queue. The exact crate archive is combined with the standard license text.",
+      "files": [
+        {
+          "file": "os/licenses/upstream/MPL-2.0.txt",
+          "url": "https://raw.githubusercontent.com/spdx/license-list-data/v3.27.0/text/MPL-2.0.txt",
+          "sha256": "66a3107d5ad6a058aab753eaac2047ccb2ed0e39465dd0fe5844da3e300d5172"
+        }
+      ]
+    },
+    {
+      "name": "roman-numerals-rs",
+      "version": "3.1.0",
+      "package_vcs_commit": "ec81337f99d8b557a6fce10f674c054050551444",
+      "source_archive": "https://crates.io/api/v1/crates/roman-numerals-rs/3.1.0/download",
+      "reason": "The crate omits the repository-root notice. Retained verbatim from the packaged VCS revision.",
+      "files": [
+        {
+          "file": "os/licenses/upstream/roman-numerals-rs-LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/AA-Turner/roman-numerals/ec81337f99d8b557a6fce10f674c054050551444/LICENCE.rst",
+          "sha256": "c744ffc7e120b22e6620b613298dc003a2613c0ae489ee414fb1d473f24f916f"
+        }
+      ]
     }
   ]
 }
