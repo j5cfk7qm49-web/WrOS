@@ -7,6 +7,8 @@ use std::time::Duration;
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::model::{Change, Edit, EditFrontier, NodeId, OpId, Place, Snapshot};
+use crate::readable;
+use crate::search;
 
 pub(crate) type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -48,7 +50,8 @@ pub(crate) fn create_view(db: &Connection) -> Result<()> {
             singleton INTEGER PRIMARY KEY CHECK(singleton=1), state TEXT NOT NULL
          );",
     )?;
-    Ok(())
+    search::create_tables(db)?;
+    readable::create_tables(db)
 }
 
 pub(crate) fn read_note(db: &Connection, node: NodeId) -> Result<Option<String>> {
@@ -160,9 +163,11 @@ pub(crate) fn replace_view(db: &mut Connection, stamp: &[u8], snapshot: &Snapsho
     transaction.execute_batch(
         "DELETE FROM live_notes; DELETE FROM live_outline; DELETE FROM known_nodes;",
     )?;
+    search::reset(&transaction)?;
     let mut known = transaction.prepare("INSERT INTO known_nodes VALUES (?1)")?;
     for node in snapshot.known_nodes() {
         known.execute([serde_json::to_string(&node)?])?;
+        search::populate_schema(&transaction, snapshot, node)?;
     }
     drop(known);
     let mut insert = transaction
@@ -189,12 +194,14 @@ pub(crate) fn replace_view(db: &mut Connection, stamp: &[u8], snapshot: &Snapsho
                 i64::try_from(position)?,
                 !snapshot.has_live_text(node),
             ])?;
+            search::populate_note(&transaction, snapshot, node)?;
             parents.push(Some(node));
         }
     }
     drop(insert);
     drop(outline);
     write_frontier(&transaction, snapshot.frontier())?;
+    readable::rebuilt(&transaction, stamp)?;
     stamp_view(&transaction, stamp)?;
     transaction.commit()?;
     flush_wal(db)
@@ -207,9 +214,21 @@ pub(crate) fn apply_paged_edit(db: &Connection, edit: &Edit) -> Result<bool> {
     }
     let applied = match &edit.change {
         Change::Create { node, place } => add_node(db, *node, *place)?,
-        Change::CreateWithText { place, text } => {
+        Change::CreateWithText { place, text, tag } => {
             let node = NodeId::Note(edit.id);
-            add_node(db, node, *place)? && insert_first_text(db, node, edit.id, text)?
+            let created =
+                add_node(db, node, *place)? && insert_first_text(db, node, edit.id, text)?;
+            if created && let Some(tag) = tag {
+                search::apply(
+                    db,
+                    &Change::SetTag {
+                        node,
+                        tag: *tag,
+                        present: true,
+                    },
+                )?;
+            }
+            created
         }
         Change::InsertText {
             node,
@@ -217,6 +236,10 @@ pub(crate) fn apply_paged_edit(db: &Connection, edit: &Edit) -> Result<bool> {
             text,
         } => insert_first_text(db, *node, edit.id, text)?,
         Change::EditText { .. } => apply_text(db, edit)?,
+        Change::Move { node, place } if frontier.heads.is_subset(&edit.dependencies) => {
+            move_node(db, *node, *place)?
+        }
+        change if frontier.heads.is_subset(&edit.dependencies) => search::apply(db, change)?,
         _ => false,
     };
     if applied {
@@ -266,6 +289,66 @@ fn add_node(db: &Connection, node: NodeId, place: Place) -> Result<bool> {
         .execute(params![key, parent, position])?;
     db.prepare_cached("INSERT INTO live_notes(node, body) VALUES (?1, '')")?
         .execute([key])?;
+    Ok(true)
+}
+
+pub(crate) fn move_allowed(db: &Connection, node: NodeId, place: Place) -> Result<bool> {
+    if place.after == Some(node) || read_note(db, node)?.is_none() {
+        return Ok(false);
+    }
+    let Some(parent) = place.parent else {
+        return Ok(true);
+    };
+    let parent = serde_json::to_string(&parent)?;
+    let node = serde_json::to_string(&node)?;
+    Ok(db
+        .prepare_cached(
+            "WITH RECURSIVE ancestors(node,parent) AS (
+            SELECT node,parent FROM live_outline WHERE node=?1
+            UNION ALL
+            SELECT above.node,above.parent FROM live_outline AS above
+            JOIN ancestors ON above.node=ancestors.parent
+         ) SELECT EXISTS(SELECT 1 FROM ancestors)
+                  AND NOT EXISTS(SELECT 1 FROM ancestors WHERE node=?2)",
+        )?
+        .query_row(params![parent, node], |row| row.get(0))?)
+}
+
+fn move_node(db: &Connection, node: NodeId, place: Place) -> Result<bool> {
+    if !move_allowed(db, node, place)? {
+        return Ok(false);
+    }
+    let node = serde_json::to_string(&node)?;
+    let parent = parent_key(place.parent)?;
+    let anchor = place
+        .after
+        .map(|id| serde_json::to_string(&id))
+        .transpose()?;
+    let (old_parent, old_position): (String, i64) = db
+        .prepare_cached("SELECT parent,position FROM live_outline WHERE node=?1")?
+        .query_row([&node], |row| Ok((row.get(0)?, row.get(1)?)))?;
+    db.prepare_cached(
+        "UPDATE live_outline SET position=position-1 WHERE parent=?1 AND position>?2",
+    )?
+    .execute(params![old_parent, old_position])?;
+    let anchor: Option<i64> = db
+        .prepare_cached("SELECT position FROM live_outline WHERE node=?1 AND parent=?2")?
+        .query_row(params![anchor, parent], |row| row.get(0))
+        .optional()?;
+    let position = if let Some(anchor) = anchor {
+        let position = anchor + 1;
+        db.prepare_cached(
+            "UPDATE live_outline SET position=position+1 WHERE parent=?1 AND position>=?2 AND node<>?3",
+        )?.execute(params![parent, position, node])?;
+        position
+    } else {
+        db.prepare_cached(
+            "SELECT coalesce(max(position)+1,0) FROM live_outline WHERE parent=?1 AND node<>?2",
+        )?
+        .query_row(params![parent, node], |row| row.get(0))?
+    };
+    db.prepare_cached("UPDATE live_outline SET parent=?1,position=?2 WHERE node=?3")?
+        .execute(params![parent, position, node])?;
     Ok(true)
 }
 

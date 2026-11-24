@@ -66,6 +66,8 @@ pub enum Change {
     CreateWithText {
         place: Place,
         text: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tag: Option<NodeId>,
     },
     Move {
         node: NodeId,
@@ -274,10 +276,19 @@ impl Model {
             };
             match &edit.change {
                 Change::Create { node, place } => view.create(*node, *place, active),
-                Change::CreateWithText { place, text } => {
+                Change::CreateWithText { place, text, tag } => {
                     let node = NodeId::Note(id);
                     view.create(node, *place, active);
                     view.insert_text(id, node, None, text.clone(), active);
+                    if active && let Some(tag) = tag {
+                        view.nodes
+                            .entry(node)
+                            .or_default()
+                            .tags
+                            .entry(*tag)
+                            .or_default()
+                            .assign(self, id, true);
+                    }
                 }
                 Change::InsertText { node, after, text } => {
                     view.insert_text(id, *node, *after, text.clone(), active);

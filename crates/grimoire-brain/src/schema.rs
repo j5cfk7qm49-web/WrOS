@@ -119,6 +119,7 @@ pub enum SavedQuery {
     Tagged(NodeId),
     Field { field: FieldId, value: String },
     LinksTo(NodeId),
+    LinksFrom(NodeId),
 }
 
 /// Indices in each list are permanent field IDs. New fields can be appended.
