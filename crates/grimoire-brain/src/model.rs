@@ -60,6 +60,11 @@ pub enum Change {
         node: NodeId,
         place: Place,
     },
+    /// The operation ID identifies both the new note and its initial token.
+    CreateWithText {
+        place: Place,
+        text: String,
+    },
     Move {
         node: NodeId,
         place: Place,
@@ -253,6 +258,11 @@ impl Model {
             };
             match &edit.change {
                 Change::Create { node, place } => view.create(*node, *place, active),
+                Change::CreateWithText { place, text } => {
+                    let node = NodeId::Note(id);
+                    view.create(node, *place, active);
+                    view.insert_text(id, node, None, text.clone(), active);
+                }
                 Change::InsertText { node, after, text } => {
                     view.insert_text(id, *node, *after, text.clone(), active);
                 }

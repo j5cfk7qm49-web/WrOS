@@ -68,3 +68,32 @@ fn deleting_the_projection_rebuilds_it_from_the_checked_store() {
     assert_eq!(rows[0].body, "Rebuild this text");
     assert_eq!(brain.project().unwrap().children(None), [node]);
 }
+
+#[test]
+fn a_new_note_and_its_body_share_one_durable_update() {
+    let fixture = tempfile::tempdir().unwrap();
+    let home = fixture.path().join("Brain");
+    let cache = fixture.path().join("cache");
+    let mut brain = PagedBrain::open_library(&home, &cache).unwrap();
+    let note = brain
+        .create_note_with_text(Place::default(), "A complete note")
+        .unwrap();
+    assert_eq!(
+        std::fs::read_dir(home.join("store/journal"))
+            .unwrap()
+            .count(),
+        1
+    );
+    assert_eq!(
+        brain.note(note).unwrap().as_deref(),
+        Some("A complete note")
+    );
+    drop(brain);
+    std::fs::remove_file(cache.join("live.sqlite")).unwrap();
+    let mut reopened = PagedBrain::open_library(&home, &cache).unwrap();
+    assert_eq!(
+        reopened.note(note).unwrap().as_deref(),
+        Some("A complete note")
+    );
+    assert!(reopened.set_note(note, "Revised").unwrap());
+}

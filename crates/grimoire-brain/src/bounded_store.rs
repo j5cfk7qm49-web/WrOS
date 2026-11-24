@@ -86,7 +86,12 @@ impl PagedBrain {
         count: u16,
     ) -> Result<Vec<OutlineRow>> {
         self.refresh_view()?;
-        read_children(&self.view, parent, offset, count)
+        read_children(&self.view, parent, offset, count, false)
+    }
+
+    pub fn named_pages(&mut self, offset: u32, count: u16) -> Result<Vec<OutlineRow>> {
+        self.refresh_view()?;
+        read_children(&self.view, None, offset, count, true)
     }
 
     pub fn ensure_today(&mut self, date: NaiveDate) -> Result<NodeId> {
@@ -113,6 +118,17 @@ impl PagedBrain {
             dependencies,
             change: Change::Create { node, place },
         })?;
+        Ok(node)
+    }
+
+    pub fn create_note_with_text(&mut self, place: Place, text: &str) -> Result<NodeId> {
+        let edit = self.local_edit(Change::CreateWithText {
+            place,
+            text: text.to_owned(),
+        })?;
+        self.validate_place(place)?;
+        let node = NodeId::Note(edit.id);
+        self.append(edit)?;
         Ok(node)
     }
 

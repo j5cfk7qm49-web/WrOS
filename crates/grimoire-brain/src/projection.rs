@@ -63,14 +63,21 @@ pub(crate) fn read_children(
     parent: Option<NodeId>,
     offset: u32,
     count: u16,
+    named_pages_only: bool,
 ) -> Result<Vec<OutlineRow>> {
     let mut query = db.prepare_cached(
         "SELECT child.node, note.body,
                 EXISTS(SELECT 1 FROM live_outline WHERE parent = child.node)
          FROM live_outline AS child JOIN live_notes AS note ON note.node=child.node
-         WHERE child.parent=?1 ORDER BY child.position LIMIT ?2 OFFSET ?3",
+         WHERE child.parent=?1 AND (NOT ?4 OR json_type(child.node, '$.Note') IS NOT NULL)
+         ORDER BY child.position LIMIT ?2 OFFSET ?3",
     )?;
-    let mut rows = query.query(params![parent_key(parent)?, count.min(120), offset])?;
+    let mut rows = query.query(params![
+        parent_key(parent)?,
+        count.min(120),
+        offset,
+        named_pages_only
+    ])?;
     let mut result = Vec::new();
     while let Some(row) = rows.next()? {
         let id = serde_json::from_str(&row.get::<_, String>(0)?)?;
@@ -200,6 +207,10 @@ pub(crate) fn apply_paged_edit(db: &Connection, edit: &Edit) -> Result<bool> {
     }
     let applied = match &edit.change {
         Change::Create { node, place } => add_node(db, *node, *place)?,
+        Change::CreateWithText { place, text } => {
+            let node = NodeId::Note(edit.id);
+            add_node(db, node, *place)? && insert_first_text(db, node, edit.id, text)?
+        }
         Change::InsertText {
             node,
             after: None,
