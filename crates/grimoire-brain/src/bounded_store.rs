@@ -413,12 +413,13 @@ impl PagedBrain {
         self.readable.as_ref().and_then(ReadableWorker::error)
     }
 
-    pub fn version_id(&self) -> String {
+    pub fn version_id(&self) -> Option<String> {
         use sha2::{Digest, Sha256};
-        format!(
+        self.journal.require_healthy().ok()?;
+        Some(format!(
             "{:x}",
             Sha256::digest(self.journal.replica().projection_stamp())
-        )
+        ))
     }
 
     pub fn import(&mut self, update: &[u8]) -> Result<()> {

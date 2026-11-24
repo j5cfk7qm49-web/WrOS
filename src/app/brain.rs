@@ -117,7 +117,7 @@ impl BrainDesk {
     }
 
     pub(super) fn backed_up_version(&self) -> Option<String> {
-        self.store.as_ref().map(PagedBrain::version_id)
+        self.store.as_ref().and_then(PagedBrain::version_id)
     }
 
     pub(super) fn next_copy_error(&self) -> Option<String> {

@@ -969,7 +969,7 @@ impl App {
             return;
         };
         let now = std::time::Instant::now();
-        let library = self.brain.library_path().to_string_lossy().into_owned();
+        let library = self.brain_backup_path();
         let observed = self
             .brain
             .backup_observed
@@ -1001,13 +1001,21 @@ impl App {
         if self.deck.shell.backup.job.is_some() || !self.save_brain_panes() {
             return;
         }
-        let library = self.brain.library_path().to_string_lossy().into_owned();
+        let library = self.brain_backup_path();
         let revision = self.brain.backed_up_version().unwrap_or_default();
         self.deck.shell.backup.request(Request::BrainBackup {
             library,
             automatic: false,
             revision,
         });
+    }
+
+    fn brain_backup_path(&self) -> String {
+        let path = self.brain.library_path();
+        path.canonicalize()
+            .unwrap_or(path)
+            .to_string_lossy()
+            .into_owned()
     }
     pub fn request_project_backup(&mut self) {
         if self.deck.shell.backup.job.is_some() {
