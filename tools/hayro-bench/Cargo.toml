@@ -1,0 +1,10 @@
+[package]
+name = "wros-hayro-bench"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+hayro = "=0.9.0"

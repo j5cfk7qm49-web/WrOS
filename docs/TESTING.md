@@ -32,10 +32,11 @@ nix run .#brain-pdf-ocr-bench -- \
     --output /tmp/wros-pdf-ocr.json
 ~~~
 
-The command pins PDFium, Poppler and Tesseract through the flake. It compares
+The command pins PDFium, Poppler, Hayro 0.9.0 and Tesseract. It compares
 colour and grayscale rasterization, then runs Tesseract at 200 and 300 DPI for
-both pages. Pass `--hayro` if an independent Hayro runner accepts the PDF,
-output path, page number, DPI and `gray` or `rgb` arguments in that order.
+both pages. Each render starts a fresh process. To compare a different Hayro
+build, pass `--hayro` and the path to a runner that accepts the PDF, output
+path, page number, DPI and `gray` or `rgb` arguments in that order.
 
 ## RC26 Review cards
 
