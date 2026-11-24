@@ -2,6 +2,7 @@ use chrono::NaiveDate;
 use grimoire_brain::model::{
     Builtin, Change, Edit, FieldId, Model, ModelError, NodeId, OpId, Place, Snapshot,
 };
+use grimoire_brain::schema::{FieldKind, FieldSpec, SavedQuery};
 
 const A: u64 = 1;
 const B: u64 = 2;
@@ -71,6 +72,79 @@ fn assert_all_orders(events: &[Edit]) -> Snapshot {
     assert_eq!(forward, by_device);
     assert!(forward.pending().is_empty());
     forward
+}
+
+#[test]
+fn renamed_field_and_link_keep_their_targets_and_failed_conversion_keeps_text() {
+    let tag = NodeId::Builtin(Builtin::Book);
+    let isbn = FieldId::Builtin {
+        tag: Builtin::Book,
+        slot: 2,
+    };
+    let page = note(1, A);
+    let target = note(2, A);
+    let field = |name: &str, kind| FieldSpec {
+        name: name.into(),
+        kind,
+        required: false,
+    };
+    let events = [
+        create(stamp(1, A), &[], page, None),
+        create(stamp(2, A), &[stamp(1, A)], target, None),
+        edit(
+            stamp(3, A),
+            &[stamp(2, A)],
+            Change::SetTag {
+                node: page,
+                tag,
+                present: true,
+            },
+        ),
+        edit(
+            stamp(4, A),
+            &[stamp(3, A)],
+            Change::SetField {
+                node: page,
+                field: isbn,
+                value: Some("978-0".into()),
+            },
+        ),
+        edit(
+            stamp(5, A),
+            &[stamp(4, A)],
+            Change::DefineField {
+                tag,
+                field: isbn,
+                spec: field("Book identifier", FieldKind::Number),
+            },
+        ),
+        edit(
+            stamp(6, B),
+            &[stamp(5, A)],
+            Change::SetLink {
+                node: page,
+                target,
+                present: true,
+            },
+        ),
+        edit(
+            stamp(7, A),
+            &[stamp(6, B)],
+            Change::SetSearch {
+                node: page,
+                query: Some(SavedQuery::Tagged(tag)),
+            },
+        ),
+    ];
+    let view = assert_all_orders(&events);
+    let schema = &view.fields_for_tag(tag)[&isbn];
+    assert_eq!(schema.name, "Book identifier");
+    assert!(!schema.kind.accepts("978-0"));
+    assert_eq!(view.field(page, isbn), Some("978-0"));
+    assert_eq!(view.links(page), [target]);
+    assert_eq!(view.backlinks(target), [page]);
+    assert_eq!(view.saved_search(page), Some(&SavedQuery::Tagged(tag)));
+    assert_eq!(target.external_id().parse::<NodeId>().unwrap(), target);
 }
 
 #[test]

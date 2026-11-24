@@ -8,6 +8,8 @@ use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
+use crate::schema::{FieldSpec, SavedQuery, default_fields};
+
 /// A Lamport clock followed by a stable device ID for deterministic ties.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct OpId {
@@ -97,6 +99,20 @@ pub enum Change {
         node: NodeId,
         tag: NodeId,
         present: bool,
+    },
+    DefineField {
+        tag: NodeId,
+        field: FieldId,
+        spec: FieldSpec,
+    },
+    SetLink {
+        node: NodeId,
+        target: NodeId,
+        present: bool,
+    },
+    SetSearch {
+        node: NodeId,
+        query: Option<SavedQuery>,
     },
     /// Freeze the visible descendants in the deleting device's view.
     Delete {
@@ -311,6 +327,32 @@ impl Model {
                         .or_default()
                         .assign(self, id, *present);
                 }
+                Change::DefineField { tag, field, spec } => view
+                    .nodes
+                    .entry(*tag)
+                    .or_default()
+                    .schema
+                    .entry(*field)
+                    .or_default()
+                    .assign(self, id, spec.clone()),
+                Change::SetLink {
+                    node,
+                    target,
+                    present,
+                } => view
+                    .nodes
+                    .entry(*node)
+                    .or_default()
+                    .links
+                    .entry(*target)
+                    .or_default()
+                    .assign(self, id, *present),
+                Change::SetSearch { node, query } => view
+                    .nodes
+                    .entry(*node)
+                    .or_default()
+                    .query
+                    .assign(self, id, query.clone()),
                 _ => {}
             }
         }
@@ -325,8 +367,14 @@ impl Model {
 
 /// All causally maximal values, ordered by operation ID. The last value wins
 /// display ties. A later edit that observed both alternatives supersedes them.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct Values<T>(Vec<(OpId, T)>);
+
+impl<T> Default for Values<T> {
+    fn default() -> Self {
+        Self(Vec::new())
+    }
+}
 
 impl<T> Values<T> {
     fn assign(&mut self, model: &Model, id: OpId, value: T) {
@@ -340,6 +388,12 @@ impl<T> Values<T> {
     }
 }
 
+impl Values<bool> {
+    fn present(&self) -> bool {
+        self.0.iter().any(|(_, value)| *value)
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Note {
     created: bool,
@@ -347,6 +401,9 @@ struct Note {
     text: Vec<OpId>,
     fields: BTreeMap<FieldId, Values<Option<String>>>,
     tags: BTreeMap<NodeId, Values<bool>>,
+    links: BTreeMap<NodeId, Values<bool>>,
+    schema: BTreeMap<FieldId, Values<FieldSpec>>,
+    query: Values<Option<SavedQuery>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -502,7 +559,60 @@ impl Snapshot {
         self.nodes
             .get(&node)
             .and_then(|note| note.tags.get(&tag))
-            .is_some_and(|values| values.0.iter().any(|(_, present)| *present))
+            .is_some_and(Values::present)
+    }
+
+    pub fn tags(&self, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+        self.nodes
+            .get(&node)
+            .into_iter()
+            .flat_map(|note| &note.tags)
+            .filter_map(|(&tag, value)| value.present().then_some(tag))
+    }
+
+    pub fn fields(&self, node: NodeId) -> impl Iterator<Item = (FieldId, &str)> + '_ {
+        self.nodes
+            .get(&node)
+            .into_iter()
+            .flat_map(|note| &note.fields)
+            .filter_map(|(&field, value)| Some((field, value.winner()?.as_deref()?)))
+    }
+
+    /// Retain an unresolved target ID when the target is hidden or missing.
+    pub fn links(&self, node: NodeId) -> Vec<NodeId> {
+        self.nodes
+            .get(&node)
+            .into_iter()
+            .flat_map(|note| &note.links)
+            .filter_map(|(&target, value)| value.present().then(|| self.resolve(target)))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
+
+    pub fn backlinks(&self, target: NodeId) -> Vec<NodeId> {
+        let target = self.resolve(target);
+        self.nodes
+            .keys()
+            .copied()
+            .filter(|node| self.is_visible(*node) && self.links(*node).contains(&target))
+            .collect()
+    }
+
+    pub fn fields_for_tag(&self, tag: NodeId) -> BTreeMap<FieldId, FieldSpec> {
+        let mut fields = default_fields(tag);
+        if let Some(note) = self.nodes.get(&tag) {
+            fields.extend(
+                note.schema
+                    .iter()
+                    .filter_map(|(&id, value)| Some((id, value.winner()?.clone()))),
+            );
+        }
+        fields
+    }
+
+    pub fn saved_search(&self, node: NodeId) -> Option<&SavedQuery> {
+        self.nodes.get(&node)?.query.winner()?.as_ref()
     }
 
     pub fn link_target(&self, node: NodeId) -> Option<NodeId> {

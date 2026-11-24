@@ -11,6 +11,7 @@ pub mod model;
 #[cfg(feature = "runtime")]
 mod projection;
 pub mod replica;
+pub mod schema;
 #[cfg(feature = "qualification")]
 mod sqlite_ledger;
 pub mod storage;
