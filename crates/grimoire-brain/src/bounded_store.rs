@@ -7,7 +7,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use chrono::NaiveDate;
-use rusqlite::Connection;
+use rusqlite::{Connection, TransactionBehavior};
 
 use crate::loro_store::PagedLoroStore;
 use crate::model::{Change, Edit, FieldId, NodeId, OpId, Place, Snapshot};
@@ -83,8 +83,12 @@ impl PagedBrain {
     pub(crate) fn prime_view(&mut self, snapshot: &Snapshot) -> Result<()> {
         let stamp = self.projection_stamp();
         replace_view(&mut self.view, &stamp, snapshot)?;
-        self.wake_readable();
-        Ok(())
+        if self.readable.is_some() {
+            self.wake_readable();
+            Ok(())
+        } else {
+            flush_wal(&self.view)
+        }
     }
 
     pub fn note(&mut self, node: NodeId) -> Result<Option<String>> {
@@ -374,7 +378,9 @@ impl PagedBrain {
 
     fn advance_projection(&mut self, before: &[u8], edit: &Edit) -> Result<()> {
         let after = self.projection_stamp();
-        let transaction = self.view.transaction()?;
+        let transaction = self
+            .view
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
         if has_stamp(&transaction, before)? {
             let old = if matches!(edit.change, Change::Move { .. }) {
                 readable::affected_root(&transaction, &edit.change)?
@@ -422,7 +428,12 @@ impl PagedBrain {
 
     pub fn checkpoint(&mut self) -> Result<()> {
         self.journal.checkpoint()?;
-        flush_wal(&self.view)
+        if self.readable.is_some() {
+            self.wake_readable();
+            Ok(())
+        } else {
+            flush_wal(&self.view)
+        }
     }
 
     #[cfg(feature = "qualification")]

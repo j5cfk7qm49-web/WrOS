@@ -4,7 +4,7 @@
 use std::path::Path;
 use std::time::Duration;
 
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 
 use crate::model::{Change, Edit, EditFrontier, NodeId, OpId, Place, Snapshot};
 use crate::readable;
@@ -159,7 +159,7 @@ fn write_frontier(db: &Connection, frontier: &EditFrontier) -> Result<()> {
 }
 
 pub(crate) fn replace_view(db: &mut Connection, stamp: &[u8], snapshot: &Snapshot) -> Result<()> {
-    let transaction = db.transaction()?;
+    let transaction = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     transaction.execute_batch(
         "DELETE FROM live_notes; DELETE FROM live_outline; DELETE FROM known_nodes;",
     )?;
@@ -204,7 +204,7 @@ pub(crate) fn replace_view(db: &mut Connection, stamp: &[u8], snapshot: &Snapsho
     readable::rebuilt(&transaction, stamp)?;
     stamp_view(&transaction, stamp)?;
     transaction.commit()?;
-    flush_wal(db)
+    Ok(())
 }
 
 pub(crate) fn apply_paged_edit(db: &Connection, edit: &Edit) -> Result<bool> {
