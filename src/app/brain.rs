@@ -259,7 +259,11 @@ impl BrainDesk {
             return Ok(false);
         };
         let body = draft.editor.text();
-        let links = draft.work_links.clone();
+        let links = draft
+            .work_links
+            .iter()
+            .filter_map(|(destination, work)| body.contains(destination).then_some(*work))
+            .collect();
         let affects_review = looks_like_card(&body)
             || looks_like_card(&outline.location.title)
             || draft.node.is_some_and(|node| {
@@ -274,30 +278,23 @@ impl BrainDesk {
         }
         let node = match draft.node {
             Some(node) => {
-                store.set_note(node, &body).map_err(anyhow::Error::msg)?;
+                store
+                    .set_note_with_links(node, &body, links)
+                    .map_err(anyhow::Error::msg)?;
                 node
             }
             None => store
-                .create_tagged_note(
+                .create_tagged_note_with_links(
                     Place {
                         parent: outline.location.parent,
                         after: outline.selected().map(|row| row.id),
                     },
                     &body,
                     outline.location.create_tag,
+                    links,
                 )
                 .map_err(anyhow::Error::msg)?,
         };
-        if let Some(draft) = &mut outline.draft {
-            draft.node = Some(node);
-        }
-        for (marker, target) in links {
-            if body.contains(&marker) {
-                store
-                    .set_link(node, target, true)
-                    .map_err(anyhow::Error::msg)?;
-            }
-        }
         outline.draft = None;
         let location = outline.location.clone();
         outline.load(store, location)?;
@@ -816,7 +813,9 @@ impl App {
                 label.push(c);
             }
             draft.editor.insert_str(&format!("[{label}]({marker})"));
-            draft.work_links.push((marker, edition.work));
+            draft
+                .work_links
+                .push((format!("]({marker})"), edition.work));
         } else {
             draft.editor.insert('@');
         }

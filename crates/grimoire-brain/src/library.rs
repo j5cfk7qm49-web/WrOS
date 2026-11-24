@@ -238,9 +238,8 @@ pub fn import_media(
     library: &std::path::Path,
     input: &std::path::Path,
 ) -> crate::projection::Result<Media> {
-    use sha2::{Digest, Sha256};
     use std::fs::{self, File};
-    use std::io::{self, Read, Write};
+    use std::io::{self, Seek};
 
     let name = input
         .file_name()
@@ -268,23 +267,10 @@ pub fn import_media(
     if !files.symlink_metadata()?.is_dir() {
         return Err("Brain files needs a regular directory".into());
     }
-    let mut pending = tempfile::NamedTempFile::new_in(library)?;
-    let mut hasher = Sha256::new();
-    let mut buffer = [0; 64 * 1024];
-    let mut size = 0;
-    loop {
-        let count = source.read(&mut buffer)?;
-        if count == 0 {
-            break;
-        }
-        pending.write_all(&buffer[..count])?;
-        hasher.update(&buffer[..count]);
-        size += count as u64;
-    }
+    let (digest, size) = hash_media(&mut source, io::sink())?;
     if size != at_open.len() || source.metadata()?.modified()? != at_open.modified()? {
         return Err("The media file changed while reading".into());
     }
-    let digest = format!("{:x}", hasher.finalize());
     let media = Media {
         sha256: digest,
         size,
@@ -295,6 +281,20 @@ pub fn import_media(
         return Err("The media file has an unsupported name".into());
     }
     let target = files.join(&media.sha256);
+    match target.symlink_metadata() {
+        Ok(_) => {
+            verify_media(&target, &media)?;
+            return Ok(media);
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+        Err(error) => return Err(error.into()),
+    }
+    source.rewind()?;
+    let mut pending = tempfile::NamedTempFile::new_in(library)?;
+    let (copied_digest, copied_size) = hash_media(&mut source, &mut pending)?;
+    if copied_digest != media.sha256 || copied_size != media.size {
+        return Err("The media file changed while reading".into());
+    }
     pending.as_file().sync_all()?;
     match pending.persist_noclobber(&target) {
         Ok(_) => {
@@ -302,17 +302,46 @@ pub fn import_media(
             crate::storage::sync_directory(library)?;
         }
         Err(error) if error.error.kind() == io::ErrorKind::AlreadyExists => {
-            if !target.symlink_metadata()?.is_file() || target.metadata()?.len() != size {
-                return Err("The stored media differs from its fingerprint".into());
-            }
-            let mut existing = File::open(&target)?;
-            let mut hasher = Sha256::new();
-            io::copy(&mut existing, &mut hasher)?;
-            if format!("{:x}", hasher.finalize()) != media.sha256 {
-                return Err("The stored media differs from its fingerprint".into());
-            }
+            verify_media(&target, &media)?;
         }
         Err(error) => return Err(error.error.into()),
     }
     Ok(media)
+}
+
+#[cfg(feature = "runtime")]
+fn hash_media(
+    source: &mut std::fs::File,
+    mut destination: impl std::io::Write,
+) -> std::io::Result<(String, u64)> {
+    use sha2::{Digest, Sha256};
+    use std::io::Read;
+
+    let mut hasher = Sha256::new();
+    let mut buffer = [0; 64 * 1024];
+    let mut size = 0;
+    loop {
+        let count = source.read(&mut buffer)?;
+        if count == 0 {
+            break;
+        }
+        destination.write_all(&buffer[..count])?;
+        hasher.update(&buffer[..count]);
+        size += count as u64;
+    }
+    Ok((format!("{:x}", hasher.finalize()), size))
+}
+
+#[cfg(feature = "runtime")]
+fn verify_media(target: &std::path::Path, media: &Media) -> crate::projection::Result<()> {
+    let metadata = target.symlink_metadata()?;
+    if !metadata.is_file() || metadata.len() != media.size {
+        return Err("The stored media differs from its fingerprint".into());
+    }
+    let mut existing = std::fs::File::open(target)?;
+    let (digest, size) = hash_media(&mut existing, std::io::sink())?;
+    if size != media.size || digest != media.sha256 {
+        return Err("The stored media differs from its fingerprint".into());
+    }
+    Ok(())
 }

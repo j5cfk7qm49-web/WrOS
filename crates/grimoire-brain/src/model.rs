@@ -118,11 +118,13 @@ pub enum Change {
         node: NodeId,
         query: Option<SavedQuery>,
     },
-    /// Save the text and its reconciled card IDs in one journal operation.
+    /// Save text, its card IDs and any new links in one journal operation.
     NoteCards {
         node: NodeId,
         content: Box<Change>,
         cards: Vec<Card>,
+        #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+        added_links: BTreeSet<NodeId>,
     },
     ReviewCard {
         review: Review,
@@ -202,6 +204,7 @@ impl Edit {
                 node,
                 content,
                 cards,
+                ..
             } => {
                 let owns_text = match content.as_ref() {
                     Change::CreateWithText { .. } => *node == NodeId::Note(self.id),
@@ -345,6 +348,7 @@ impl Model {
                 node,
                 content,
                 cards,
+                added_links,
             } = &edit.change
             {
                 if active {
@@ -352,6 +356,15 @@ impl Model {
                         .entry(*node)
                         .or_default()
                         .assign(self, id, cards.clone());
+                    for target in added_links {
+                        view.nodes
+                            .entry(*node)
+                            .or_default()
+                            .links
+                            .entry(*target)
+                            .or_default()
+                            .assign(self, id, true);
+                    }
                 }
                 content
             } else {

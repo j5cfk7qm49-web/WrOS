@@ -1,5 +1,6 @@
 //! The selected Loro journal and its disposable SQLite read model.
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
@@ -31,7 +32,7 @@ pub use crate::sqlite_ledger::SqliteLedger;
 
 const LIVE_DB: &str = "live.sqlite";
 const DEVICE_FILE: &str = "device-id";
-const REVIEW_VIEW: &[u8] = b"paged-outline-v5\0";
+const LIVE_VIEW: &[u8] = b"paged-outline-v6\0";
 const PRE_REVIEW_VIEW: &[u8] = b"paged-outline-v4\0";
 
 pub struct PagedBrain {
@@ -390,19 +391,33 @@ impl PagedBrain {
         text: &str,
         tag: Option<NodeId>,
     ) -> Result<NodeId> {
+        self.create_tagged_note_with_links(place, text, tag, BTreeSet::new())
+    }
+
+    pub fn create_tagged_note_with_links(
+        &mut self,
+        place: Place,
+        text: &str,
+        tag: Option<NodeId>,
+        added_links: BTreeSet<NodeId>,
+    ) -> Result<NodeId> {
         let mut edit = self.local_edit(Change::CreateWithText {
             place,
             text: text.to_owned(),
             tag,
         })?;
         self.validate_place(place)?;
+        for target in &added_links {
+            self.require_visible(*target)?;
+        }
         let node = NodeId::Note(edit.id);
         let cards = cards_for_text(text, &[], edit.id);
-        if !cards.is_empty() {
+        if !cards.is_empty() || !added_links.is_empty() {
             edit.change = Change::NoteCards {
                 node,
                 content: Box::new(edit.change),
                 cards,
+                added_links,
             };
         }
         self.append(edit)?;
@@ -412,11 +427,23 @@ impl PagedBrain {
     /// Save ordinary line edits from the version displayed by the local store.
     /// The token-level interface preserves multi-token and conflicting notes.
     pub fn set_note(&mut self, node: NodeId, text: &str) -> Result<bool> {
+        self.set_note_with_links(node, text, BTreeSet::new())
+    }
+
+    pub fn set_note_with_links(
+        &mut self,
+        node: NodeId,
+        text: &str,
+        added_links: BTreeSet<NodeId>,
+    ) -> Result<bool> {
         self.refresh_view()?;
         let (old, target) =
             edit_target(&self.view, node)?.ok_or("This Brain note is hidden or missing")?;
         if old == text {
             return Ok(false);
+        }
+        for target in &added_links {
+            self.require_visible(*target)?;
         }
         let next_text = text;
         let text = text.to_owned();
@@ -434,14 +461,15 @@ impl PagedBrain {
         };
         let mut edit = self.local_edit(change)?;
         edit.dependencies.extend(extra);
-        if looks_like_card(&old) || looks_like_card(next_text) {
+        if looks_like_card(&old) || looks_like_card(next_text) || !added_links.is_empty() {
             let previous = review_projection::note_cards(&self.view, node)?;
             let cards = cards_for_text(next_text, &previous, edit.id);
-            if !previous.is_empty() || !cards.is_empty() {
+            if !previous.is_empty() || !cards.is_empty() || !added_links.is_empty() {
                 edit.change = Change::NoteCards {
                     node,
                     content: Box::new(edit.change),
                     cards,
+                    added_links,
                 };
             }
         }
@@ -505,7 +533,7 @@ impl PagedBrain {
     }
 
     fn projection_stamp(&self) -> Vec<u8> {
-        self.stamp_with_prefix(REVIEW_VIEW)
+        self.stamp_with_prefix(LIVE_VIEW)
     }
 
     fn stamp_with_prefix(&self, prefix: &[u8]) -> Vec<u8> {

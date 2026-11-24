@@ -294,8 +294,24 @@ pub(crate) fn apply_paged_edit(db: &Connection, edit: &Edit) -> Result<bool> {
         _ => false,
     };
     if applied {
-        if let Change::NoteCards { node, cards, .. } = &edit.change {
+        if let Change::NoteCards {
+            node,
+            cards,
+            added_links,
+            ..
+        } = &edit.change
+        {
             review_projection::save_cards(db, *node, cards)?;
+            for target in added_links {
+                search::apply(
+                    db,
+                    &Change::SetLink {
+                        node: *node,
+                        target: *target,
+                        present: true,
+                    },
+                )?;
+            }
         }
         frontier.observe(edit.id, &edit.dependencies);
         write_frontier(db, &frontier)?;
