@@ -10,6 +10,10 @@ pub mod crossref;
 #[cfg_attr(not(test), allow(dead_code))]
 pub mod openlibrary;
 
+// Name resolution gets its first app caller with catalogue picks.
+#[cfg_attr(not(test), allow(dead_code))]
+pub mod names;
+
 // Page and HEAD fetches get callers in later catalogue tasks.
 #[allow(dead_code)]
 pub mod fetch;
