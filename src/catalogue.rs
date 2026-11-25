@@ -26,10 +26,16 @@ pub mod query;
 #[cfg_attr(not(test), allow(dead_code))]
 pub mod webpage;
 
+// The pickers get their search state in later catalogue tasks.
+#[cfg_attr(not(test), allow(dead_code))]
+mod search;
+
 #[allow(unused_imports)]
 pub use fetch::{Fetch, OFFLINE, default_fetch};
 #[allow(unused_imports)]
 pub use query::Query;
+#[allow(unused_imports)]
+pub use search::{Search, SearchStatus};
 
 #[cfg_attr(not(test), allow(dead_code))]
 #[derive(Clone, Debug, PartialEq)]
