@@ -221,6 +221,16 @@ in-picker key is the builder's call, and must not clash with existing picker key
    [ ] Author named in my sentence
    Add another source
    ```
+7. **`@` in the Brain and the Library** (the owner asked whether `@` works there; proposed
+   2026-11-24).
+   - **Brain:** typing `@` in a note already opens the Library picker (`Page::BrainPick`),
+     which links an edition as `[title](brain:work#edition)`. It gains the Catalogue section. A
+     catalogue pick adds the edition to the Library, then links it. There is no page step: a
+     note link isn't a citation.
+   - **Library view:** `@` (unused there today) opens the same search. A pick adds the
+     edition to the Library, joining an existing work as in call 3, with nothing cited.
+   - The desk's `d` (DOI) and `l` (ISBN) become shortcuts into that search, pre-set to an exact
+     lookup. With online search off, they still work on Enter, as today.
 6. **Page numbers.** The page being quoted is typed in that step, as in rc27; no catalogue
    can supply it. An article's or chapter's span in its container (`page`, for Works Cited's
    "pp. 45–67") is filled from Crossref.
