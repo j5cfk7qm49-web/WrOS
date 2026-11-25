@@ -13,13 +13,15 @@ let
   wros-cage = import ./cage.nix { inherit pkgs lib src; };
   wros-keymaps = import ./keymaps.nix { inherit pkgs lib src; };
   wros-prose-runtime = import ./prose-runtime.nix { inherit pkgs lib src; };
+  wros-media-key = import ./media-key.nix { inherit pkgs lib src rustPlatform; };
 
   wros-helpers = import ./helpers.nix {
     inherit pkgs lib version src wros-display-hw wros-cage wros-keymaps wros-prose-runtime;
   };
 
   paths = import ./paths.nix {
-    inherit pkgs wros-helpers wros-display-hw wros-console-reset wros-cage wros-keymaps wros-prose-runtime;
+    inherit pkgs wros-helpers wros-display-hw wros-console-reset wros-cage wros-keymaps wros-prose-runtime
+      wros-media-key;
   };
 
   rustPackages = import ./rust-packages.nix {
@@ -78,6 +80,7 @@ in
     wros-cage
     wros-keymaps
     wros-prose-runtime
+    wros-media-key
     wros-helpers
     wros-licenses
     wros-branding
