@@ -38,6 +38,14 @@ let
 
   wros-branding = import ./branding.nix { inherit pkgs lib src; };
 
+  hayroBench = pkgs.rustPlatform.buildRustPackage {
+    pname = "wros-hayro-bench";
+    version = "0.1.0";
+    src = src + "/tools/hayro-bench";
+    cargoLock.lockFile = src + "/tools/hayro-bench/Cargo.lock";
+  };
+  hp-measure = import ./hp-measure.nix { inherit pkgs lib src hayroBench; };
+
   # The tests for what NixOS WrOS runs. The Debian update engine's own suites (test_update,
   # test_update_live, test_update_rollback, test_update_support, test_update_transactions) drive
   # dpkg and apt-get against a Debian archive; they stay in the Debian builder's suite (#131).
@@ -67,6 +75,7 @@ let
       test_recovery_menu test_boot_settings test_boot_unlock test_session_launcher \
       test_display_manager test_nixos_update test_nixos_install_core test_nixos_installer \
       test_update_reply_contract test_nixos_bundle_tool
+    python3 tools/hp-measure/test-kit.py ${hp-measure}
     mkdir -p "$out"
     echo "pass" > "$out/result"
   '';
@@ -84,6 +93,8 @@ in
     wros-helpers
     wros-licenses
     wros-branding
+    hayroBench
+    hp-measure
     paths
     python-suite;
   inherit (appTests) app-test-binary app-suite;

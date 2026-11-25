@@ -132,6 +132,7 @@
           wros-boot
           wros-installer
           brain-bench
+          hp-measure
           wros-console-reset
           wros-display-hw
           wros-cage
@@ -142,14 +143,7 @@
           wros-branding;
         wros-iso = wrosIso;
         wros-update-bundle = wrosUpdateBundle;
-        brain-pdf-ocr-bench = let
-          hayroBench = pkgs.rustPlatform.buildRustPackage {
-            pname = "wros-hayro-bench";
-            version = "0.1.0";
-            src = ./tools/hayro-bench;
-            cargoLock.lockFile = ./tools/hayro-bench/Cargo.lock;
-          };
-        in pkgs.writeShellApplication {
+        brain-pdf-ocr-bench = pkgs.writeShellApplication {
           name = "brain-pdf-ocr-bench";
           runtimeInputs = [
             pkgs.python3
@@ -159,7 +153,7 @@
           text = ''
             exec python3 -B ${./tools/brain-pdf-ocr-bench.py} run \
               --pdfium "${pkgs.pdfium-binaries}/lib/libpdfium.so" \
-              --hayro "${hayroBench}/bin/wros-hayro-bench" "$@"
+              --hayro "${wrosPkgs.hayroBench}/bin/wros-hayro-bench" "$@"
           '';
         };
         default = wrosPkgs.grimoire;
