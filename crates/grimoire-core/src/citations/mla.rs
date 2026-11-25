@@ -9,7 +9,7 @@ use hayagriva::{
 use std::collections::BTreeMap;
 
 use super::Cite;
-use crate::sources::Sources;
+use crate::sources::{Record, Sources};
 
 const STYLE: &str = include_str!("../../../../assets/csl/modern-language-association.csl");
 const LOCALE: &str = include_str!("../../../../assets/csl/locales-en-US.xml");
@@ -18,6 +18,27 @@ const LOCALE: &str = include_str!("../../../../assets/csl/locales-en-US.xml");
 pub struct PaperCitations {
     pub citations: Vec<Vec<Formatted>>,
     pub works_cited: Vec<Vec<Formatted>>,
+}
+
+pub fn works_cited_line(record: &Record) -> Result<String> {
+    let key = "preview";
+    let mut record = record.clone();
+    record.insert("id".into(), serde_json::Value::String(key.into()));
+    let mut sources = Sources::default();
+    sources.add(record)?;
+    let rendered = render(
+        &sources,
+        &[vec![Cite {
+            key,
+            page: None,
+            suppress_author: false,
+        }]],
+    )?;
+    let entry = rendered
+        .works_cited
+        .first()
+        .context("The MLA processor returned no Works Cited entry.")?;
+    Ok(entry.iter().map(|run| run.text.as_str()).collect())
 }
 
 pub fn render(sources: &Sources, groups: &[Vec<Cite<'_>>]) -> Result<PaperCitations> {

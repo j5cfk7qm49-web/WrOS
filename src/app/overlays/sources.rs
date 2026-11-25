@@ -2,11 +2,17 @@
 
 use super::*;
 use crate::app::brain::BrainReferenceTarget;
+use crate::app::brain::library::keep_in_library;
+use crate::catalogue::{Hit, SearchStatus, names};
 use grimoire_brain::library::EditionKey;
 use grimoire_brain::model::NodeId;
 use grimoire_core::sync::Fingerprint;
 use grimoire_core::{citations, sources};
 use serde_json::{Value, json};
+use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
+use std::sync::Mutex;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SourceDialog {
@@ -17,6 +23,31 @@ pub struct SourceDialog {
     selected: usize,
     notice: String,
     library: Vec<LibraryPick>,
+    catalogue: Option<CatalogueSearch>,
+    catalogue_view: Option<usize>,
+    staged: BTreeSet<String>,
+    editing_citation: Option<Box<Page>>,
+}
+
+// Modal navigation can clone an overlay. Keep its in-flight search and author reply together.
+#[derive(Clone)]
+struct CatalogueSearch(Rc<RefCell<CatalogueState>>);
+
+struct CatalogueState {
+    search: catalogue::Search,
+    resolving: Option<mpsc::Receiver<sources::Record>>,
+}
+
+impl fmt::Debug for CatalogueSearch {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CatalogueSearch").finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for CatalogueSearch {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -73,6 +104,37 @@ struct Citation {
     page: String,
     suppress: bool,
     library: Option<Box<LibraryPick>>,
+    edited: Option<Box<sources::Record>>,
+    works_cited: String,
+}
+
+impl Citation {
+    fn new(key: String, record: &sources::Record) -> Self {
+        Self {
+            key,
+            page: String::new(),
+            suppress: false,
+            library: None,
+            edited: None,
+            works_cited: source_line(record),
+        }
+    }
+
+    fn from_library(pick: LibraryPick) -> Self {
+        let mut cite = Self::new(pick.key.clone(), &pick.record);
+        cite.library = Some(Box::new(pick));
+        cite
+    }
+
+    fn record<'a>(
+        &'a self,
+        snapshot: Option<&'a sources::Snapshot>,
+    ) -> Option<&'a sources::Record> {
+        self.edited
+            .as_deref()
+            .or_else(|| self.library.as_ref().map(|pick| &pick.record))
+            .or_else(|| snapshot?.sources.get(&self.key))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -123,6 +185,12 @@ impl App {
                 Err(e) => (None, format!("{e:#}")),
             }
         };
+        let catalogue = matches!(page, Page::Pick { .. } | Page::BrainPick(_)).then(|| {
+            CatalogueSearch(Rc::new(RefCell::new(CatalogueState {
+                search: self.new_catalogue_search(),
+                resolving: None,
+            })))
+        });
         let mut dialog = Box::new(SourceDialog {
             book,
             snapshot,
@@ -131,6 +199,10 @@ impl App {
             selected: 0,
             notice,
             library: Vec::new(),
+            catalogue,
+            catalogue_view: None,
+            staged: BTreeSet::new(),
+            editing_citation: None,
         });
         self.refresh_citation_library(&mut dialog);
         self.overlay = Overlay::ProjectSources(dialog);
@@ -265,10 +337,20 @@ impl App {
         else {
             return;
         };
+        if dialog.catalogue_view.is_some() || dialog.resolving_catalogue() {
+            self.overlay = Overlay::ProjectSources(dialog);
+            return;
+        }
         let before = dialog.query.clone();
         dialog.paste(text);
         if before != dialog.query {
             self.refresh_citation_library(&mut dialog);
+        }
+        if let Some(catalogue) = dialog.picker_catalogue() {
+            let mut catalogue = catalogue.0.borrow_mut();
+            let now = Instant::now();
+            catalogue.search.edit(&dialog.query, now);
+            catalogue.search.submit(now);
         }
         self.overlay = Overlay::ProjectSources(dialog);
     }
@@ -297,35 +379,158 @@ impl App {
             .filter_map(|(_, record)| sources::library_provenance(record).map(|link| link.identity))
             .collect();
         for (edition, metadata) in editions {
-            let identity = sources::LibraryIdentity {
-                work_id: edition.work.external_id(),
-                edition_id: NodeId::Note(edition.edition).external_id(),
-            };
+            let identity = library_identity(edition);
             if linked.contains(&identity) {
                 continue;
             }
-            let base = format!(
-                "library-{:x}-{:x}",
-                edition.edition.device, edition.edition.clock
-            );
-            let occupied = |key: &str| project.is_some_and(|sources| sources.get(key).is_some());
-            let key = if !occupied(&base) {
-                base
-            } else {
-                (2..)
-                    .map(|index| format!("{base}-{index}"))
-                    .find(|key| !occupied(key))
-                    .expect("an available citation key")
-            };
-            if let Ok(record) =
-                sources::accepted_library_record(&key, identity, &metadata.bibliography)
-            {
-                dialog.library.push(LibraryPick {
-                    key,
-                    edition,
-                    record,
-                });
+            if let Ok(pick) = library_pick(project, edition, identity, &metadata.bibliography) {
+                dialog.library.push(pick);
             }
+        }
+    }
+
+    pub(in crate::app) fn tick_source_catalogue(&mut self) {
+        let Overlay::ProjectSources(dialog) = &mut self.overlay else {
+            return;
+        };
+        let Some(result) = dialog.tick_catalogue(Instant::now()) else {
+            return;
+        };
+        let Overlay::ProjectSources(mut dialog) =
+            std::mem::replace(&mut self.overlay, Overlay::None)
+        else {
+            unreachable!("the source picker was just polled");
+        };
+        let result = result.and_then(|record| self.finish_catalogue_pick(&mut dialog, record));
+        if let Err(error) = result {
+            dialog.notice = format!("{error:#}");
+        }
+        self.overlay = Overlay::ProjectSources(dialog);
+    }
+
+    fn start_catalogue_pick(&mut self, dialog: &mut SourceDialog, hit: Hit) -> Result<()> {
+        let open_library = hit
+            .record
+            .get("x-wros-catalogue")
+            .is_some_and(|data| data.get("openlibrary_work").is_some());
+        if !open_library {
+            return self.finish_catalogue_pick(dialog, hit.record);
+        }
+        let fetch = Arc::clone(&self.catalogue_fetch);
+        let path = catalogue_names_path(&dialog.book);
+        let (tx, rx) = mpsc::channel();
+        let worker = std::thread::Builder::new()
+            .name("Catalogue author names".into())
+            .spawn(move || {
+                let record = resolve_open_library_names(hit, fetch.as_ref(), path);
+                let _ = tx.send(record);
+            })?;
+        drop(worker);
+        let catalogue = dialog.catalogue.as_ref().expect("a catalogue pick");
+        catalogue.0.borrow_mut().resolving = Some(rx);
+        dialog.notice.clear();
+        Ok(())
+    }
+
+    fn finish_catalogue_pick(
+        &mut self,
+        dialog: &mut SourceDialog,
+        mut record: sources::Record,
+    ) -> Result<()> {
+        let Page::Pick { target, .. } = &dialog.page else {
+            return Ok(());
+        };
+        let library = if let Ok(Some(store)) = self.library_store_if_present() {
+            let edition = keep_in_library(store, &record)?;
+            let metadata = store
+                .edition(edition)
+                .map_err(anyhow::Error::msg)?
+                .ok_or_else(|| anyhow::anyhow!("The Library edition is unavailable"))?;
+            Some((edition, metadata.bibliography))
+        } else {
+            None
+        };
+        // Keep the edition even when the original place to cite has disappeared.
+        self.citation_target(target, &dialog.book)?;
+        let project = &mut dialog
+            .snapshot
+            .as_mut()
+            .ok_or_else(|| anyhow::anyhow!("The project source list is unavailable."))?
+            .sources;
+        let cite = if let Some((edition, bibliography)) = library {
+            let identity = library_identity(edition);
+            let linked = project.iter().find(|(_, record)| {
+                sources::library_provenance(record).is_some_and(|link| link.identity == identity)
+            });
+            let pick = if let Some((key, record)) = linked {
+                LibraryPick {
+                    key: key.to_owned(),
+                    edition,
+                    record: record.clone(),
+                }
+            } else {
+                library_pick(Some(project), edition, identity, &bibliography)?
+            };
+            Citation::from_library(pick)
+        } else {
+            let key = project.suggested_key(&record);
+            record.insert("id".into(), Value::String(key.clone()));
+            let cite = Citation::new(key.clone(), &record);
+            project.add(record)?;
+            dialog.staged.insert(key);
+            cite
+        };
+        dialog.close_catalogue_editions();
+        if let Page::Pick { chosen, field, .. } = &mut dialog.page {
+            *chosen = Some(cite);
+            *field = 0;
+        }
+        dialog.notice.clear();
+        Ok(())
+    }
+
+    fn on_catalogue_editions_key(&mut self, dialog: &mut SourceDialog, key: Key) {
+        if matches!(key, Key::Left | Key::Esc) {
+            dialog.close_catalogue_editions();
+            dialog.notice.clear();
+            return;
+        }
+        let mut catalogue = dialog
+            .catalogue
+            .as_ref()
+            .expect("the editions view has a search")
+            .0
+            .borrow_mut();
+        if catalogue.resolving.is_some() {
+            return;
+        }
+        let selected = dialog
+            .catalogue_view
+            .as_mut()
+            .expect("the editions view is open");
+        let Some((_, editions, _)) = catalogue.search.editions() else {
+            return;
+        };
+        match key {
+            Key::Up => *selected = selected.saturating_sub(1),
+            Key::Down => {
+                let last = editions.len().saturating_sub(1);
+                *selected = (*selected + 1).min(last);
+                if *selected == last {
+                    catalogue.search.more_editions(Instant::now());
+                }
+            }
+            Key::Enter => {
+                if let Some(hit) = editions.get(*selected).cloned() {
+                    drop(catalogue);
+                    if let Err(error) = self.start_catalogue_pick(dialog, hit) {
+                        dialog.notice = format!("{error:#}");
+                    }
+                } else {
+                    catalogue.search.more_editions(Instant::now());
+                }
+            }
+            _ => (),
         }
     }
 
@@ -402,19 +607,12 @@ impl App {
         Ok(())
     }
 
-    fn insert_citation(
-        &mut self,
-        target: &Target,
-        literal: bool,
-        picked: &[Citation],
-        from: &SourceDialog,
-    ) -> Result<()> {
-        let i = self
-            .open
+    fn citation_target(&self, target: &Target, book: &Path) -> Result<usize> {
+        self.open
             .filter(|&i| {
                 self.focus.is_editor()
                     && self.views.active == target.pane
-                    && self.project.root == from.book
+                    && self.project.root == book
                     && self.project.nodes[i].path == target.document
                     && (self.editor.cy, self.editor.cx) == target.position
                     && !self.editor.has_selection()
@@ -422,7 +620,17 @@ impl App {
             })
             .ok_or_else(|| {
                 anyhow::anyhow!("The writing cursor or text changed. Open the picker again.")
-            })?;
+            })
+    }
+
+    fn insert_citation(
+        &mut self,
+        target: &Target,
+        literal: bool,
+        picked: &[Citation],
+        from: &SourceDialog,
+    ) -> Result<()> {
+        let i = self.citation_target(target, &from.book)?;
         self.ensure_document_claims()?;
         self.check_document(target.pane)?;
         let node = &self.project.nodes[i];
@@ -440,9 +648,10 @@ impl App {
                 .ok_or_else(|| anyhow::anyhow!("The project source list is unavailable."))?
                 .sources;
             let mut items = Vec::new();
-            let mut adding = false;
+            let mut changes = BTreeMap::new();
             for citation in picked {
-                if let Some(pick) = &citation.library {
+                let existing = on_disk.sources.get(&citation.key);
+                let record = if let Some(pick) = &citation.library {
                     let accepted = sources::library_provenance(&pick.record).ok_or_else(|| {
                         anyhow::anyhow!("The Library record has no accepted details")
                     })?;
@@ -457,22 +666,31 @@ impl App {
                             == accepted.fingerprint,
                         "The Library edition changed. Open the picker again."
                     );
-                    match on_disk.sources.get(&citation.key) {
-                        Some(existing) => anyhow::ensure!(
-                            existing == &pick.record,
-                            "A project source now uses that key. Open the picker again."
-                        ),
-                        None => {
-                            on_disk.sources.add(pick.record.clone())?;
-                            adding = true;
-                        }
-                    }
-                } else {
                     anyhow::ensure!(
-                        on_disk.sources.get(&citation.key).is_some()
-                            && on_disk.sources.get(&citation.key) == previous.get(&citation.key),
+                        existing.map_or_else(
+                            || previous.get(&citation.key).is_none(),
+                            |record| record == &pick.record,
+                        ),
+                        "A project source now uses that key. Open the picker again."
+                    );
+                    &pick.record
+                } else {
+                    let record = previous
+                        .get(&citation.key)
+                        .ok_or_else(|| anyhow::anyhow!("The project source is unavailable."))?;
+                    anyhow::ensure!(
+                        (from.staged.contains(&citation.key) && existing.is_none())
+                            || existing == Some(record),
                         "The project source changed. Open the picker again."
                     );
+                    record
+                };
+                if let Some(edited) = citation.edited.as_deref() {
+                    if existing != Some(edited) {
+                        changes.insert(citation.key.as_str(), edited);
+                    }
+                } else if existing.is_none() {
+                    changes.entry(citation.key.as_str()).or_insert(record);
                 }
                 let page = citation.page.trim();
                 let mut item = format!(
@@ -494,7 +712,14 @@ impl App {
                 }
                 items.push(item);
             }
-            if adding {
+            if !changes.is_empty() {
+                for (key, record) in changes {
+                    if on_disk.sources.get(key).is_some() {
+                        on_disk.sources.update(key, record.clone())?;
+                    } else {
+                        on_disk.sources.add(record.clone())?;
+                    }
+                }
                 on_disk.save(&from.book)?;
                 self.sources_saved();
             }
@@ -512,18 +737,77 @@ impl App {
         else {
             return;
         };
+        if dialog.catalogue_view.is_some() {
+            self.on_catalogue_editions_key(&mut dialog, key);
+            self.overlay = Overlay::ProjectSources(dialog);
+            return;
+        }
         if key == Key::Esc {
+            if let Some(page) = dialog.editing_citation.take() {
+                dialog.page = *page;
+                dialog.notice.clear();
+                self.overlay = Overlay::ProjectSources(dialog);
+                return;
+            }
             if matches!(dialog.page, Page::LibraryChanges { export: true, .. }) {
                 self.open_export_ready();
             }
             return;
         }
+        if dialog.resolving_catalogue() {
+            self.overlay = Overlay::ProjectSources(dialog);
+            return;
+        }
         let mut pending = None;
+        let mut edit_citation = false;
         let query_before = dialog.query.clone();
-        let current = dialog
-            .matches()
+        let matches = dialog.matches();
+        let local_count = matches.len();
+        let current = matches
             .get(dialog.selected)
             .map(|(key, _)| (*key).to_owned());
+        let choosing_local =
+            key == Key::Enter && matches!(dialog.page, Page::Pick { chosen: None, .. });
+        let local_cite = if choosing_local {
+            matches.get(dialog.selected).map(|&(key, record)| {
+                if let Some(pick) = dialog.library.iter().find(|pick| pick.key == key) {
+                    Citation::from_library(pick.clone())
+                } else {
+                    Citation::new(key.into(), record)
+                }
+            })
+        } else {
+            None
+        };
+        if dialog.picker_catalogue().is_some() && current.is_none() {
+            let index = dialog.selected.saturating_sub(local_count);
+            match key {
+                Key::Enter => {
+                    if let Some(hit) = dialog.catalogue_hit(index) {
+                        if let Err(error) = self.start_catalogue_pick(&mut dialog, hit) {
+                            dialog.notice = format!("{error:#}");
+                        }
+                    } else if let Some(catalogue) = dialog.picker_catalogue() {
+                        catalogue.0.borrow_mut().search.submit(Instant::now());
+                    }
+                    self.overlay = Overlay::ProjectSources(dialog);
+                    return;
+                }
+                Key::Right => {
+                    let opened = dialog.picker_catalogue().is_some_and(|catalogue| {
+                        let mut catalogue = catalogue.0.borrow_mut();
+                        catalogue.search.open_editions(index, Instant::now());
+                        catalogue.search.editions().is_some()
+                    });
+                    if opened {
+                        dialog.catalogue_view = Some(0);
+                    }
+                    self.overlay = Overlay::ProjectSources(dialog);
+                    return;
+                }
+                _ => (),
+            }
+        }
         match &mut dialog.page {
             Page::BrainPick(target) => match key {
                 Key::Char('@') if dialog.query.is_empty() => {
@@ -711,23 +995,14 @@ impl App {
                     return;
                 }
                 (None, Key::Enter) => {
-                    if let Some(key) = current {
-                        let library = dialog
-                            .library
-                            .iter()
-                            .find(|entry| entry.key == key)
-                            .cloned()
-                            .map(Box::new);
-                        *chosen = Some(Citation {
-                            key,
-                            page: String::new(),
-                            suppress: false,
-                            library,
-                        });
+                    if let Some(cite) = local_cite {
+                        *chosen = Some(cite);
                         *field = 0;
+                        dialog.notice.clear();
                     }
                 }
                 (None, _) => update_search(&mut dialog.query, &mut dialog.selected, key),
+                (Some(_), Key::Char('e')) => edit_citation = true,
                 (Some(_), Key::Tab) => *field = (*field + 1) % 3,
                 (Some(_), Key::BackTab) => *field = (*field + 2) % 3,
                 (Some(cite), Key::Char(' ')) if *field == 1 => cite.suppress = !cite.suppress,
@@ -763,6 +1038,24 @@ impl App {
                     *kind = (*kind + 1) % TYPES.len()
                 }
                 Key::Enter => {
+                    if let Some(Page::Pick { chosen: Some(cite), .. }) =
+                        dialog.editing_citation.as_deref_mut()
+                    {
+                        let prior = cite.record(dialog.snapshot.as_ref());
+                        let result = form_record(prior, *kind, fields);
+                        match result {
+                            Ok(record) => {
+                                cite.works_cited = source_line(&record);
+                                cite.edited = Some(Box::new(record));
+                                dialog.page =
+                                    *dialog.editing_citation.take().expect("citation edit");
+                                dialog.notice.clear();
+                            }
+                            Err(error) => dialog.notice = format!("{error:#}"),
+                        }
+                        self.overlay = Overlay::ProjectSources(dialog);
+                        return;
+                    }
                     let result = dialog
                         .snapshot
                         .as_mut()
@@ -851,6 +1144,14 @@ impl App {
                 _ => (),
             },
         }
+        if edit_citation
+            && let Page::Pick { chosen: Some(cite), .. } = &dialog.page
+            && let Some(record) = cite.record(dialog.snapshot.as_ref())
+        {
+            let page = form(Some((&cite.key, record)));
+            dialog.editing_citation = Some(Box::new(std::mem::replace(&mut dialog.page, page)));
+            dialog.notice.clear();
+        }
         if let Some((target, citations)) = pending {
             match self.insert_citation(&target, false, &citations, &dialog) {
                 Ok(()) => {
@@ -862,10 +1163,15 @@ impl App {
         }
         if query_before != dialog.query {
             self.refresh_citation_library(&mut dialog);
+            if let Some(catalogue) = dialog.picker_catalogue() {
+                catalogue
+                    .0
+                    .borrow_mut()
+                    .search
+                    .edit(&dialog.query, Instant::now());
+            }
         }
-        dialog.selected = dialog
-            .selected
-            .min(dialog.matches().len().saturating_sub(1));
+        dialog.selected = dialog.selected.min(dialog.result_count().saturating_sub(1));
         self.overlay = Overlay::ProjectSources(dialog);
     }
 
@@ -879,6 +1185,88 @@ impl App {
 }
 
 impl SourceDialog {
+    fn picker_catalogue(&self) -> Option<&CatalogueSearch> {
+        // The Brain's picker receives its catalogue rows and keys in the Library task.
+        self.catalogue
+            .as_ref()
+            .filter(|_| matches!(self.page, Page::Pick { chosen: None, .. }))
+    }
+
+    fn resolving_catalogue(&self) -> bool {
+        self.catalogue
+            .as_ref()
+            .is_some_and(|catalogue| catalogue.0.borrow().resolving.is_some())
+    }
+
+    fn result_count(&self) -> usize {
+        self.matches().len()
+            + self
+                .picker_catalogue()
+                .map_or(0, |catalogue| catalogue.0.borrow().search.hits().len())
+    }
+
+    fn catalogue_hit(&self, index: usize) -> Option<Hit> {
+        self.picker_catalogue()?
+            .0
+            .borrow()
+            .search
+            .hits()
+            .get(index)
+            .cloned()
+    }
+
+    fn close_catalogue_editions(&mut self) {
+        if self.catalogue_view.take().is_some()
+            && let Some(catalogue) = &self.catalogue
+        {
+            let mut catalogue = catalogue.0.borrow_mut();
+            catalogue.resolving = None;
+            catalogue.search.close_editions();
+        }
+    }
+
+    fn tick_catalogue(&mut self, now: Instant) -> Option<Result<sources::Record>> {
+        let catalogue = self.catalogue.as_ref()?;
+        if matches!(self.page, Page::BrainPick(_)) {
+            catalogue.0.borrow_mut().search.tick(now);
+            return None;
+        }
+        if !matches!(self.page, Page::Pick { chosen: None, .. }) {
+            return None;
+        }
+        let local_count = self.matches().len();
+        let mut catalogue = catalogue.0.borrow_mut();
+        // Open Library can arrive after Crossref. Keep the selected result in view when
+        // it moves down to make room for books.
+        let selected_hit = self
+            .selected
+            .checked_sub(local_count)
+            .filter(|_| self.selected > 0)
+            .and_then(|index| catalogue.search.hits().get(index))
+            .cloned();
+        if catalogue.search.tick(now) && self.catalogue_view.is_none() {
+            let hits = catalogue.search.hits();
+            if let Some(hit) = selected_hit
+                && let Some(index) = hits.iter().position(|row| row == &hit)
+            {
+                self.selected = local_count + index;
+            } else {
+                self.selected = self
+                    .selected
+                    .min((local_count + hits.len()).saturating_sub(1));
+            }
+        }
+        let result = match catalogue.resolving.as_ref()?.try_recv() {
+            Ok(record) => Ok(record),
+            Err(mpsc::TryRecvError::Empty) => return None,
+            Err(mpsc::TryRecvError::Disconnected) => {
+                Err(anyhow::anyhow!("The catalogue author lookup stopped."))
+            }
+        };
+        catalogue.resolving = None;
+        Some(result)
+    }
+
     fn matches(&self) -> Vec<(&str, &sources::Record)> {
         let query = self.query.trim().to_lowercase();
         self.snapshot
@@ -935,6 +1323,85 @@ impl SourceDialog {
             self.selected = 0;
         }
     }
+}
+
+fn library_identity(edition: EditionKey) -> sources::LibraryIdentity {
+    sources::LibraryIdentity {
+        work_id: edition.work.external_id(),
+        edition_id: NodeId::Note(edition.edition).external_id(),
+    }
+}
+
+fn library_pick(
+    project: Option<&sources::Sources>,
+    edition: EditionKey,
+    identity: sources::LibraryIdentity,
+    bibliography: &sources::Record,
+) -> Result<LibraryPick> {
+    let base = format!(
+        "library-{:x}-{:x}",
+        edition.edition.device, edition.edition.clock
+    );
+    let occupied = |key: &str| project.is_some_and(|sources| sources.get(key).is_some());
+    let key = if !occupied(&base) {
+        base
+    } else {
+        (2..)
+            .map(|index| format!("{base}-{index}"))
+            .find(|key| !occupied(key))
+            .expect("an available citation key")
+    };
+    let record = sources::accepted_library_record(&key, identity, bibliography)?;
+    Ok(LibraryPick {
+        key,
+        edition,
+        record,
+    })
+}
+
+fn catalogue_names_path(book: &Path) -> PathBuf {
+    if cfg!(test) {
+        book.join(".grimoire/catalogue-names.json")
+    } else {
+        crate::home().join(".cache/grimoire/catalogue-names.json")
+    }
+}
+
+fn resolve_open_library_names(
+    mut hit: Hit,
+    fetch: &dyn catalogue::Fetch,
+    path: PathBuf,
+) -> sources::Record {
+    // A picker can be closed while its worker is running. Serialize authority lookups
+    // and cache writes so the next picker can reuse any names the first one resolved.
+    static CACHE: Mutex<()> = Mutex::new(());
+    let _cache_guard = CACHE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut names = names::Names::load(path);
+    if let Some(authors) = hit.record.get_mut("author").and_then(Value::as_array_mut) {
+        // The mapper drops missing author IDs and names independently.
+        let matched = authors.len() == hit.authors.len();
+        for (index, name) in authors.iter_mut().enumerate() {
+            if let Some(written) = name["literal"].as_str() {
+                *name = if matched {
+                    names.resolve(fetch, &hit.authors[index], written)
+                } else {
+                    names::by_rule(written)
+                };
+            }
+        }
+    }
+    if let Some(translators) = hit.record.get_mut("translator").and_then(Value::as_array_mut) {
+        for name in translators {
+            if let Some(written) = name["literal"].as_str() {
+                *name = names::by_rule(written);
+            }
+        }
+    }
+    hit.record
+}
+
+fn source_line(record: &sources::Record) -> String {
+    citations::mla::works_cited_line(record).unwrap_or_else(|_| text(record, "title").to_owned())
 }
 
 fn update_search(query: &mut String, selected: &mut usize, key: Key) {
@@ -1089,8 +1556,135 @@ fn form_record(
     Ok(record)
 }
 
+fn catalogue_row(hit: &Hit, width: usize) -> String {
+    let title = text(&hit.record, "title");
+    let author = field_value(Some(&hit.record), "author");
+    let publisher = text(&hit.record, "publisher");
+    let issued = field_value(Some(&hit.record), "issued");
+    let year = issued.split('-').next().unwrap_or_default();
+    let isbn = text(&hit.record, "ISBN");
+
+    let mut end = String::new();
+    if !isbn.is_empty() {
+        end.push_str(" · ISBN");
+    } else {
+        if matches!(text(&hit.record, "type"), "article" | "article-journal") {
+            end.push_str(" · article");
+        }
+        if !text(&hit.record, "DOI").is_empty() {
+            end.push_str(" · DOI");
+        }
+    }
+    let edition_count = hit
+        .editions
+        .filter(|&count| count > 1)
+        .map_or_else(String::new, |count| format!(" · {count} editions →"));
+    let details = [title, &author, publisher, year]
+        .iter()
+        .map(|part| part.chars().count())
+        .sum::<usize>();
+    if !isbn.is_empty()
+        && details + end.chars().count() + edition_count.chars().count() + isbn.len() + 9
+            <= width
+    {
+        end.push(' ');
+        end.push_str(isbn);
+    }
+    end.push_str(&edition_count);
+    if !publisher.is_empty() || !year.is_empty() {
+        let room = width
+            .saturating_sub(end.chars().count() + year.chars().count() + 22)
+            .max(1);
+        let publisher = truncate(publisher, room);
+        let details = format!("{publisher} {year}");
+        end.insert_str(0, &format!(" · {}", details.trim()));
+    }
+    let room = width.saturating_sub(end.chars().count()).max(1);
+    let head = if author.is_empty() || room < 9 {
+        truncate(title, room)
+    } else {
+        let title = truncate(title, room - 6);
+        let author = truncate(&author, room - title.chars().count() - 3);
+        format!("{title} · {author}")
+    };
+    format!("{head}{end}")
+}
+
+fn picker_row(label: &str, selected: bool, width: usize, active: Style) -> Line<'static> {
+    let label = label.split_whitespace().collect::<Vec<_>>().join(" ");
+    let label = truncate(&label, width);
+    let marker = if selected { "›" } else { " " };
+    Line::styled(
+        format!("{marker} {label}"),
+        if selected { active } else { Style::default() },
+    )
+}
+
+fn catalogue_status(catalogue: &CatalogueState) -> Option<&str> {
+    if catalogue.resolving.is_some() {
+        return Some("Resolving author names…");
+    }
+    match catalogue.search.status() {
+        SearchStatus::Offline => Some(catalogue::OFFLINE),
+        SearchStatus::Error(error) => Some(error),
+        _ => None,
+    }
+}
+
+fn catalogue_header(catalogue: &CatalogueState) -> Line<'static> {
+    let online = if catalogue.search.status() == &SearchStatus::Off {
+        "off"
+    } else {
+        "on"
+    };
+    Line::from(format!("Catalogue · online search {online}"))
+}
+
+fn draw_editions(
+    dialog: &SourceDialog,
+    selected: usize,
+    inner: Rect,
+    active: Style,
+) -> Vec<Line<'static>> {
+    let Some(catalogue) = &dialog.catalogue else {
+        return Vec::new();
+    };
+    let catalogue = catalogue.0.borrow();
+    let Some((work, editions, loading)) = catalogue.search.editions() else {
+        return Vec::new();
+    };
+    let width = usize::from(inner.width.saturating_sub(2));
+    let mut lines = vec![
+        catalogue_header(&catalogue),
+        Line::styled(
+            truncate(&format!("Editions · {}", text(&work.record, "title")), width),
+            active,
+        ),
+    ];
+    let status = catalogue_status(&catalogue).or(loading.then_some("Loading editions…"));
+    let room = usize::from(inner.height)
+        .saturating_sub(4 + status.is_some() as usize)
+        .max(1);
+    let first = (selected + 1).saturating_sub(room);
+    for (i, hit) in editions.iter().enumerate().skip(first).take(room) {
+        let label = catalogue_row(hit, width);
+        lines.push(picker_row(&label, i == selected, width, active));
+    }
+    if let Some(status) = status {
+        lines.push(Line::from(truncate(status, width)));
+    } else if editions.is_empty() {
+        lines.push(Line::from("No editions found."));
+    }
+    lines
+}
+
 pub(super) fn draw(f: &mut Frame, dialog: &SourceDialog, area: Rect, t: &Theme) {
-    let r = centred(area, 68.min(area.width), 20.min(area.height));
+    let width = if matches!(dialog.page, Page::Pick { .. }) {
+        100
+    } else {
+        68
+    };
+    let r = centred(area, width.min(area.width), 20.min(area.height));
     f.render_widget(Clear, r);
     let title = match &dialog.page {
         Page::List => "Project sources",
@@ -1232,7 +1826,15 @@ pub(super) fn draw(f: &mut Frame, dialog: &SourceDialog, area: Rect, t: &Theme) 
                 "Enter save   Shift-Tab back   Esc cancel"
             }
         }
+        Page::Pick { chosen: None, .. } if dialog.catalogue_view.is_some() => {
+            lines = draw_editions(dialog, dialog.catalogue_view.unwrap_or(0), inner, active);
+            "↑/↓ choose   Enter select   ←/Esc back"
+        }
         Page::List | Page::BrainPick(_) | Page::Pick { chosen: None, .. } => {
+            let catalogue = dialog
+                .picker_catalogue()
+                .map(|catalogue| catalogue.0.borrow());
+            let width = usize::from(inner.width.saturating_sub(2));
             lines.push(Line::styled(format!("Find [{}]", dialog.query), active));
             if let Page::Pick { cluster, .. } = &dialog.page
                 && !cluster.is_empty()
@@ -1240,34 +1842,62 @@ pub(super) fn draw(f: &mut Frame, dialog: &SourceDialog, area: Rect, t: &Theme) 
                 lines.push(Line::from(format!("{} in this citation", cluster.len())));
             }
             let matches = dialog.matches();
-            let room = inner.height.saturating_sub(6).max(1) as usize;
+            let status = catalogue.as_deref().and_then(catalogue_status);
+            let room = if catalogue.is_some() {
+                usize::from(inner.height)
+                    .saturating_sub(lines.len() + status.is_some() as usize + 3)
+                    .max(1)
+            } else {
+                usize::from(inner.height.saturating_sub(6).max(1))
+            };
             let first = (dialog.selected + 1).saturating_sub(room);
+            let mut visible_local = 0;
             for (i, (key, record)) in matches.iter().enumerate().skip(first).take(room) {
                 let label = format!(
                     "{key} · {} · {}",
                     field_value(Some(record), "author"),
                     text(record, "title")
                 );
-                lines.push(Line::styled(
-                    format!(
-                        "{} {}",
-                        if i == dialog.selected { "›" } else { " " },
-                        truncate(&label, inner.width.saturating_sub(3) as usize)
-                    ),
-                    if i == dialog.selected {
-                        active
-                    } else {
-                        Style::default()
-                    },
-                ));
+                lines.push(picker_row(&label, i == dialog.selected, width, active));
+                visible_local += 1;
             }
-            if matches.is_empty() {
+            if matches.is_empty()
+                && catalogue
+                    .as_ref()
+                    .is_none_or(|catalogue| catalogue.search.status() == &SearchStatus::Off)
+            {
                 lines.push(Line::from(
                     "No sources match. Add or import sources from Tools › Notes.",
                 ));
             }
+            if let Some(catalogue) = catalogue.as_deref() {
+                lines.push(catalogue_header(catalogue));
+                if let Some(status) = status {
+                    lines.push(Line::from(truncate(status, width)));
+                }
+                for (i, hit) in catalogue
+                    .search
+                    .hits()
+                    .iter()
+                    .enumerate()
+                    .skip(first.saturating_sub(matches.len()))
+                    .take(room - visible_local)
+                {
+                    lines.push(picker_row(
+                        &catalogue_row(hit, width),
+                        i + matches.len() == dialog.selected,
+                        width,
+                        active,
+                    ));
+                }
+            }
             if matches!(dialog.page, Page::List) {
                 "↑/↓ choose   Enter edit   Delete remove   Esc close"
+            } else if catalogue
+                .as_ref()
+                .is_some_and(|catalogue| catalogue.search.status() != &SearchStatus::Off)
+            {
+                "↑/↓ choose   → editions   Enter select   Esc cancel"
             } else {
                 "↑/↓ choose   Enter select   Esc cancel"
             }
@@ -1278,6 +1908,10 @@ pub(super) fn draw(f: &mut Frame, dialog: &SourceDialog, area: Rect, t: &Theme) 
             ..
         } => {
             lines.push(Line::from(cite.key.as_str()));
+            lines.push(Line::from(truncate(
+                &cite.works_cited,
+                usize::from(inner.width),
+            )));
             for (i, label) in [
                 format!("Page [{}]", cite.page),
                 format!(
@@ -1298,7 +1932,7 @@ pub(super) fn draw(f: &mut Frame, dialog: &SourceDialog, area: Rect, t: &Theme) 
                     },
                 ));
             }
-            "Tab field   Space check   Enter confirm   Esc cancel"
+            "Tab field   Space check   E edit   Enter confirm   Esc cancel"
         }
         Page::Form {
             original_key,
@@ -1308,7 +1942,15 @@ pub(super) fn draw(f: &mut Frame, dialog: &SourceDialog, area: Rect, t: &Theme) 
         } => {
             let type_name = original_key
                 .as_ref()
-                .and_then(|key| dialog.snapshot.as_ref()?.sources.get(key))
+                .and_then(|key| {
+                    if let Some(Page::Pick { chosen: Some(cite), .. }) =
+                        dialog.editing_citation.as_deref()
+                    {
+                        cite.record(dialog.snapshot.as_ref())
+                    } else {
+                        dialog.snapshot.as_ref()?.sources.get(key)
+                    }
+                })
                 .map_or(TYPES[*kind].0, |record| text(record, "type"));
             lines.push(Line::styled(
                 format!("Type [{type_name}]"),

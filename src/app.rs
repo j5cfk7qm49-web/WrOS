@@ -3979,8 +3979,6 @@ impl App {
         };
     }
 
-    // The pickers start using this when they gain catalogue results.
-    #[cfg_attr(not(test), allow(dead_code))]
     pub fn new_catalogue_search(&self) -> catalogue::Search {
         catalogue::Search::new(Arc::clone(&self.catalogue_fetch), self.catalogue_on)
     }

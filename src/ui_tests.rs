@@ -265,6 +265,268 @@ fn library_picker_links_a_brain_note_to_a_stable_work_and_edition() {
     assert_eq!(store.details(row.id).unwrap().links, [edition.work]);
 }
 
+fn catalogue_writer(
+    tag: &str,
+    fixture: crate::catalogue::fetch::FixtureFetch,
+) -> (
+    Desk,
+    tempfile::TempDir,
+    std::sync::Arc<crate::catalogue::fetch::FixtureFetch>,
+) {
+    let folder = tempfile::tempdir().unwrap();
+    let mut desk = metric_writer(tag, 80, 24);
+    desk.app
+        .brain
+        .set_paths(folder.path().join("Brain"), folder.path().join("cache"));
+    let fetch = std::sync::Arc::new(fixture);
+    desk.app.catalogue_fetch = fetch.clone();
+    (desk, folder, fetch)
+}
+
+fn poll_catalogue(desk: &mut Desk, mut ready: impl FnMut(&Desk) -> bool) {
+    let start = Instant::now();
+    while !ready(desk) {
+        assert!(
+            start.elapsed() < Duration::from_secs(2),
+            "{:?}",
+            desk.rows()
+        );
+        desk.app.tick_deck();
+        desk.draw();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+const CRIME_QUERY: &str = "crime and punishment penguin";
+const CRIME_SEARCH: &str = r#"{"docs":[{
+    "key":"/works/OL166894W","title":"Преступление и наказание","edition_count":1178,
+    "author_name":["Fyodor Dostoevsky"],
+    "editions":{"docs":[{"key":"/books/OL1M","title":"Crime and Punishment",
+        "publisher":["Penguin Books"],"publish_date":["August 30, 1998"],
+        "isbn":["9780140621808","0140621806"]}]}
+}]}"#;
+const SOLITUDE_QUERY: &str = "one hundred years of solitude";
+const SOLITUDE_TITLE: &str = "One Hundred Years of Solitude";
+const SOLITUDE_LINE: &str = "García Márquez, Gabriel. One Hundred Years of Solitude.";
+const CROSSREF_EMPTY: &str = r#"{"message":{"items":[]}}"#;
+
+fn solitude_fixture() -> crate::catalogue::fetch::FixtureFetch {
+    use crate::catalogue::{fetch::FixtureFetch, openlibrary};
+
+    FixtureFetch::new()
+        .reply(
+            &openlibrary::search_url(SOLITUDE_QUERY),
+            200,
+            r#"{"docs":[{
+                "key":"/works/OL2W","title":"One Hundred Years of Solitude",
+                "author_name":["Gabriel García Márquez"],"author_key":["OL2A"],
+                "editions":{"docs":[{"key":"/books/OL2M","title":"One Hundred Years of Solitude",
+                    "publisher":["Harper Perennial"],"publish_date":["2006"]}]}
+            }]}"#,
+        )
+        .reply("https://api.crossref.org/works?", 200, CROSSREF_EMPTY)
+        .reply(
+            "https://openlibrary.org/authors/OL2A.json",
+            200,
+            r#"{"remote_ids":{"wikidata":"Q5878"}}"#,
+        )
+        .reply(
+            "https://query.wikidata.org/sparql?",
+            200,
+            r#"{"results":{"bindings":[{"lc":{"value":"n78095302"}}]}}"#,
+        )
+        .reply_with_headers(
+            "https://id.loc.gov/authorities/names/n78095302.json",
+            200,
+            &[("X-PrefLabel", "García Márquez, Gabriel, 1927-2014")],
+            "",
+        )
+}
+
+#[test]
+fn typing_at_shows_catalogue_books_after_local_sources() {
+    use crate::catalogue::{fetch::FixtureFetch, openlibrary};
+
+    let fixture = FixtureFetch::new()
+        .reply(&openlibrary::search_url(CRIME_QUERY), 200, CRIME_SEARCH)
+        .reply("https://api.crossref.org/works?", 200, CROSSREF_EMPTY);
+    let (mut desk, _folder, _) = catalogue_writer("catalogue-local-order", fixture);
+    fs::write(
+        desk.root.join("sources.json"),
+        r#"[{"id":"dostoevsky-crime","type":"book","title":"Crime and Punishment Penguin 2003"}]"#,
+    )
+    .unwrap();
+    desk.typed("@crime and punishment penguin");
+    poll_catalogue(&mut desk, |desk| desk.shows("1178 editions →"));
+    let rows = desk.rows();
+    let project = rows.iter().position(|row| row.contains("dostoevsky-crime"));
+    let catalogue = rows.iter().position(|row| row.contains("Catalogue"));
+    assert!(project.unwrap() < catalogue.unwrap());
+    assert!(rows.iter().any(|row| {
+        row.contains("Crime and Punishment")
+            && row.contains("Penguin Books 1998")
+            && row.contains("1178 editions →")
+    }));
+}
+
+#[test]
+fn picking_a_catalogue_book_shows_its_works_cited_line_then_cites_with_a_page() {
+    use grimoire_brain::bounded_store::PagedBrain;
+    use grimoire_core::sources;
+
+    let (mut desk, folder, fetch) = catalogue_writer("catalogue-page", solitude_fixture());
+    let library = folder.path().join("Brain");
+    let cache = folder.path().join("cache");
+    drop(PagedBrain::open_library(&library, &cache).unwrap());
+    desk.typed("@one hundred years of solitude");
+    poll_catalogue(&mut desk, |desk| desk.shows(SOLITUDE_TITLE));
+    desk.key(KeyCode::Enter);
+    poll_catalogue(&mut desk, |desk| desk.shows(SOLITUDE_LINE));
+    assert!(fetch.requests().iter().any(|url| url.contains("id.loc.gov")));
+    desk.typed("194");
+    desk.key(KeyCode::Enter);
+    let project = sources::Snapshot::open(&desk.root).unwrap();
+    let (key, record) = project.sources.iter().next().unwrap();
+    assert!(key.starts_with("library-"));
+    assert_eq!(desk.app.editor.text(), format!("[@{key}, p. 194]"));
+    assert_eq!(record["title"], SOLITUDE_TITLE);
+    assert_eq!(record["author"][0]["family"], "García Márquez");
+    let link = sources::library_provenance(record).unwrap();
+    let store = desk.app.library_store_if_present().unwrap().unwrap();
+    let (edition, metadata) = store.find_editions(SOLITUDE_TITLE, 1).unwrap().remove(0);
+    assert_eq!(link.identity.work_id, edition.work.external_id());
+    assert_eq!(metadata.bibliography["author"], record["author"]);
+}
+
+#[test]
+fn the_editions_list_scrolls_and_loads_more() {
+    use crate::catalogue::{fetch::FixtureFetch, openlibrary};
+
+    let first_url = openlibrary::editions_url("OL166894W", 0);
+    let next_url = openlibrary::editions_url("OL166894W", 50);
+    let fixture = FixtureFetch::new()
+        .reply(&openlibrary::search_url(CRIME_QUERY), 200, CRIME_SEARCH)
+        .reply("https://api.crossref.org/works?", 200, CROSSREF_EMPTY)
+        .reply(
+            &first_url,
+            200,
+            r#"{"entries":[
+                {"title":"Schuld und Sühne","languages":[{"key":"/languages/ger"}]},
+                {"title":"Crime and Punishment","languages":[{"key":"/languages/eng"}],
+                    "publishers":["Penguin Books"],"publish_date":"1998"},
+                {"title":"Crime e Castigo","languages":[{"key":"/languages/por"}]}
+            ],"links":{"next":"/works/OL166894W/editions.json?limit=50&offset=50"}}"#,
+        )
+        .reply(
+            &next_url,
+            200,
+            r#"{"entries":[{"title":"Crime and Punishment","publishers":["Vintage"],
+                "publish_date":"1993"}]}"#,
+        );
+    let (mut desk, _folder, fetch) = catalogue_writer("catalogue-editions", fixture);
+    desk.typed("@crime and punishment penguin");
+    poll_catalogue(&mut desk, |desk| desk.shows("1178 editions →"));
+    desk.key(KeyCode::Right);
+    poll_catalogue(&mut desk, |desk| desk.shows("Crime e Castigo"));
+    let rows = desk.rows();
+    let english = rows.iter().position(|row| row.contains("Penguin Books 1998"));
+    let german = rows.iter().position(|row| row.contains("Schuld und Sühne"));
+    assert!(english.unwrap() < german.unwrap());
+    assert!(fetch.requests().contains(&first_url));
+    assert!(!fetch.requests().contains(&next_url));
+    desk.keys(&[KeyCode::Down, KeyCode::Down]);
+    poll_catalogue(&mut desk, |desk| desk.shows("Vintage 1993"));
+    assert!(fetch.requests().contains(&next_url));
+    desk.key(KeyCode::Left);
+    assert!(desk.shows("1178 editions →"));
+}
+
+#[test]
+fn a_catalogue_pick_without_a_library_still_cites() {
+    use grimoire_core::sources;
+
+    let (mut desk, folder, _) = catalogue_writer("catalogue-no-library", solitude_fixture());
+    desk.typed("@one hundred years of solitude");
+    poll_catalogue(&mut desk, |desk| desk.shows(SOLITUDE_TITLE));
+    desk.key(KeyCode::Enter);
+    poll_catalogue(&mut desk, |desk| desk.shows(SOLITUDE_LINE));
+    desk.key(KeyCode::Char('e'));
+    assert!(desk.shows("Edit source"));
+    desk.keys(&[KeyCode::Tab; 7]);
+    desk.typed(" Classics");
+    desk.key(KeyCode::Enter);
+    assert!(desk.shows("Page []"));
+    let pending = sources::Snapshot::open(&desk.root).unwrap();
+    assert!(pending.sources.iter().next().is_none());
+    desk.key(KeyCode::Enter);
+    let project = sources::Snapshot::open(&desk.root).unwrap();
+    let (key, record) = project.sources.iter().next().unwrap();
+    assert_eq!(key, "garciamarquez2006");
+    assert_eq!(record["title"], SOLITUDE_TITLE);
+    assert_eq!(record["publisher"], "Harper Perennial Classics");
+    assert_eq!(desk.app.editor.text(), format!("[@{key}]"));
+    assert!(!folder.path().join("Brain").exists());
+}
+
+#[test]
+fn a_catalogue_pick_after_the_text_changed_is_refused() {
+    use grimoire_brain::bounded_store::PagedBrain;
+    use grimoire_core::sources;
+
+    let (mut desk, folder, _) = catalogue_writer("catalogue-changed-text", solitude_fixture());
+    let library = folder.path().join("Brain");
+    let cache = folder.path().join("cache");
+    drop(PagedBrain::open_library(&library, &cache).unwrap());
+    desk.typed("@one hundred years of solitude");
+    poll_catalogue(&mut desk, |desk| desk.shows(SOLITUDE_TITLE));
+    desk.app.editor.set_text("The manuscript changed.");
+    desk.key(KeyCode::Enter);
+    poll_catalogue(&mut desk, |desk| {
+        desk.shows("The writing cursor or text changed. Open the picker again.")
+    });
+    assert_eq!(desk.app.editor.text(), "The manuscript changed.");
+    let project = sources::Snapshot::open(&desk.root).unwrap();
+    assert!(project.sources.iter().next().is_none());
+    let store = desk.app.library_store_if_present().unwrap().unwrap();
+    assert_eq!(store.find_editions(SOLITUDE_TITLE, 1).unwrap().len(), 1);
+}
+
+#[test]
+fn with_catalogue_search_off_at_is_local_only() {
+    use crate::catalogue::fetch::FixtureFetch;
+
+    let (mut desk, _folder, fetch) = catalogue_writer("catalogue-off", FixtureFetch::new());
+    fs::write(
+        desk.root.join("sources.json"),
+        r#"[{"id":"dune","type":"book","title":"Dune"}]"#,
+    )
+    .unwrap();
+    desk.app.catalogue_on = false;
+    desk.typed("@not here");
+    desk.key(KeyCode::Enter);
+    desk.app.tick_deck();
+    desk.draw();
+    assert!(desk.shows("online search off"));
+    assert!(fetch.requests().is_empty());
+    desk.key(KeyCode::Esc);
+    desk.typed("@dune");
+    desk.keys(&[KeyCode::Enter, KeyCode::Enter]);
+    assert_eq!(desk.app.editor.text(), "[@dune]");
+    assert!(fetch.requests().is_empty());
+}
+
+#[test]
+fn offline_shows_one_quiet_line() {
+    use crate::catalogue::fetch::FixtureFetch;
+
+    let (mut desk, _folder, fetch) = catalogue_writer("catalogue-offline", FixtureFetch::new());
+    desk.typed("@dune");
+    poll_catalogue(&mut desk, |desk| desk.shows("Offline: showing local sources"));
+    let screen = desk.rows().join("\n");
+    assert_eq!(screen.matches("Offline: showing local sources").count(), 1);
+    assert_eq!(fetch.requests().len(), 2);
+}
+
 #[test]
 fn rc28_view_menu_reaches_each_other_desk_in_shortcut_order() {
     use crate::app::brain::DeskView;

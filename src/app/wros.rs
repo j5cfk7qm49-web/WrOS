@@ -1050,6 +1050,7 @@ impl App {
         }
     }
     pub fn tick_deck(&mut self) {
+        self.tick_source_catalogue();
         self.deck.shell.backup.tick();
         self.tick_music_setup();
         let now = chrono::Local::now();
