@@ -20,7 +20,7 @@ This design puts the view switcher into the WrOS logo itself and gives every pie
 | **O** | Outline | Brain | Super+3 |
 | **S** | Study | Review | Super+4 |
 
-"read" is lower case, as the r is in the logo. The keys follow the logo's order, which changes Super+2 to Super+4 from rc29.
+"read" is lower case, as the r is in the logo. The keys follow the logo's order. That's already rc29's order (Write, Library, Brain, Review), so only the names change and no key moves.
 
 ## Screen layout
 
