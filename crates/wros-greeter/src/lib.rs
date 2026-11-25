@@ -179,7 +179,13 @@ pub struct Conversation {
     /// The form's password, kept only until PAM's first password question.
     secret: Zeroizing<String>,
     session: Session,
+    /// PAM turned the last login down: the form keeps the name and asks for the password again.
+    pub rejected: bool,
 }
+
+/// What a turned-down login says. PAM doesn't tell a wrong password from an unknown name.
+pub const REJECTED: &str = "The name or password didn't work. Try again";
+
 impl Default for Conversation {
     fn default() -> Self {
         Self {
@@ -189,6 +195,7 @@ impl Default for Conversation {
             input: Zeroizing::new(String::with_capacity(MAX_INPUT)),
             secret: Zeroizing::new(String::with_capacity(MAX_INPUT)),
             session: Session::Usual,
+            rejected: false,
         }
     }
 }
@@ -212,6 +219,7 @@ impl Conversation {
             return None;
         }
         self.clear();
+        self.rejected = false;
         if password.len() <= MAX_INPUT {
             self.secret.push_str(password);
         }
@@ -337,18 +345,21 @@ impl Conversation {
                 if error_type == "auth_error"
                     && matches!(pending, Pending::Create | Pending::Answer) =>
             {
-                self.notice = "Login was not accepted. Try again";
+                self.notice = REJECTED;
+                self.rejected = true;
                 self.phase = Phase::Waiting(Pending::Cancel);
                 self.prompt = "Resetting login".into();
                 return Ok(Some(Request::CancelSession));
             }
             Response::Error { .. } if pending == Pending::Cancel => {
-                // Debian greetd may report the failed PAM worker again when
-                // cancelling it. Do not reinterpret that as a successful reset
-                // or reuse uncertain state. Exit only after acknowledgment;
-                // greetd/systemd will start a completely new login service.
-                self.phase = Phase::Retry;
-                self.prompt = "Enter to restart login".into();
+                // greetd 0.10's cancel takes the session out of its "configuring" slot before it
+                // tells the session's worker to stop, and answers with an error only when that
+                // worker is already gone, which is what a rejected password leaves behind. The
+                // slot is empty either way, so the next CreateSession starts afresh. Until rc30
+                // this exited and greetd started a new greeter: the screen restarted after every
+                // wrong password (#175).
+                self.phase = Phase::Username;
+                self.prompt = "Local account".into();
             }
             Response::Error { .. } => {
                 return Err(match pending {

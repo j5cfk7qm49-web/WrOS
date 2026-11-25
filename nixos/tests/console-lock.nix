@@ -187,6 +187,22 @@ pkgs.testers.runNixOSTest {
     time.sleep(3)
     lock_lit, lock_rgb = lit("drm-lock-screen")
     assert lock_lit > 0.02, f"the lock screen is not drawn ({lock_lit:.4f})"
+    # #175 (rc30): a wrong password leaves the same lock screen drawn the whole time. On the HP
+    # Stream on rc29 the screen went black for about 5 s before the lock screen came back.
+    # Sampled after typing (a screendump while keys are being sent once lost an Enter).
+    locker = installed.succeed("pgrep -f '^[^ ]*wros-lock-screen --user'").strip()
+    installed.send_chars("wrong-lock-password\n")
+    time.sleep(0.3)
+    samples = []
+    end = time.time() + 8
+    while time.time() < end:
+        share, _ = lit(f"drm-wrong-{len(samples):02d}")
+        samples.append(share)
+        time.sleep(0.2)
+    print("after a wrong password, lit:", " ".join(f"{s:.3f}" for s in samples))
+    installed.succeed("[ $(fgconsole) = 8 ]")
+    assert installed.succeed("pgrep -f '^[^ ]*wros-lock-screen --user'").strip() == locker
+    assert min(samples) > 0.02, f"the lock screen went dark after a wrong password: {samples}"
     installed.send_chars("writer-lock-password\n")
     installed.wait_until_succeeds("[ $(fgconsole) = 1 ]")
     installed.wait_until_fails("pgrep -f '^[^ ]*wros-lock-screen --user'")

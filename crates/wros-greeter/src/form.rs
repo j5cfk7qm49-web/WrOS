@@ -266,7 +266,18 @@ impl Form {
             .map_or(Session::Usual, Switcher::current)
     }
 
-    /// Back to an empty form, as after a rejected login or a cancel.
+    /// After a turned-down login: the name stays, the password goes, and the cursor waits in the
+    /// password field (#175). With no name to keep, the same as `reset`.
+    pub fn retry(&mut self) {
+        self.password.clear();
+        self.focus = if self.username.text().is_empty() {
+            Focus::Username
+        } else {
+            Focus::Password
+        };
+    }
+
+    /// Back to an empty form, as after a cancel.
     pub fn reset(&mut self) {
         self.username.clear();
         self.password.clear();

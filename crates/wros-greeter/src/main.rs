@@ -248,7 +248,11 @@ mod linux {
                         drain_input()?;
                         let followup = conversation.receive(response?)?;
                         if conversation.phase == Phase::Username {
-                            form.reset();
+                            if std::mem::take(&mut conversation.rejected) {
+                                form.retry();
+                            } else {
+                                form.reset();
+                            }
                         }
                         repaint(&mut terminal);
                         if let Some(request) = followup {

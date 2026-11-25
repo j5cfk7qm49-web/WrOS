@@ -196,7 +196,7 @@ fn denial_cancels_before_retry_and_never_displays_description() {
     flow.receive(Response::Success).unwrap();
     assert_eq!(flow.phase, Phase::Username);
     assert!(!flow.notice.contains("PRIVATE"));
-    assert!(flow.notice.contains("not accepted"));
+    assert!(flow.notice == REJECTED && flow.rejected);
 }
 
 #[test]
@@ -213,7 +213,9 @@ fn escape_discards_secret_and_requires_cancel_ack() {
 }
 
 #[test]
-fn failed_cancel_requires_fresh_service_instead_of_reusing_uncertain_state() {
+fn a_wrong_password_returns_to_the_form_even_when_greetd_reports_the_cancel_failed() {
+    // greetd answers the cancel with an error when the rejected login's worker has already gone;
+    // its session slot is empty by then, so the form simply asks again (#175: no restart).
     let mut flow = begin();
     prompt(&mut flow, MessageKind::Secret).unwrap();
     flow.receive(Response::Error {
@@ -221,17 +223,33 @@ fn failed_cancel_requires_fresh_service_instead_of_reusing_uncertain_state() {
         description: "denied".into(),
     })
     .unwrap();
-    flow.receive(Response::Error {
-        error_type: "error".into(),
-        description: "failed worker".into(),
-    })
-    .unwrap();
-    assert_eq!(flow.phase, Phase::Retry);
-    assert!(flow.notice.contains("not accepted"));
-    flow.type_char('x');
-    assert!(flow.input.is_empty());
-    assert!(flow.submit().is_none());
-    assert_eq!(flow.phase, Phase::Restart);
+    let next = flow
+        .receive(Response::Error {
+            error_type: "error".into(),
+            description: "failed worker".into(),
+        })
+        .unwrap();
+    assert!(next.is_none());
+    assert_eq!(flow.phase, Phase::Username);
+    assert_eq!(flow.notice, REJECTED);
+    assert!(flow.rejected);
+    assert!(flow.begin("writer", "right", Session::Usual).is_some());
+    assert!(!flow.rejected);
+}
+
+#[test]
+fn a_turned_down_login_keeps_the_name_and_waits_in_the_password_field() {
+    let mut form = Form::new(vec![], false);
+    form.username.set("writer");
+    form.password.set("wrong");
+    form.focus = Focus::Password;
+    form.retry();
+    assert_eq!(form.username.text(), "writer");
+    assert_eq!(form.password.text(), "");
+    assert_eq!(form.focus, Focus::Password);
+    let mut empty = Form::new(vec![], false);
+    empty.retry();
+    assert_eq!(empty.focus, Focus::Username);
 }
 
 #[test]

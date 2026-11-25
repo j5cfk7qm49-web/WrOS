@@ -124,7 +124,22 @@ pkgs.testers.runNixOSTest {
     #    still be the layout the login screen reads.
     installed.succeed("systemctl restart systemd-vconsole-setup.service")
     installed.wait_until_succeeds("systemctl is-active --quiet wros-keyboard.service")
-    log_in(installed, "writer", "writer-secret-password", colemak=True)
+    # #175 (rc30): a wrong password first. The same greeter asks again, with the name kept and
+    #     the cursor in the password field: until rc30, greetd's failed cancel made the greeter
+    #     exit and the login screen restart.
+    wait_for_greeter(installed)
+    greeter = installed.succeed("pgrep -u _greetd -x wros-greeter").strip()
+    installed.send_chars(colemak_keys("writer"))
+    installed.send_key("ret")
+    installed.send_chars(colemak_keys("wrong-password"))
+    installed.send_key("ret")
+    time.sleep(10)  # PAM's failure delay, then the cancel and the form again
+    installed.fail("pgrep -u writer grimoire")
+    after = installed.succeed("pgrep -u _greetd -x wros-greeter").strip()
+    assert after == greeter, f"the greeter restarted after a wrong password: {greeter} -> {after}"
+    installed.send_chars(colemak_keys("writer-secret-password"))
+    installed.send_key("ret")
+    installed.wait_until_succeeds("pgrep -u writer grimoire", timeout=120)
     session_users = installed.succeed("ps -o user= -C grimoire").strip().splitlines()
     assert session_users and all(u == "writer" for u in session_users), session_users
     assert installed.succeed("su - writer -c 'id -u'").strip() == "1000"
