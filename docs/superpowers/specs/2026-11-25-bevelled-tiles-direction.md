@@ -21,7 +21,7 @@ The native session's renderer (`wros-graphics`) can paint pixels after the text 
     - ProFont (MIT): the owner preferred Chicago.
     - ZX Chicago (DamienG): liked, but its licence forbids "redistributing this font as a font".
     - A fixed-width Chicago made by WrOS: the narrow letters got too much space around them.
-- **Tiles: equal 16×16 squares**, 4 pixels apart.
+- **Tiles: equal 15×15 squares**, 4 pixels apart (`img/bevelled-tiles/e-centred.png`). The size is 15, not 16, because a bevel's highlight reads as part of the face and its shadow as the edge. That leaves 14 visible pixels, which centre an 8-pixel letter exactly. **Each letter is centred on the face you see:** away from the shadow side, which is the bottom and right when raised and the top and left when pressed.
   - The face is Platinum grey (`#CCCCCC`), with a near-white highlight and a mid-grey shadow.
   - The current tile is the accent colour and pressed: the highlight and shadow are swapped, and the letter moves one pixel down and to the right.
   - When cards are due, the S is red.
@@ -33,7 +33,7 @@ The native session's renderer (`wros-graphics`) can paint pixels after the text 
 
 ## Still open
 
-1. W: D or E.
+1. ~~W: D or E~~: **E** (the owner, 2026-11-25).
 2. Bevel only, or bevel with the 1-pixel dark Platinum outline (`img/bevelled-tiles/chicago-tiles.png`, both rows).
 3. Whether the whole menu alphabet gets hand-tuned on the 12-pixel grid, as the four tile letters were.
 
