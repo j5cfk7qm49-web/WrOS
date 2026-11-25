@@ -856,6 +856,7 @@ pub(super) fn draw_dropdowns(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         &rows,
         *sel,
         side.is_none(),
+        app.linux_console,
         t,
     );
     let mut hits = app.bar_hits.borrow_mut();
@@ -869,14 +870,14 @@ pub(super) fn draw_dropdowns(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             .rows
             .iter()
             .find(|(i, _)| *i == *sel)
-            .map_or(menu.area.y, |(_, r)| r.y - 1);
+            .map_or(menu.area.y, |(_, r)| r.y);
         let w = list_width(&side_rows);
         let x = if menu.area.right() + w <= area.right() {
             menu.area.right()
         } else {
             menu.area.x.saturating_sub(w)
         };
-        let drawn = draw_list(f, area, x, row_y, &side_rows, *at, true, t);
+        let drawn = draw_list(f, area, x, row_y, &side_rows, *at, true, app.linux_console, t);
         hits.push((drawn.area, BarHit::Cover));
         for (i, r) in drawn.rows {
             hits.push((r, BarHit::SideRow(i)));
@@ -900,7 +901,7 @@ fn list_width(rows: &[BarRow]) -> u16 {
         .map(|r| r.key.chars().count())
         .max()
         .unwrap_or(0);
-    // Border, marker, label, a gap, the key, a space, border.
+    // Side padding, marker, label, a gap, the key, a space, side padding.
     (1 + 2 + label + 3 + key + 1 + 1) as u16
 }
 
@@ -916,26 +917,30 @@ fn draw_list(
     rows: &[BarRow],
     sel: usize,
     lit: bool,
+    linux_console: bool,
     t: &Theme,
 ) -> Drawn {
     let w = list_width(rows).min(area.width);
     // The status line stays visible under a menu.
-    let room = area
-        .bottom()
-        .saturating_sub(1)
-        .saturating_sub(y)
-        .saturating_sub(2) as usize;
-    let shown = rows.len().min(MAX_ROWS).min(room.max(1));
-    let h = shown as u16 + 2;
+    let y = y.min(area.bottom().saturating_sub(2)).max(area.y);
+    let room = area.bottom().saturating_sub(1).saturating_sub(y) as usize;
+    let shown = rows.len().min(MAX_ROWS).min(room);
+    let h = shown as u16;
     let x = x.min(area.right().saturating_sub(w));
-    let y = y.min(area.bottom().saturating_sub(h));
     let rect = Rect::new(x, y, w, h);
     f.render_widget(Clear, rect);
-    let block = pane_block("", true, t);
-    let inner = block.inner(rect);
-    f.render_widget(block, rect);
+    let band = crate::ui::bar_band(t, linux_console).unwrap_or(t.sel);
+    let inner = Rect::new(x.saturating_add(1), y, w.saturating_sub(2), h);
+    for cy in rect.top()..rect.bottom() {
+        for cx in rect.left()..rect.right() {
+            let cell = &mut f.buffer_mut()[(cx, cy)];
+            cell.set_fg(t.text).set_bg(band);
+            if linux_console && (cx == rect.left() || cx + 1 == rect.right()) {
+                cell.set_symbol("│").set_fg(t.border);
+            }
+        }
+    }
     let start = (sel + 1).saturating_sub(shown);
-    let look: wros_shell::Theme = t.into();
     let mut drawn = vec![];
     for (line, (i, row)) in rows.iter().enumerate().skip(start).take(shown).enumerate() {
         let on = i == sel;
@@ -945,10 +950,9 @@ fn draw_list(
             Style::default().fg(t.text)
         };
         let style = match (on, lit) {
-            (true, true) if row.dim.is_some() => Style::default().fg(t.dim).bg(t.sel),
-            (true, true) => wros_shell::look::highlight(look),
+            (true, true) => Style::default().fg(ratatui::style::Color::Black).bg(t.accent),
             (true, false) => base.bg(t.sel),
-            _ => base,
+            _ => base.bg(band),
         };
         let label_w = inner
             .width
@@ -964,8 +968,31 @@ fn draw_list(
             row.key,
         );
         let r = Rect::new(inner.x, inner.y + line as u16, inner.width, 1);
+        if on && lit && !linux_console {
+            for cx in rect.left()..rect.right() {
+                f.buffer_mut()[(cx, r.y)]
+                    .set_fg(ratatui::style::Color::Black)
+                    .set_bg(t.accent);
+            }
+        }
         f.render_widget(Paragraph::new(Line::styled(text, style)), r);
         drawn.push((i, r));
+    }
+    if !rect.is_empty() {
+        let clip = area.intersection(f.area());
+        let buf = f.buffer_mut();
+        for cy in rect.y.saturating_add(1)..rect.bottom() {
+            if rect.right() < clip.right() && cy >= clip.top() && cy < clip.bottom() {
+                shadow_cell(&mut buf[(rect.right(), cy)], t.dim);
+            }
+        }
+        if rect.bottom() < clip.bottom() {
+            for cx in rect.x.saturating_add(1)..=rect.right().min(clip.right().saturating_sub(1)) {
+                if cx >= clip.left() {
+                    shadow_cell(&mut buf[(cx, rect.bottom())], t.dim);
+                }
+            }
+        }
     }
     Drawn {
         area: rect,
@@ -973,9 +1000,33 @@ fn draw_list(
     }
 }
 
+fn shadow_cell(cell: &mut ratatui::buffer::Cell, dim: ratatui::style::Color) {
+    cell.set_fg(dim);
+    if let ratatui::style::Color::Rgb(r, g, b) = cell.bg {
+        cell.set_bg(ratatui::style::Color::Rgb(r / 2, g / 2, b / 2));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shadow_preserves_symbols_and_darkens_only_rgb_backgrounds() {
+        use ratatui::style::Color;
+
+        let mut cell = ratatui::buffer::Cell::default();
+        cell.set_symbol("X").set_bg(Color::Rgb(101, 50, 9));
+        shadow_cell(&mut cell, Color::DarkGray);
+        assert_eq!(cell.symbol(), "X");
+        assert_eq!(cell.fg, Color::DarkGray);
+        assert_eq!(cell.bg, Color::Rgb(50, 25, 4));
+        cell.set_bg(Color::Blue);
+        shadow_cell(&mut cell, Color::Gray);
+        assert_eq!(cell.symbol(), "X");
+        assert_eq!(cell.fg, Color::Gray);
+        assert_eq!(cell.bg, Color::Blue);
+    }
 
     #[test]
     fn a_letter_jumps_round_to_the_next_row_starting_with_it() {

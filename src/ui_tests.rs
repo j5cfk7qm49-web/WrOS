@@ -1462,6 +1462,92 @@ fn wifi_volume_battery_and_clock_sit_at_the_right_of_the_status_bar() {
 }
 
 #[test]
+fn dropdown_is_lifted_with_a_shadow() {
+    use crate::app::overlays::BarHit;
+    use crate::palette::Title;
+    use ratatui::style::Color;
+
+    let mut d = Desk::open(book("dropdown-shadow", true), 120, 35);
+    d.app
+        .editor
+        .set_text(&("Visible writing fills this line. ".repeat(8) + "\n").repeat(25));
+    d.draw();
+    let before = d.term.backend().buffer().clone();
+    d.menu(&["File"]);
+    let hits = d.app.bar_hits.borrow();
+    let hit = |want| hits.iter().find(|(_, h)| *h == want).unwrap().0;
+    let title = hit(BarHit::Title(Title::File));
+    let first = hit(BarHit::Row(0));
+    let second = hit(BarHit::Row(1));
+    let last = hits
+        .iter()
+        .filter_map(|(r, h)| matches!(h, BarHit::Row(_)).then_some(*r))
+        .next_back()
+        .unwrap();
+    let t = &d.app.theme;
+    let buf = d.term.backend().buffer();
+    assert_eq!(first.y, title.y + 1);
+    assert_eq!(buf[(first.x, first.y)].bg, t.accent);
+    assert_eq!(buf[(first.x, first.y)].fg, Color::Black);
+    assert_eq!(
+        buf[(second.x, second.y)].bg,
+        ui::bar_band(t, false).unwrap_or(t.sel)
+    );
+    let right = first.right() + 1;
+    let bottom = last.bottom();
+    let shadow = (first.y + 1..bottom)
+        .map(|y| (right, y))
+        .chain((first.x..=right).map(|x| (x, bottom)));
+    let mut text_kept = false;
+    for (x, y) in shadow {
+        let old = &before[(x, y)];
+        let cell = &buf[(x, y)];
+        assert_eq!(cell.symbol(), old.symbol());
+        assert_eq!(cell.fg, t.dim);
+        let bg = match old.bg {
+            Color::Rgb(r, g, b) => Color::Rgb(r / 2, g / 2, b / 2),
+            other => other,
+        };
+        assert_eq!(cell.bg, bg);
+        text_kept |= old.symbol() != " ";
+    }
+    assert!(text_kept, "the shadow leaves underlying text visible");
+}
+
+#[test]
+fn console_dropdown_keeps_its_edges_and_status_line() {
+    use crate::app::overlays::BarHit;
+    use ratatui::style::Color;
+
+    let mut d = Desk::open(book("console-dropdown", true), 80, 16);
+    d.app.linux_console = true;
+    d.draw();
+    d.menu(&["File"]);
+    let hits = d.app.bar_hits.borrow();
+    let first = hits
+        .iter()
+        .find(|(_, h)| *h == BarHit::Row(0))
+        .unwrap()
+        .0;
+    let second = hits
+        .iter()
+        .find(|(_, h)| *h == BarHit::Row(1))
+        .unwrap()
+        .0;
+    let buf = d.term.backend().buffer();
+    let t = d.app.theme.for_console();
+    assert_eq!(buf[(first.x - 1, first.y)].symbol(), "│");
+    assert_eq!(buf[(first.right(), first.y)].symbol(), "│");
+    assert_eq!(buf[(first.x, first.y)].bg, t.accent);
+    assert_eq!(buf[(first.x, first.y)].fg, Color::Black);
+    assert_eq!(buf[(second.x, second.y)].bg, Color::Blue);
+    assert!(
+        hits.iter()
+            .all(|(r, h)| !matches!(h, BarHit::Row(_)) || r.bottom() < buf.area.bottom())
+    );
+}
+
+#[test]
 fn the_menu_bar_and_status_line_sit_on_a_band_of_the_themes_border_colour() {
     // rc14: the bars were bare black under the bordered panes. They frame the screen now, in the
     // theme's own line colour, and the word-count meter is a line like the music player's
