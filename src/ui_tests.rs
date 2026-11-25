@@ -11234,7 +11234,8 @@ fn the_bottom_bar_says_rest_day_on_a_rest_day() {
 
     d.ctrl('d');
     assert!(d.app.focus_mode);
-    assert!(d.status().contains("rest day"));
+    // Focus mode shows only the page (the owner, rc30): no rest day, no counts.
+    assert!(!d.status().contains("rest day"), "{}", d.status());
     d.ctrl('d');
     d.menu(&["Tools", "Progress", "Calendar…"]);
     d.keys(&[KeyCode::Enter, KeyCode::Esc]);
