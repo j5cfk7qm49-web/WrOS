@@ -235,6 +235,24 @@ in-picker key is the builder's call, and must not clash with existing picker key
    can supply it. An article's or chapter's span in its container (`page`, for Works Cited's
    "pp. 45–67") is filled from Crossref.
 
+## Looking ahead: Typst as the writing format
+
+The owner may move writing from Markdown to Typst in the long term (2026-11-24). Keep the
+citation's written form produced in one place (`insert_citation`), so a Typst format can swap
+`[@key, p. 194]` for Typst's `@key[p. 194]` without touching the search.
+
+Checked with WrOS's Typst 0.14.2, 2026-11-24:
+- `@key[p. 194]` cites.
+- `@` mid-word is also a reference: `me@example.com` fails to compile ("label `<example.com>`
+  does not exist"), and `Word@key` becomes a citation.
+- A literal `@` is `\@`.
+
+Not in scope now.
+
+## Approval
+
+The owner approved this design on 2026-11-24, including calls 1–7.
+
 ## Left to the builder
 
 - Module layout, thread and channel plumbing, and where polling hooks into the tick.
