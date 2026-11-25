@@ -1,13 +1,37 @@
 # Brain, Library and Review (design)
 
-Status: direction approved by the owner, 2026-11-22. The owner selected paged Loro on 2026-11-23. The remaining proposals below are awaiting approval. Calls marked "(my call)" are mine and
+Status: direction approved by the owner, 2026-11-22. The owner selected paged Loro on 2026-11-23,
+and answered the open questions below on 2026-11-25. Calls marked "(my call)" are mine and
 need the owner's review. This design replaces the rc25 Zotero client
 ([rc25 design](2026-11-21-rc25-zotero-library-pdfs-design.md)) and removes Zotero from rc24
 ([rc24 design](2026-11-21-rc24-essays-mla-zotero-design.md)). rc24's essays, MLA 9 export,
 per-project `sources.json` and `[@key, p. 12]` citations stay and are what this design's
 citations write into.
 
-## Open questions for the owner
+## Owner's answers (2026-11-25)
+
+1. **New-device key: both ways back.** The key can be recovered in either of two ways:
+   - A roughly 12-word recovery phrase (typed, or scanned as an offline QR code).
+   - A copy of the wrapped key kept on the owner's Google Drive, locked with a passphrase the owner
+     chooses.
+
+   Either one alone recovers the key. A Google sign-in alone must never be enough: the Drive copy
+   is useless without the passphrase. The same key should replace today's separate backup recovery
+   key, so there is one thing to keep safe (the owner found the backup key too easy to lose and had
+   expected to save it to Drive). Needed by stage 5 (Drive sync).
+2. **Smaller stage 1:** settled by what rc25 shipped.
+3. **Cite an edition:** settled by what rc27 shipped (work and edition IDs in the provenance).
+4. **Reader: both views, with a key to switch.** Reflowed text first, since it is also the console
+   base, then the page as printed. The owner also wants a page view for **writing** in the future,
+   switching between editing and typeset pages as Google Docs does. So build the page renderer as
+   a shared component that can later show the manuscript typeset through Typst.
+5. **Measurements:** the Loro gate passed on the HP Stream (2026-11-23). The owner will read mostly
+   English PDFs that already have text, plus some scans. Weight the PDF/OCR laptop run toward
+   those, with OCR second. The run is planned for rc30.
+
+The original questions follow for the record.
+
+## Open questions for the owner (answered above)
 
 1. **New-device key (proposed).** Use a roughly 12-word recovery phrase. Type it on the laptop
    or scan it as an offline QR code on the phone. Use a reviewed encoding with at least 128 bits
