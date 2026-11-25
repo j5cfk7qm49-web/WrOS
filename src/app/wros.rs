@@ -1082,9 +1082,9 @@ impl App {
         self.tick_online_updates();
         self.tick_update_health();
         if !self.deck.power_pending {
-            self.tick_library();
+            self.tick_read();
             self.tick_sync();
-            self.tick_brain_backup();
+            self.tick_commonplace_backup();
             self.tick_auto_backup();
         }
         let result = self.deck.worker.as_ref().and_then(|w| w.rx.try_recv().ok());

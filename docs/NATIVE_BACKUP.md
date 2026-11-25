@@ -135,10 +135,10 @@ read those copies. While on, the Backups screen shows the last result ("Synced 1
 the Drive copies in place. See [sync](SYNC_AND_BACKUP.md#readable-google-drive-sync) for
 history, conflicts and the delete guard.
 
-## Brain backup and recovery
+## Commonplace backup and recovery
 
 Open **Settings › Backups and accounts › Backups** and select **Create
-encrypted backup of Brain**. After a saved change and ten quiet minutes, Brain
+encrypted backup of Commonplace**. After a saved change and ten quiet minutes, Commonplace
 can back up automatically to the connected repository. Its schedule and
 snapshot list are separate from the manuscript's.
 
@@ -147,11 +147,11 @@ hard links. It verifies an encrypted snapshot by streaming its contents back
 through Restic. The Markdown copies, SQLite cache and local device identity
 stay outside the snapshot.
 
-Select a Brain snapshot and choose a new folder. Restore checks the files
+Select a Commonplace snapshot and choose a new folder. Restore checks the files
 before publishing the folder, then assigns a fresh device ID. Use
-`grimoire wros brain list FOLDER` to find a note ID and
-`grimoire wros brain show FOLDER NOTE-ID` to read it. Close the writing app
-before running `grimoire wros brain recover FOLDER NOTE-ID`. It copies the
+`grimoire wros outline list FOLDER` to find a note ID and
+`grimoire wros outline show FOLDER NOTE-ID` to read it. Close the writing app
+before running `grimoire wros outline recover FOLDER NOTE-ID`. It copies the
 selected note's text into a new note under Today. Restore keeps the old
 history in the isolated folder.
 

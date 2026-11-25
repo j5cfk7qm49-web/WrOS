@@ -38,14 +38,14 @@ both pages. Each render starts a fresh process. To compare a different Hayro
 build, pass `--hayro` and the path to a runner that accepts the PDF, output
 path, page number, DPI and `gray` or `rgb` arguments in that order.
 
-## RC26 Review cards
+## Study cards
 
 Run the card syntax, identity, grading, clock and rebuild checks in the pinned
 development shell. The desk tests drive the actual menu and keyboard routes.
 
 ~~~sh
 cargo test -p grimoire-brain --features qualification --locked
-cargo test -p grimoire-tui --no-default-features --locked --bin grimoire review
+cargo test -p grimoire-tui --no-default-features --locked --bin grimoire study
 ~~~
 
 ## RC25 Brain storage
@@ -81,7 +81,7 @@ nix build -L .#checks.x86_64-linux.brain-backup
 ~~~
 
 The backup fixture uses a disposable encrypted Restic repository and tests
-Brain-only edits, read-back verification, an older snapshot, fresh device
+Commonplace-only edits, read-back verification, an older snapshot, fresh device
 identity, and a corrupt journal. The installed HP Stream pass also checks
 structural editing, projection recovery, and input-to-display latency.
 

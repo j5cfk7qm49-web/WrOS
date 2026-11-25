@@ -36,21 +36,23 @@ use grimoire_core::timeline::Entry;
 
 mod aids;
 pub(crate) mod backup;
-pub(crate) mod brain;
 pub(crate) mod checks;
 pub(crate) mod continuity;
 pub(crate) mod documents;
 pub(crate) mod journal;
 pub(crate) mod lexicon;
 pub(crate) mod milestones;
+pub(crate) mod outline;
 pub(crate) mod overlays;
 pub(crate) mod pins;
 pub(crate) mod productivity;
 pub(crate) mod project_names;
 pub(crate) mod prose_dashboard;
+pub(crate) mod read;
 pub(crate) mod review_notes;
 pub(crate) mod shell;
 pub(crate) mod spark;
+pub(crate) mod study;
 mod timeline;
 pub(crate) mod workflow;
 pub(crate) mod wros;
@@ -209,8 +211,8 @@ pub struct App {
     pub journal: journal::Journal,
     pub workflow: workflow::Workflow,
     pub views: documents::Views,
-    pub desk_view: brain::DeskView,
-    pub brain: brain::BrainDesk,
+    pub desk_view: outline::DeskView,
+    pub commonplace: outline::CommonplaceDesk,
     pub project: Project,
     pub visible: Vec<usize>,
     pub parents: Vec<Option<usize>>,
@@ -1028,8 +1030,8 @@ impl App {
             journal,
             workflow,
             views,
-            desk_view: brain::DeskView::default(),
-            brain: brain::BrainDesk::default(),
+            desk_view: outline::DeskView::default(),
+            commonplace: outline::CommonplaceDesk::default(),
             project,
             visible,
             parents,
@@ -1953,7 +1955,7 @@ impl App {
     }
 
     fn save_before_leaving(&mut self) -> bool {
-        if !self.commit_saves() || self.project.dirty_count() != 0 || !self.save_brain_panes() {
+        if !self.commit_saves() || self.project.dirty_count() != 0 || !self.save_outline_panes() {
             return false;
         }
         if !self.checkpoint_productivity(true) {
@@ -2471,7 +2473,7 @@ impl App {
     }
 
     pub(crate) fn unavailable_action(&self, action: &Action) -> Option<&'static str> {
-        if self.desk_view != brain::DeskView::Write
+        if self.desk_view != outline::DeskView::Write
             && matches!(
                 action,
                 Action::Rename
@@ -2496,14 +2498,16 @@ impl App {
         {
             return Some("Switch to Write to use this project command.");
         }
-        if !self.brain_accepts_input() {
+        if !self.desk_accepts_input() {
             return None;
         }
         match action {
-            Action::Undo | Action::Redo | Action::Paste if !self.has_active_brain_editor() => {
+            Action::Undo | Action::Redo | Action::Paste if !self.has_active_desk_editor() => {
                 Some("Open a note or text field first.")
             }
-            Action::Save if !self.has_active_brain_draft() => Some("Open a Brain note to save it."),
+            Action::Save if !self.has_active_outline_draft() => {
+                Some("Open an Outline note to save it.")
+            }
             Action::Cut
             | Action::Copy
             | Action::SelectAll
@@ -2528,10 +2532,10 @@ impl App {
         }
         self.overlay = Overlay::None;
         match action {
-            Action::BrainBeside => self.toggle_brain_beside(),
+            Action::OutlineBeside => self.toggle_outline_beside(),
             Action::SwitchDeskView(view) => self.switch_desk_view(view),
             Action::NewScene | Action::NewChapter | Action::NewPart | Action::NewFolder => {
-                self.switch_desk_view(brain::DeskView::Write);
+                self.switch_desk_view(outline::DeskView::Write);
                 self.select_open_scene();
                 self.start_create(match action {
                     Action::NewScene => New::Scene,
@@ -2549,15 +2553,15 @@ impl App {
                 self.start_delete();
             }
             Action::History => self.open_history(),
-            Action::Save if self.brain_accepts_input() => {
-                self.save_brain();
+            Action::Save if self.desk_accepts_input() => {
+                self.save_outline_note();
             }
             Action::Save => self.save(),
-            Action::Undo | Action::Redo if self.brain_accepts_input() => {
-                self.undo_brain_input(action == Action::Redo);
+            Action::Undo | Action::Redo if self.desk_accepts_input() => {
+                self.undo_desk_input(action == Action::Redo);
             }
-            Action::Paste if self.brain_accepts_input() => {
-                self.paste_brain(&self.clipboard_text());
+            Action::Paste if self.desk_accepts_input() => {
+                self.paste_desk(&self.clipboard_text());
             }
             Action::Undo | Action::Redo => {
                 // The tree's own actions are undone from anywhere but the
@@ -2655,7 +2659,7 @@ impl App {
                 let _ = self.open_book(&root);
             }
             Action::Open(path) => {
-                self.switch_desk_view(brain::DeskView::Write);
+                self.switch_desk_view(outline::DeskView::Write);
                 if let Some(i) = self.source_node_at(&path) {
                     self.reveal(i);
                     self.open_scene(i);
@@ -2971,7 +2975,7 @@ impl App {
         let Some(i) = self.project.nodes.iter().position(|n| n.path == path) else {
             return;
         };
-        self.switch_desk_view(brain::DeskView::Write);
+        self.switch_desk_view(outline::DeskView::Write);
         self.reveal(i);
         if self.open != Some(i) {
             self.open_scene(i);
@@ -2981,7 +2985,7 @@ impl App {
     }
 
     fn replace_in_book(&mut self, query: &str, with: &str) {
-        self.switch_desk_view(brain::DeskView::Write);
+        self.switch_desk_view(outline::DeskView::Write);
         let opts = self.find_opts;
         let (total, scenes) = self.replace_book_sources(
             format!("replace “{query}” with “{with}”"),
@@ -3972,7 +3976,7 @@ impl App {
         self.catalogue_on = !self.catalogue_on;
         let on = self.catalogue_on;
         if !on {
-            self.cancel_library_catalogue();
+            self.cancel_read_catalogue();
         }
         Self::save_setting(|s| s.catalogue_search = on);
         self.msg = if on {
@@ -5514,7 +5518,7 @@ impl App {
         }
         if self.overlay == Overlay::None
             && let Some(&(_, view)) = self
-                .brain
+                .commonplace
                 .view_hits
                 .iter()
                 .find(|(rect, _)| hit(*rect, x, y))
@@ -5522,18 +5526,18 @@ impl App {
             self.switch_desk_view(view);
             return;
         }
-        if self.desk_view == brain::DeskView::Brain && self.overlay == Overlay::None {
-            self.brain.click(x, y);
+        if self.desk_view == outline::DeskView::Outline && self.overlay == Overlay::None {
+            self.commonplace.click(x, y);
             return;
         }
-        if self.desk_view != brain::DeskView::Write && self.overlay == Overlay::None {
+        if self.desk_view != outline::DeskView::Write && self.overlay == Overlay::None {
             return;
         }
         if self.overlay == Overlay::None {
-            let beside = hit(self.brain.side_area, x, y);
-            self.brain.select_side(beside);
+            let beside = hit(self.commonplace.side_area, x, y);
+            self.commonplace.select_side(beside);
             if beside {
-                self.brain.click(x, y);
+                self.commonplace.click(x, y);
                 return;
             }
         }
@@ -5698,7 +5702,7 @@ impl App {
     /// Extend the editor selection while the left button is held — or, in the
     /// tree, track where a dragged row would land.
     pub fn on_drag(&mut self, x: u16, y: u16) {
-        if self.brain_accepts_input() && self.overlay == Overlay::None {
+        if self.desk_accepts_input() && self.overlay == Overlay::None {
             return;
         }
         if matches!(
@@ -5778,12 +5782,12 @@ impl App {
             return;
         }
         if self.overlay == Overlay::None
-            && (self.desk_view != brain::DeskView::Write || hit(self.brain.side_area, x, y))
+            && (self.desk_view != outline::DeskView::Write || hit(self.commonplace.side_area, x, y))
         {
-            if self.desk_view == brain::DeskView::Write {
-                self.brain.select_side(true);
+            if self.desk_view == outline::DeskView::Write {
+                self.commonplace.select_side(true);
             }
-            self.scroll_brain(down);
+            self.scroll_desk(down);
             return;
         }
         if self.pin_wheel(x, y, down) {

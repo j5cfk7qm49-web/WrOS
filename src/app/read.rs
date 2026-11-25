@@ -22,7 +22,8 @@ use ratatui::text::Line;
 use ratatui::widgets::{Block, Paragraph, Wrap};
 use serde_json::Value;
 
-use super::{App, Theme, commands, draw_draft};
+use super::outline::{commands, draw_draft};
+use super::{App, Theme};
 use crate::app::overlays::catalogue_row;
 use crate::catalogue::{self, Fetch, Hit, Search, SearchStatus, names};
 
@@ -122,7 +123,7 @@ impl CataloguePrompt {
 }
 
 #[derive(Default)]
-pub(super) struct LibraryDesk {
+pub(super) struct ReadDesk {
     filter: Filter,
     filter_input: String,
     sort: usize,
@@ -141,7 +142,7 @@ pub(super) struct LibraryDesk {
     catalogue: Option<CataloguePrompt>,
 }
 
-impl LibraryDesk {
+impl ReadDesk {
     pub(super) fn has_input(&self) -> bool {
         self.prompt.is_some()
     }
@@ -307,7 +308,7 @@ impl LibraryDesk {
         let catalogue = self
             .catalogue
             .as_mut()
-            .expect("the Library catalogue search");
+            .expect("the catalogue search");
         let in_editions = catalogue.search.editions().is_some();
         let now = Instant::now();
         let (hits, selected) = catalogue.hits();
@@ -362,7 +363,7 @@ impl LibraryDesk {
         store: &mut PagedBrain,
         record: &sources::Record,
     ) -> anyhow::Result<String> {
-        let key = keep_in_library(store, record)?;
+        let key = keep_in_commonplace(store, record)?;
         let title = record
             .get("title")
             .and_then(Value::as_str)
@@ -464,7 +465,7 @@ impl LibraryDesk {
                     .map_err(anyhow::Error::msg)?
                     .to_path_buf();
                 std::thread::Builder::new()
-                    .name("Library media copy".into())
+                    .name("Commonplace media copy".into())
                     .spawn(move || {
                         let done = grimoire_brain::library::import_media(&library, &source)
                             .map_err(|error| error.to_string());
@@ -743,7 +744,7 @@ fn resolve_open_library_names(mut hit: Hit, fetch: &dyn Fetch, path: PathBuf) ->
     hit.record
 }
 
-pub(crate) fn keep_in_library(
+pub(crate) fn keep_in_commonplace(
     store: &mut PagedBrain,
     record: &sources::Record,
 ) -> anyhow::Result<EditionKey> {
@@ -850,20 +851,20 @@ fn update_metadata(edition: &mut Edition, input: &str) -> anyhow::Result<()> {
 }
 
 impl App {
-    pub(in crate::app) fn cancel_library_catalogue(&mut self) {
-        if matches!(self.brain.library.prompt, Some((Input::Catalogue(_), _))) {
-            self.brain.library.close_catalogue();
+    pub(in crate::app) fn cancel_read_catalogue(&mut self) {
+        if matches!(self.commonplace.read.prompt, Some((Input::Catalogue(_), _))) {
+            self.commonplace.read.close_catalogue();
         }
     }
 
-    pub(super) fn on_library_key(&mut self, key: KeyEvent) {
-        if key.code == KeyCode::Esc && self.brain.library.can_open_menu() {
+    pub(super) fn on_read_key(&mut self, key: KeyEvent) {
+        if key.code == KeyCode::Esc && self.commonplace.read.can_open_menu() {
             self.open_menu();
             return;
         }
-        if !self.brain.library.has_input()
-            && self.brain.library.import.is_none()
-            && self.brain.store.is_some()
+        if !self.commonplace.read.has_input()
+            && self.commonplace.read.import.is_none()
+            && self.commonplace.store.is_some()
             && key.modifiers.difference(KeyModifiers::SHIFT).is_empty()
             && let KeyCode::Char(shortcut @ ('@' | 'd' | 'l')) = key.code
         {
@@ -871,21 +872,21 @@ impl App {
                 self.msg = "Online search is off · Settings › Writing › Manuscript".into();
                 return;
             }
-            if self.brain.library.catalogue.is_none() {
+            if self.commonplace.read.catalogue.is_none() {
                 let search = if self.catalogue_on {
                     self.new_catalogue_search()
                 } else {
                     // Only the explicitly submitted DOI and ISBN shortcuts get here.
                     Search::new(Arc::clone(&self.catalogue_fetch), true)
                 };
-                self.brain.library.catalogue = Some(CataloguePrompt::new(search));
+                self.commonplace.read.catalogue = Some(CataloguePrompt::new(search));
             }
-            self.brain.library.open_catalogue(shortcut);
+            self.commonplace.read.open_catalogue(shortcut);
             self.msg.clear();
             return;
         }
-        if let Some(store) = &mut self.brain.store {
-            self.msg = match self.brain.library.key(
+        if let Some(store) = &mut self.commonplace.store {
+            self.msg = match self.commonplace.read.key(
                 store,
                 key,
                 &self.catalogue_fetch,
@@ -893,23 +894,23 @@ impl App {
                 self.catalogue_on,
             ) {
                 Ok(notice) => notice.unwrap_or_default(),
-                Err(error) => format!("Library · {error}"),
+                Err(error) => format!("read · {error}"),
             };
         }
     }
 }
 
 pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
-    let library = &mut app.brain.library;
-    let heading = match &library.open {
-        Some((_, title)) => format!(" Library · {title} "),
+    let desk = &mut app.commonplace.read;
+    let heading = match &desk.open {
+        Some((_, title)) => format!(" read · {title} "),
         None => format!(
-            " Library · {} · {} ",
-            library
+            " read · {} · {} ",
+            desk
                 .filter
                 .source_type
                 .map_or("All sources", Builtin::name),
-            SORTS[library.sort].1
+            SORTS[desk.sort].1
         ),
     };
     let panel = Block::bordered()
@@ -920,7 +921,7 @@ pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) 
     if inner.is_empty() {
         return;
     }
-    let hint = match (&library.prompt, &library.import, &library.open) {
+    let hint = match (&desk.prompt, &desk.import, &desk.open) {
         (Some((input, _)), _, _) => input.hint(),
         (_, Some(_), _) => "Enter Add works · Esc Cancel",
         (_, _, Some(_)) => "↑↓ Edition · B Add edition · E Edit details · M Attach file · Esc Back",
@@ -930,19 +931,19 @@ pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) 
         ),
     };
     let mut controls = vec![Line::raw(hint)];
-    if library.can_open_menu() {
-        if !library.filter_input.is_empty() {
-            controls.push(Line::raw(format!("Filter: {}", library.filter_input)));
+    if desk.can_open_menu() {
+        if !desk.filter_input.is_empty() {
+            controls.push(Line::raw(format!("Filter: {}", desk.filter_input)));
         }
-        if library.more || library.offset > 0 {
-            let page = library.offset / u32::from(PAGE) + 1;
+        if desk.more || desk.offset > 0 {
+            let page = desk.offset / u32::from(PAGE) + 1;
             controls.push(Line::raw(format!("Page {page} · PgUp / PgDn")));
         }
     }
     let controls = Paragraph::new(controls)
         .style(Style::default().fg(theme.dim))
         .wrap(Wrap { trim: true });
-    let editing = u16::from(library.prompt.is_some());
+    let editing = u16::from(desk.prompt.is_some());
     let max_header = inner.height.saturating_sub(editing + 1);
     let header_height = controls
         .line_count(inner.width)
@@ -954,14 +955,14 @@ pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) 
     ])
     .areas(inner);
     frame.render_widget(controls, header);
-    if let Some((_, editor)) = &mut library.prompt {
+    if let Some((_, editor)) = &mut desk.prompt {
         draw_draft(frame, editor, entry, Style::default().fg(theme.text), true);
     }
-    let items = if matches!(library.prompt, Some((Input::Catalogue(_), _)))
-        && let Some(catalogue) = &library.catalogue
+    let items = if matches!(desk.prompt, Some((Input::Catalogue(_), _)))
+        && let Some(catalogue) = &desk.catalogue
     {
         catalogue_lines(catalogue, body, theme, app.catalogue_on)
-    } else if let Some((records, notes)) = &library.import {
+    } else if let Some((records, notes)) = &desk.import {
         std::iter::once(Line::raw(format!("{} works ready to add", records.len())))
             .chain(notes.iter().take(5).map(|note| Line::raw(note.clone())))
             .chain(records.iter().take(12).map(|record| {
@@ -974,22 +975,22 @@ pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) 
                 )
             }))
             .collect()
-    } else if library.open.is_some() {
+    } else if desk.open.is_some() {
         let mut rows = Vec::new();
-        if library.editions.is_empty() {
+        if desk.editions.is_empty() {
             rows.push(Line::raw("No editions yet. Press B to add one."));
         }
-        for (number, (_, edition)) in library
+        for (number, (_, edition)) in desk
             .editions
             .iter()
             .enumerate()
-            .skip(library.edition.saturating_sub(4))
+            .skip(desk.edition.saturating_sub(4))
             .take(5)
         {
             rows.push(Line::styled(
                 format!(
                     "{} {} · {}",
-                    if number == library.edition {
+                    if number == desk.edition {
                         "›"
                     } else {
                         " "
@@ -997,10 +998,10 @@ pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) 
                     edition.label,
                     edition.title()
                 ),
-                row_style(theme, number == library.edition),
+                row_style(theme, number == desk.edition),
             ));
         }
-        if let Some((_, edition)) = library.editions.get(library.edition) {
+        if let Some((_, edition)) = desk.editions.get(desk.edition) {
             for file in &edition.files {
                 rows.push(Line::raw(format!(
                     "    {} · {} bytes",
@@ -1009,19 +1010,19 @@ pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) 
             }
         }
         rows
-    } else if library.works.is_empty() {
+    } else if desk.works.is_empty() {
         vec![Line::raw("No matching works.")]
     } else {
         let visible = usize::from(body.height.max(1));
-        let first = library.selected.saturating_add(1).saturating_sub(visible);
-        library
+        let first = desk.selected.saturating_add(1).saturating_sub(visible);
+        desk
             .works
             .iter()
             .enumerate()
             .skip(first)
             .take(visible)
             .map(|(index, work)| {
-                let mark = if index == library.selected {
+                let mark = if index == desk.selected {
                     "›"
                 } else {
                     " "
@@ -1041,7 +1042,7 @@ pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) 
                         work.author,
                         work.source_type.name()
                     ),
-                    row_style(theme, index == library.selected),
+                    row_style(theme, index == desk.selected),
                 )
             })
             .collect()
@@ -1143,8 +1144,8 @@ mod tests {
         };
         let penguin = record("Penguin Books", 1998, "OL166894W");
         let vintage = record("Vintage", 1993, "OL166894W");
-        let first = keep_in_library(&mut store, &penguin).unwrap();
-        let second = keep_in_library(&mut store, &vintage).unwrap();
+        let first = keep_in_commonplace(&mut store, &penguin).unwrap();
+        let second = keep_in_commonplace(&mut store, &vintage).unwrap();
         assert_eq!(first.work, second.work);
         assert_ne!(first.edition, second.edition);
         assert_eq!(
@@ -1152,14 +1153,14 @@ mod tests {
             vintage
         );
 
-        assert_eq!(keep_in_library(&mut store, &penguin).unwrap(), first);
+        assert_eq!(keep_in_commonplace(&mut store, &penguin).unwrap(), first);
         let other = record("Vintage", 1998, "OL1W");
-        let third = keep_in_library(&mut store, &other).unwrap();
+        let third = keep_in_commonplace(&mut store, &other).unwrap();
         assert_ne!(first.work, third.work);
     }
 
     #[test]
-    fn rc28_library_catalog_preview_waits_for_the_current_input() {
+    fn rc28_read_catalog_preview_waits_for_the_current_input() {
         use crate::catalogue::{crossref, fetch::FixtureFetch};
 
         let fixture = tempfile::tempdir().unwrap();
@@ -1171,9 +1172,9 @@ mod tests {
             r#"{"message":{"type":"book","title":["Catalog title"]}}"#,
         ));
         let handle: Arc<dyn Fetch> = fetch.clone();
-        let mut library = LibraryDesk {
+        let mut library = ReadDesk {
             catalogue: Some(CataloguePrompt::new(Search::new(Arc::clone(&handle), true))),
-            ..LibraryDesk::default()
+            ..ReadDesk::default()
         };
         let enter = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
         library.open_catalogue('d');

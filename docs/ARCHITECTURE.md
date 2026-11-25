@@ -86,7 +86,7 @@ Workspace restoration deliberately gives the existing newer resume record preced
 
 ## Document engine and next domain services
 
-Brain stores stable note and field IDs in a paged Loro operation journal. A
+Commonplace stores stable note and field IDs in a paged Loro operation journal. A
 checked update reaches disk before the editor acknowledges a save. The store
 keeps the writer lock and can retain two checked checkpoint generations. A
 separate short publication lock lets encrypted backup pin immutable files.
@@ -98,7 +98,7 @@ The Markdown worker writes one affected root page at a time and publishes a
 version after the queue is complete. The next open can rebuild missing copies
 and the index from the journal.
 
-Write keeps a project tag ID in `project.toml`. Brain beside Write uses that
+Write keeps an `outline_tag` in `project.toml`. Outline beside Write uses that
 tag as its filter and applies it when creating a note from that pane.
 
 1. **Document/pane registry — Tested M3b:** `crates/grimoire-core/src/documents.rs` owns file identity; `src/app/documents.rs` moves/swaps complete Editor contexts (never cloned on each frame). `App.editor/open` is the active context; the other keeps geometry, caret/manual-scroll and click state. Pure render/position/save-resume operations borrow a role via a temporary context swap; input activation additionally flushes both and changes focus. Both contexts flush to their original Project nodes, including inactive bulk edits and recovered words. The registry is validated before saves, external adoption and editor replacement; unsafe alias changes keep both buffers and attempt recovery. A duplicate-file selection focuses its current owner. Core source fingerprints remain the existing save guard, not a new unsafe write path. See [WORKSPACES](WORKSPACES.md) for threshold/layout/rename behavior and boundaries.

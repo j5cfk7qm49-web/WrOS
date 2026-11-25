@@ -488,7 +488,8 @@ fn verify_file(source: &Path, dest: &Path, cancel: &AtomicBool) -> Result<()> {
     Ok(())
 }
 
-fn rename_new(from: &Path, to: &Path) -> Result<()> {
+/// Rename a file or directory to a destination that must be new.
+pub fn rename_new(from: &Path, to: &Path) -> Result<()> {
     // A destination appearing during the copy must not be replaced, even if empty.
     #[cfg(target_os = "linux")]
     let result = {

@@ -12,9 +12,9 @@
 | `Ctrl-K` | find anything: actions, scenes, notes, themes |
 | `Super` tap | open Find anything beneath the menu bar |
 | `Super+1` | switch to Write |
-| `Super+2` | switch to Library |
-| `Super+3` | switch to Brain |
-| `Super+4` | open Review cards |
+| `Super+2` | switch to read |
+| `Super+3` | switch to Outline |
+| `Super+4` | switch to Study |
 | `Tab` | the next pane; `Shift-Tab` the one before |
 | `Ctrl-S` | save now (autosave already does) |
 | `Ctrl-Q` | quit in a desktop session; installed WrOS keeps the writing app open |
@@ -40,7 +40,7 @@
 | `F10` | open the menu bar |
 | `F11` | show or hide an independent editable document |
 
-## Brain
+## Outline
 
 | Key | Does |
 |---|---|
@@ -58,9 +58,9 @@ and Shift-Up or Shift-Down to change its order. Press I to see a note's fields a
 links. F edits a field and G defines one on a tag. Type `book / ISBN = text` to
 set a field's type, or `book / ISBN -> Book number = text` to rename it.
 
-## Library
+## read
 
-Open Library with Super+2 or Find anything. Use the arrow keys to choose
+Open read with Super+2 or Find anything. Use the arrow keys to choose
 a work and Enter to see its editions. F filters by title, author, identifier,
 or #tag. S changes the sort and T filters by source type. Page Up and Page
 Down move between pages.
@@ -70,14 +70,14 @@ to look up an ISBN. A lookup waits for you to review and add the result.
 From a work, B adds an edition, E edits its details, and M attaches a file
 to the selected edition. Enter the full file path.
 
-Type @ at the start of a word in Brain to link a Library edition, or in
+Type @ at the start of a word in Outline to link a Commonplace edition, or in
 Write to cite it. Type @@ for a plain @. When you see “Details changed.
 Update?”, choose Enter to accept the preview or K to keep the details
 already in your project.
 
-## Review cards
+## Study
 
-In Brain, write `front :: back` for a card or `front ::: back` for a
+In Outline, write `front :: back` for a card or `front ::: back` for a
 card in each direction. Put `{{words}}` around text you want hidden in
 a sentence. For an answer on several lines, write `front ::` and put
 each answer line in a child note.

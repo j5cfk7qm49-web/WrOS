@@ -30,7 +30,7 @@ and shows any citation keys it would leave without a source.
 keep when both this desk and Google Drive changed the same source.
 
 Type `@` at the start of a word to pick a source. Type `@@` for a literal at
-sign. Project and Library matches appear first, followed by **Catalogue** rows.
+sign. Project and Commonplace matches appear first, followed by **Catalogue** rows.
 Search by title, author, ISBN or DOI. To look up a web page, paste its HTTPS
 address or type it and press Enter. Use `↑` and `↓` to select a row, or press
 `→` on a catalogue book to see its editions. Press Enter to pick the source.
@@ -44,7 +44,7 @@ Undo removes the inserted citation.
 
 The **Catalogue** header shows whether online search is on. To turn it off,
 open **Settings › Writing › Manuscript** and toggle **Search catalogues online
-from @ and Add a source**. Project and Library sources remain available offline.
+from @ and Add a source**. Project and Commonplace sources remain available offline.
 
 Press `p` in Export to check citation keys and paper details before writing Word
 or PDF. MLA export formats the citations and adds Works Cited when the paper

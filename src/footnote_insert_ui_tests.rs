@@ -36,7 +36,7 @@ fn citation_picker_keeps_an_accepted_library_edition_until_export_review() {
     use serde_json::json;
 
     let fixture = tempfile::tempdir().unwrap();
-    let library = fixture.path().join("Brain");
+    let library = fixture.path().join("Commonplace");
     let cache = fixture.path().join("cache");
     {
         let mut store = PagedBrain::open_library(&library, &cache).unwrap();
@@ -50,7 +50,7 @@ fn citation_picker_keeps_an_accepted_library_edition_until_export_review() {
             .unwrap();
     }
     let mut desk = metric_writer("citation-library-edition", 100, 30);
-    desk.app.brain.set_paths(library, cache);
+    desk.app.commonplace.set_paths(library, cache);
     desk.typed("@Harbor");
     assert!(desk.shows("The Harbor Atlas"));
     desk.key(KeyCode::Enter);

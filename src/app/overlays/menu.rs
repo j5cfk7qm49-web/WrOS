@@ -322,21 +322,21 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
         Action::Workspaces => ("Restores a saved writing layout.", "wros"),
         Action::Tutorial => ("Opens replayable, event-verified lessons.", "wros"),
         Action::ToggleOutline => ("Shows or hides the outline independently.", "wros"),
-        Action::BrainBeside => (
+        Action::OutlineBeside => (
             "Opens the project's tagged notes beside the manuscript.",
             "keys",
         ),
-        Action::SwitchDeskView(crate::app::brain::DeskView::Write) => {
+        Action::SwitchDeskView(crate::app::outline::DeskView::Write) => {
             ("Returns to your writing.", "wros")
         }
-        Action::SwitchDeskView(crate::app::brain::DeskView::Brain) => {
-            ("Opens Brain and its Today outline.", "wros")
+        Action::SwitchDeskView(crate::app::outline::DeskView::Outline) => {
+            ("Opens Outline at Today.", "wros")
         }
-        Action::SwitchDeskView(crate::app::brain::DeskView::Review) => (
-            "Reveals answers and records grades for cards from Brain.",
+        Action::SwitchDeskView(crate::app::outline::DeskView::Study) => (
+            "Reveals answers and records grades for cards made in Outline.",
             "keys",
         ),
-        Action::SwitchDeskView(crate::app::brain::DeskView::Library) => {
+        Action::SwitchDeskView(crate::app::outline::DeskView::Read) => {
             ("Finds works, their editions, and attached media.", "keys")
         }
         Action::Scratchpad => (

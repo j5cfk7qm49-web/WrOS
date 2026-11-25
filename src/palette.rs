@@ -7,8 +7,8 @@ use grimoire_core::project::Kind;
 /// Everything the palette can do. Scenes and notes are opened by path.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
-    BrainBeside,
-    SwitchDeskView(crate::app::brain::DeskView),
+    OutlineBeside,
+    SwitchDeskView(crate::app::outline::DeskView),
     Settings,
     SystemSettings,
     Workspaces,
@@ -283,22 +283,14 @@ impl Entry {
 /// Everything available right now, actions first in the order they're most
 /// often wanted, then scenes and notes in book order, then themes.
 pub fn entries(app: &crate::app::App) -> Vec<Entry> {
-    use crate::app::brain::DeskView;
+    use crate::app::outline::DeskView;
     let m = app.mod_label();
     let part = app.project.meta.part_noun();
     let mut v = vec![
-        Entry::new("Brain", "Super+3", Action::SwitchDeskView(DeskView::Brain)),
-        Entry::new(
-            "Library",
-            "Super+2",
-            Action::SwitchDeskView(DeskView::Library),
-        ),
-        Entry::new(
-            "Review cards",
-            "Super+4",
-            Action::SwitchDeskView(DeskView::Review),
-        ),
-        Entry::new("Brain beside Write", "", Action::BrainBeside),
+        Entry::new("read", "Super+2", Action::SwitchDeskView(DeskView::Read)),
+        Entry::new("Outline", "Super+3", Action::SwitchDeskView(DeskView::Outline)),
+        Entry::new("Study", "Super+4", Action::SwitchDeskView(DeskView::Study)),
+        Entry::new("Outline beside Write", "", Action::OutlineBeside),
         Entry::new("WrOS settings", "", Action::Settings),
         Entry::new("System settings", "", Action::SystemSettings),
         Entry::new("Workspaces", "", Action::Workspaces),
@@ -645,7 +637,7 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         (app.deck.quit_offered || e.action != Action::Quit)
             && app.unavailable_action(&e.action).is_none()
     });
-    if app.brain_accepts_input() {
+    if app.desk_accepts_input() {
         for entry in &mut v {
             if matches!(
                 entry.action,

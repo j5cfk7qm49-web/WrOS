@@ -8,10 +8,11 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
 use ratatui::widgets::{Block, Paragraph, Wrap};
 
-use super::{App, Theme, commands, draw_draft};
+use super::outline::{commands, draw_draft};
+use super::{App, Theme};
 
 #[derive(Default)]
-pub(super) struct ReviewDesk {
+pub(super) struct StudyDesk {
     filter: Option<(String, SavedQuery)>,
     due: DueCards,
     pub(super) all_due: u64,
@@ -20,7 +21,7 @@ pub(super) struct ReviewDesk {
     scroll: u16,
 }
 
-impl ReviewDesk {
+impl StudyDesk {
     pub(super) fn has_input(&self) -> bool {
         self.input.is_some()
     }
@@ -155,26 +156,26 @@ impl ReviewDesk {
 }
 
 impl App {
-    pub(super) fn on_review_card_key(&mut self, key: KeyEvent) {
-        if key.code == KeyCode::Esc && self.brain.review.input.is_none() {
+    pub(super) fn on_study_key(&mut self, key: KeyEvent) {
+        if key.code == KeyCode::Esc && self.commonplace.study.input.is_none() {
             self.open_menu();
             return;
         }
-        if let Some(store) = &mut self.brain.store {
-            self.msg = match self.brain.review.key(store, key) {
+        if let Some(store) = &mut self.commonplace.store {
+            self.msg = match self.commonplace.study.key(store, key) {
                 Ok(message) => message.unwrap_or_default(),
-                Err(error) => format!("Review cards · {error}"),
+                Err(error) => format!("Study · {error}"),
             };
         }
     }
 }
 
 pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
-    let desk = &mut app.brain.review;
+    let desk = &mut app.commonplace.study;
     let filter = desk.filter.as_ref().map_or("All cards", |(label, _)| label);
     let panel = Block::bordered()
         .title(format!(
-            " Review cards · {filter} · {} due ",
+            " Study · {filter} · {} due ",
             desk.due.count
         ))
         .border_style(Style::default().fg(theme.border));

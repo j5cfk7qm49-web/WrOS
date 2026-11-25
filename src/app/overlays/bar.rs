@@ -56,7 +56,7 @@ impl App {
     pub fn bar_rows(&self, title: Title) -> Vec<BarRow> {
         let m = self.mod_label();
         let writing = self.open.is_some();
-        let write_key = |key| if self.brain_accepts_input() { "" } else { key };
+        let write_key = |key| if self.desk_accepts_input() { "" } else { key };
         let key = |action: wros_sys::shortcuts::Action, default: &str| {
             self.deck
                 .shortcuts
@@ -128,7 +128,7 @@ impl App {
                 ));
                 rows
             }
-            Title::Edit if self.brain_accepts_input() => vec![
+            Title::Edit if self.desk_accepts_input() => vec![
                 BarRow::new("Undo", format!("{m}Z"), Action::Undo),
                 BarRow::new("Redo", format!("{m}Y"), Action::Redo),
                 BarRow::new("Paste", format!("{m}V"), Action::Paste),
@@ -173,31 +173,27 @@ impl App {
                 rows
             }
             Title::View => {
-                use crate::app::brain::DeskView;
+                use crate::app::outline::DeskView;
                 let mut rows: Vec<_> = DeskView::ALL
                     .into_iter()
                     .enumerate()
                     .filter(|(_, view)| *view != self.desk_view)
                     .map(|(index, view)| {
                         BarRow::new(
-                            if view == DeskView::Review {
-                                "Review cards"
-                            } else {
-                                view.label()
-                            },
+                            view.label(),
                             format!("Super+{}", index + 1),
                             Action::SwitchDeskView(view),
                         )
                     })
                     .collect();
                 rows.push(BarRow::new(
-                    if self.brain.side_visible && self.desk_view == DeskView::Write {
-                        "Hide Brain beside Write"
+                    if self.commonplace.side_visible && self.desk_view == DeskView::Write {
+                        "Hide Outline beside Write"
                     } else {
-                        "Brain beside Write"
+                        "Outline beside Write"
                     },
                     "",
-                    Action::BrainBeside,
+                    Action::OutlineBeside,
                 ));
                 if self.desk_view == DeskView::Write {
                     if writing || self.focus_mode {
@@ -404,7 +400,7 @@ impl App {
                     BarRow::new("Check names…", "", Action::CheckNames),
                     BarRow::new(
                         "Corkboard…",
-                        if self.brain_accepts_input() { "" } else { "b" },
+                        if self.desk_accepts_input() { "" } else { "b" },
                         Action::Corkboard,
                     ),
                     BarRow::new("Footnote navigator…", "", Action::Footnotes),
@@ -438,9 +434,9 @@ impl App {
                 BarRow::new("Look up the name here", format!("{m}O"), Action::OpenCodex)
                     .dim_unless(writing, WRITE_FIRST),
                 BarRow::new(
-                    "Library",
+                    "read",
                     "Super+2",
-                    Action::SwitchDeskView(crate::app::brain::DeskView::Library),
+                    Action::SwitchDeskView(crate::app::outline::DeskView::Read),
                 ),
             ],
             Side::Practice => vec![

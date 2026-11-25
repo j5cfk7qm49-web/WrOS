@@ -33,14 +33,14 @@ The mouse works everywhere on the bar: click a menu to open it, move across the 
 
 ## View
 
-- **Write** (`Super+1`) returns to the manuscript. **Library** (`Super+2`) shows works and editions. **Brain** (`Super+3`) opens your personal outline. The View menu lists the other views in shortcut order. You can also use **Find anything**.
-- In Library, press `F` to edit the active filter. An empty filter shows all works. Use `Page Up` and `Page Down` when the list spans several pages.
-- **Review cards** (`Super+4`) opens cards made in Brain notes. Press Enter to reveal an answer, then choose a grade from 0 to 5. Press F for a tag or saved search. The view bar shows how many cards are due.
-- Brain opens to **Today**. Press `N` to add a note, `Enter` to edit or save, and `Esc` to cancel an edit. Use `↑` and `↓` to choose a note, `→` to open its children, and `←` to go back. `P` shows named pages, where `N` adds a page. `T` returns to Today.
-- **Brain beside Write** opens the notes tagged for this project. A note created in that list receives the project tag. Press `Esc` outside an edit to return to the manuscript, or select Write from the view bar. You can also click either pane.
+- **Write** (`Super+1`) returns to the manuscript. **read** (`Super+2`) shows works and editions. **Outline** (`Super+3`) opens your personal outline. The View menu lists the other views in shortcut order. You can also use **Find anything**.
+- In read, press `F` to edit the active filter. An empty filter shows all works. Use `Page Up` and `Page Down` when the list spans several pages.
+- **Study** (`Super+4`) opens cards made in Outline notes. Press Enter to reveal an answer, then choose a grade from 0 to 5. Press F for a tag or saved search. The view bar shows how many cards are due.
+- Outline opens to **Today**. Press `N` to add a note, `Enter` to edit or save, and `Esc` to cancel an edit. Use `↑` and `↓` to choose a note, `→` to open its children, and `←` to go back. `P` shows named pages, where `N` adds a page. `T` returns to Today.
+- **Outline beside Write** opens the notes tagged for this project. A note created in that list receives the project tag. Press `Esc` outside an edit to return to the manuscript, or select Write from the view bar. You can also click either pane.
 - Press `I` for a note's details, including its tags, fields and links. `@` adds a link by title, `O` opens linked notes, and `B` opens backlinks. Press `#` to tag a note. Use a built-in name like `book` or the title of a named page.
 - Press `/` to search, `S` to save a search on the selected note, and `R` to run that saved search. Use a phrase, `#tag`, `@title` for backlinks, or `field=value` when the selected note has that field.
-- In **Settings › Backups and accounts › Backups**, create an encrypted Brain backup and restore earlier Brain snapshots to a separate folder.
+- In **Settings › Backups and accounts › Backups**, create an encrypted Commonplace backup and restore earlier Commonplace snapshots to a separate folder.
 - **Focus mode** (`Ctrl-D`): everything but the page goes away. `Ctrl-D` again brings it all back.
 - **Show the outline** / **Hide the outline**: the outline column, without entering focus mode. It has no key of its own unless you give it one in Settings › Look and keyboard › Keyboard.
 - **Show the pins sidebar** / **Hide the pins sidebar**. See *Pins*.
@@ -67,7 +67,7 @@ The mouse works everywhere on the bar: click a menu to open it, move across the 
 - **Music player…** (`F7`): while music is on.
 - **Dictionary and thesaurus…** and **Writing checks…**.
 - **Revision ›**: Notes and TKs (`Ctrl-T`), the next TK or note, the next scene still in draft, echo words, Check names, the corkboard, the footnote navigator, the continuity tracker, draft milestones, revision notes and the prose and revision dashboard.
-- **Notes ›**: Library (`Super+2`), Look up the name here (`Ctrl-O`), the Pinboard, Pin this document, the writing journal, the scratchpad and the session handoff.
+- **Notes ›**: read (`Super+2`), Look up the name here (`Ctrl-O`), the Pinboard, Pin this document, the writing journal, the scratchpad and the session handoff.
 - **Progress ›** holds Progress (the project's word count and pace), Goals, Calendar, Sprints, Edits, Collection, Challenges and Story Spark.
 
 ## Settings

@@ -45,7 +45,7 @@ pub fn draw(
     // The menu bar takes the top line, except in focus mode, where it only
     // shows while a menu is up.
     app.bar_hits.borrow_mut().clear();
-    use crate::app::brain::DeskView;
+    use crate::app::outline::DeskView;
     let nonwriting_view = app.desk_view != DeskView::Write;
     let bar_line = nonwriting_view || !app.focus_mode;
     let [bar, view_bar, main, status] = Layout::vertical([
@@ -58,16 +58,16 @@ pub fn draw(
     app.rect_scene = Rect::default();
     app.view_hits.clear();
     app.music_row_hits.clear();
-    app.brain.side_area = Rect::default();
-    crate::app::brain::draw_view_bar(f, app, view_bar, &t);
+    app.commonplace.side_area = Rect::default();
+    crate::app::outline::draw_view_bar(f, app, view_bar, &t);
 
     if nonwriting_view {
         app.rect_tree = Rect::default();
         app.create_hits.clear();
         match app.desk_view {
-            DeskView::Brain => crate::app::brain::draw(f, app, main, &t, false),
-            DeskView::Review => crate::app::brain::review::draw(f, app, main, &t),
-            DeskView::Library => crate::app::brain::library::draw(f, app, main, &t),
+            DeskView::Outline => crate::app::outline::draw(f, app, main, &t, false),
+            DeskView::Study => crate::app::study::draw(f, app, main, &t),
+            DeskView::Read => crate::app::read::draw(f, app, main, &t),
             _ => {}
         }
     } else {
@@ -143,17 +143,17 @@ fn draw_write(f: &mut Frame, app: &mut App, main: Rect, t: &Theme) {
     };
 
     let edit_area = crate::app::pins::sidebar(f, app, edit_area, t);
-    let edit_area = if app.brain.side_visible && !app.focus_mode && edit_area.height >= 12 {
+    let edit_area = if app.commonplace.side_visible && !app.focus_mode && edit_area.height >= 12 {
         let split = if edit_area.width >= 75 {
             Layout::horizontal([Constraint::Percentage(58), Constraint::Percentage(42)])
         } else {
             Layout::vertical([Constraint::Percentage(55), Constraint::Percentage(45)])
         };
-        let [write, brain] = split.areas(edit_area);
-        app.brain.side_area = brain;
+        let [write, outline] = split.areas(edit_area);
+        app.commonplace.side_area = outline;
         write
     } else {
-        app.brain.select_side(false);
+        app.commonplace.select_side(false);
         edit_area
     };
 
@@ -203,8 +203,8 @@ fn draw_write(f: &mut Frame, app: &mut App, main: Rect, t: &Theme) {
     if matches!(app.focus, Focus::Codex | Focus::Beside) && !app.side_room {
         app.activate_editor(Pane::Primary);
     }
-    if !app.brain.side_area.is_empty() {
-        crate::app::brain::draw(f, app, app.brain.side_area, t, true);
+    if !app.commonplace.side_area.is_empty() {
+        crate::app::outline::draw(f, app, app.commonplace.side_area, t, true);
     }
 }
 
@@ -848,7 +848,7 @@ fn marked(st: Style, colour: ratatui::style::Color, underline_colour: bool) -> S
 }
 
 fn draw_editor(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
-    let focused = app.view_is_focused() && !app.brain_accepts_input();
+    let focused = app.view_is_focused() && !app.desk_accepts_input();
     let mut title = app.open_title();
     if app.views.active == Pane::Secondary {
         title = format!("Secondary · {title}");
@@ -1202,12 +1202,12 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Span::styled(format!("  today {today_text}"), style)
     };
 
-    let mut spans = if app.desk_view == crate::app::brain::DeskView::Library {
-        vec![Span::styled(" Library", Style::default().fg(t.dim))]
-    } else if app.desk_view == crate::app::brain::DeskView::Review {
-        vec![Span::styled(" Review cards", Style::default().fg(t.dim))]
-    } else if app.desk_view == crate::app::brain::DeskView::Brain {
-        vec![Span::styled(" Brain", Style::default().fg(t.dim))]
+    let mut spans = if app.desk_view == crate::app::outline::DeskView::Read {
+        vec![Span::styled(" read", Style::default().fg(t.dim))]
+    } else if app.desk_view == crate::app::outline::DeskView::Study {
+        vec![Span::styled(" Study", Style::default().fg(t.dim))]
+    } else if app.desk_view == crate::app::outline::DeskView::Outline {
+        vec![Span::styled(" Outline", Style::default().fg(t.dim))]
     } else if app.focus_mode {
         let (title, words) = app.open.map_or((String::new(), 0), |i| {
             (

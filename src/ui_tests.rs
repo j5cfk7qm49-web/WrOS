@@ -51,19 +51,19 @@ fn first_scene(root: &Path) -> PathBuf {
 }
 
 #[test]
-fn brain_today_can_edit_nested_notes_and_reopen_them_without_touching_the_prose() {
+fn outline_today_can_edit_nested_notes_and_reopen_them_without_touching_the_prose() {
     let fixture = tempfile::tempdir().unwrap();
-    let library = fixture.path().join("Brain");
+    let library = fixture.path().join("Commonplace");
     let cache = fixture.path().join("cache");
     let mut desk = Desk::open(book("brain-today", true), 80, 24);
-    desk.app.brain.set_paths(library.clone(), cache.clone());
+    desk.app.commonplace.set_paths(library.clone(), cache.clone());
     let first_scene_body = desk.app.editor.text();
     desk.key(KeyCode::Tab);
     desk.typed("Write draft stays here.");
     let prose = desk.app.editor.text();
     assert!(!library.exists());
 
-    desk.menu(&["View", "Brain"]);
+    desk.menu(&["View", "Outline"]);
     assert!(desk.shows("Today"));
     desk.key(KeyCode::Char('n'));
     desk.typed("Research");
@@ -77,7 +77,7 @@ fn brain_today_can_edit_nested_notes_and_reopen_them_without_touching_the_prose(
     desk.press(KeyEvent::new(KeyCode::Char('2'), KeyModifiers::SUPER));
     assert!(desk.shows("No matching works"));
     desk.press(KeyEvent::new(KeyCode::Char('4'), KeyModifiers::SUPER));
-    assert!(desk.shows("Review cards"));
+    assert!(desk.shows("Study · All cards"));
     assert!(desk.shows("No cards due"));
     desk.press(KeyEvent::new(
         KeyCode::Modifier(ModifierKeyCode::LeftSuper),
@@ -127,7 +127,7 @@ fn brain_today_can_edit_nested_notes_and_reopen_them_without_touching_the_prose(
     drop(desk);
 
     let mut desk = Desk::open(book("brain-reopen", true), 80, 24);
-    desk.app.brain.set_paths(library, cache);
+    desk.app.commonplace.set_paths(library, cache);
     desk.press(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::SUPER));
     desk.key(KeyCode::Right);
     assert!(desk.shows("A note from the library"));
@@ -135,13 +135,13 @@ fn brain_today_can_edit_nested_notes_and_reopen_them_without_touching_the_prose(
 }
 
 #[test]
-fn review_cards_use_a_saved_search_and_never_type_into_the_manuscript() {
+fn study_cards_use_a_saved_search_and_never_type_into_the_manuscript() {
     use grimoire_brain::bounded_store::PagedBrain;
     use grimoire_brain::model::{Builtin, NodeId, Place};
     use grimoire_brain::schema::SavedQuery;
 
     let fixture = tempfile::tempdir().unwrap();
-    let library = fixture.path().join("Brain");
+    let library = fixture.path().join("Commonplace");
     let cache = fixture.path().join("cache");
     let mut store = PagedBrain::open_library(&library, &cache).unwrap();
     let tag = NodeId::Builtin(Builtin::Concept);
@@ -164,12 +164,12 @@ fn review_cards_use_a_saved_search_and_never_type_into_the_manuscript() {
     drop(store);
 
     let mut desk = Desk::open(book("review-cards", true), 80, 24);
-    desk.app.brain.set_paths(library.clone(), cache.clone());
+    desk.app.commonplace.set_paths(library.clone(), cache.clone());
     desk.key(KeyCode::Tab);
     desk.typed("Manuscript draft");
     let draft = desk.app.editor.text();
-    desk.menu(&["View", "Review cards"]);
-    assert!(desk.shows("Review 2"));
+    desk.menu(&["View", "Study"]);
+    assert!(desk.shows("Study 2"));
     desk.key(KeyCode::Char('f'));
     desk.typed("Concept queue");
     desk.key(KeyCode::Enter);
@@ -182,7 +182,7 @@ fn review_cards_use_a_saved_search_and_never_type_into_the_manuscript() {
     assert!(desk.shows("Answer for Review"));
     desk.key(KeyCode::Char('5'));
     assert!(desk.shows("No cards due"));
-    assert!(desk.shows("Review 1"));
+    assert!(desk.shows("Study 1"));
     desk.typed("Pasted over nothing");
     assert_eq!(desk.app.editor.text(), draft);
     drop(desk);
@@ -194,13 +194,13 @@ fn review_cards_use_a_saved_search_and_never_type_into_the_manuscript() {
 }
 
 #[test]
-fn library_adds_editions_and_edits_the_selected_record_without_rewriting_the_work() {
+fn read_adds_editions_and_edits_the_selected_record_without_rewriting_the_work() {
     let folder = tempfile::tempdir().unwrap();
-    let library = folder.path().join("Brain");
+    let library = folder.path().join("Commonplace");
     let cache = folder.path().join("cache");
     let mut desk = Desk::open(book("library-editions", true), 100, 28);
-    desk.app.brain.set_paths(library.clone(), cache.clone());
-    desk.menu(&["Tools", "Notes", "Library"]);
+    desk.app.commonplace.set_paths(library.clone(), cache.clone());
+    desk.menu(&["Tools", "Notes", "read"]);
     desk.key(KeyCode::Char('n'));
     desk.typed("The Garden Book");
     desk.key(KeyCode::Enter);
@@ -223,14 +223,14 @@ fn library_adds_editions_and_edits_the_selected_record_without_rewriting_the_wor
 }
 
 #[test]
-fn library_picker_links_a_brain_note_to_a_stable_work_and_edition() {
+fn edition_picker_links_an_outline_note_to_a_stable_work_and_edition() {
     use grimoire_brain::bounded_store::PagedBrain;
     use grimoire_brain::library::Edition;
     use grimoire_brain::model::{NodeId, Place};
     use serde_json::json;
 
     let fixture = tempfile::tempdir().unwrap();
-    let library = fixture.path().join("Brain");
+    let library = fixture.path().join("Commonplace");
     let cache = fixture.path().join("cache");
     let edition = {
         let mut store = PagedBrain::open_library(&library, &cache).unwrap();
@@ -243,11 +243,11 @@ fn library_picker_links_a_brain_note_to_a_stable_work_and_edition() {
             .unwrap()
     };
     let mut desk = Desk::open(book("library-brain-link", true), 100, 28);
-    desk.app.brain.set_paths(library.clone(), cache.clone());
+    desk.app.commonplace.set_paths(library.clone(), cache.clone());
     desk.press(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::SUPER));
     desk.key(KeyCode::Char('n'));
     desk.typed("@Gardens");
-    assert!(desk.shows("Link a Library edition"));
+    assert!(desk.shows("Link a Commonplace edition"));
     desk.key(KeyCode::Enter);
     desk.key(KeyCode::Enter);
     assert!(desk.shows("A History of Gardens"));
@@ -276,8 +276,8 @@ fn catalogue_writer(
     let folder = tempfile::tempdir().unwrap();
     let mut desk = metric_writer(tag, 80, 24);
     desk.app
-        .brain
-        .set_paths(folder.path().join("Brain"), folder.path().join("cache"));
+        .commonplace
+        .set_paths(folder.path().join("Commonplace"), folder.path().join("cache"));
     let fetch = std::sync::Arc::new(fixture);
     desk.app.catalogue_fetch = fetch.clone();
     (desk, folder, fetch)
@@ -333,7 +333,7 @@ fn dispossessed_fixture() -> crate::catalogue::fetch::FixtureFetch {
 }
 
 #[test]
-fn brain_at_links_a_catalogue_book_with_no_page_step() {
+fn outline_at_links_a_catalogue_book_with_no_page_step() {
     use grimoire_brain::bounded_store::PagedBrain;
     use grimoire_brain::model::NodeId;
 
@@ -349,7 +349,7 @@ fn brain_at_links_a_catalogue_book_with_no_page_step() {
     desk.key(KeyCode::Enter);
     drop(desk);
 
-    let library = folder.path().join("Brain");
+    let library = folder.path().join("Commonplace");
     let cache = folder.path().join("cache");
     let mut store = PagedBrain::open_library(&library, &cache).unwrap();
     let (edition, _) = store
@@ -363,19 +363,19 @@ fn brain_at_links_a_catalogue_book_with_no_page_step() {
 }
 
 #[test]
-fn library_at_adds_a_catalogue_edition() {
+fn read_at_adds_a_catalogue_edition() {
     use grimoire_core::sources;
 
     let (mut desk, _folder, _) = catalogue_writer("library-at-catalogue", dispossessed_fixture());
     let draft = desk.app.editor.text();
-    desk.menu(&["Tools", "Notes", "Library"]);
+    desk.menu(&["Tools", "Notes", "read"]);
     desk.typed("@dispossessed");
     assert!(desk.shows("Search Open Library and Crossref · ISBN, DOI, title or author"));
     poll_catalogue(&mut desk, |desk| desk.shows("The Dispossessed"));
     desk.key(KeyCode::Enter);
-    poll_catalogue(&mut desk, |desk| desk.shows("Library · The Dispossessed"));
+    poll_catalogue(&mut desk, |desk| desk.shows("read · The Dispossessed"));
     assert!(desk.shows("› Edition · The Dispossessed"));
-    let store = desk.app.library_store_if_present().unwrap().unwrap();
+    let store = desk.app.commonplace_store_if_present().unwrap().unwrap();
     let (_, edition) = store
         .find_editions("The Dispossessed", 1)
         .unwrap()
@@ -387,7 +387,7 @@ fn library_at_adds_a_catalogue_edition() {
 }
 
 #[test]
-fn library_d_and_l_still_work_with_online_search_off() {
+fn read_d_and_l_still_work_with_online_search_off() {
     use crate::catalogue::{crossref, fetch::FixtureFetch, openlibrary};
 
     let isbn_url = openlibrary::isbn_url("9780140328721");
@@ -407,7 +407,7 @@ fn library_d_and_l_still_work_with_online_search_off() {
         );
     let (mut desk, _folder, fetch) = catalogue_writer("library-exact-off", fixture);
     desk.app.catalogue_on = false;
-    desk.menu(&["Tools", "Notes", "Library"]);
+    desk.menu(&["Tools", "Notes", "read"]);
     desk.key(KeyCode::Char('@'));
     assert!(desk.shows("Online search is off · Settings › Writing › Manuscript"));
     desk.typed("l978-0-14-032872-1");
@@ -417,7 +417,7 @@ fn library_d_and_l_still_work_with_online_search_off() {
     poll_catalogue(&mut desk, |desk| desk.shows("Fantastic Mr. Fox"));
     assert_eq!(fetch.requests().as_slice(), std::slice::from_ref(&isbn_url));
     desk.keys(&[KeyCode::Right, KeyCode::Enter]);
-    assert!(desk.shows("Library · Fantastic Mr. Fox"));
+    assert!(desk.shows("read · Fantastic Mr. Fox"));
     assert_eq!(fetch.requests().as_slice(), std::slice::from_ref(&isbn_url));
     desk.key(KeyCode::Esc);
 
@@ -499,7 +499,7 @@ fn picking_a_catalogue_book_shows_its_works_cited_line_then_cites_with_a_page() 
     use grimoire_core::sources;
 
     let (mut desk, folder, fetch) = catalogue_writer("catalogue-page", solitude_fixture());
-    let library = folder.path().join("Brain");
+    let library = folder.path().join("Commonplace");
     let cache = folder.path().join("cache");
     drop(PagedBrain::open_library(&library, &cache).unwrap());
     desk.typed("@one hundred years of solitude");
@@ -521,7 +521,7 @@ fn picking_a_catalogue_book_shows_its_works_cited_line_then_cites_with_a_page() 
     assert_eq!(record["title"], SOLITUDE_TITLE);
     assert_eq!(record["author"][0]["family"], "García Márquez");
     let link = sources::library_provenance(record).unwrap();
-    let store = desk.app.library_store_if_present().unwrap().unwrap();
+    let store = desk.app.commonplace_store_if_present().unwrap().unwrap();
     let (edition, metadata) = store.find_editions(SOLITUDE_TITLE, 1).unwrap().remove(0);
     assert_eq!(link.identity.work_id, edition.work.external_id());
     assert_eq!(metadata.bibliography["author"], record["author"]);
@@ -573,7 +573,7 @@ fn the_editions_list_scrolls_and_loads_more() {
 }
 
 #[test]
-fn a_catalogue_pick_without_a_library_still_cites() {
+fn a_catalogue_pick_without_commonplace_still_cites() {
     use grimoire_core::sources;
 
     let (mut desk, folder, _) = catalogue_writer("catalogue-no-library", solitude_fixture());
@@ -596,7 +596,7 @@ fn a_catalogue_pick_without_a_library_still_cites() {
     assert_eq!(record["title"], SOLITUDE_TITLE);
     assert_eq!(record["publisher"], "Harper Perennial Classics");
     assert_eq!(desk.app.editor.text(), format!("[@{key}]"));
-    assert!(!folder.path().join("Brain").exists());
+    assert!(!folder.path().join("Commonplace").exists());
 }
 
 #[test]
@@ -605,7 +605,7 @@ fn a_catalogue_pick_after_the_text_changed_is_refused() {
     use grimoire_core::sources;
 
     let (mut desk, folder, _) = catalogue_writer("catalogue-changed-text", solitude_fixture());
-    let library = folder.path().join("Brain");
+    let library = folder.path().join("Commonplace");
     let cache = folder.path().join("cache");
     drop(PagedBrain::open_library(&library, &cache).unwrap());
     desk.typed("@one hundred years of solitude");
@@ -618,7 +618,7 @@ fn a_catalogue_pick_after_the_text_changed_is_refused() {
     assert_eq!(desk.app.editor.text(), "The manuscript changed.");
     let project = sources::Snapshot::open(&desk.root).unwrap();
     assert!(project.sources.iter().next().is_none());
-    let store = desk.app.library_store_if_present().unwrap().unwrap();
+    let store = desk.app.commonplace_store_if_present().unwrap().unwrap();
     assert_eq!(store.find_editions(SOLITUDE_TITLE, 1).unwrap().len(), 1);
 }
 
@@ -666,7 +666,7 @@ fn add_a_source_fills_from_a_search_and_saves_the_corrected_version() {
     use grimoire_core::sources;
 
     let (mut desk, folder, _) = catalogue_writer("catalogue-corrected-source", solitude_fixture());
-    let library = folder.path().join("Brain");
+    let library = folder.path().join("Commonplace");
     let cache = folder.path().join("cache");
     drop(PagedBrain::open_library(&library, &cache).unwrap());
     desk.app.run_action(palette::Action::AddProjectSource);
@@ -677,7 +677,7 @@ fn add_a_source_fills_from_a_search_and_saves_the_corrected_version() {
     assert!(desk.shows("Authors (Family, Given; …) [García Márquez, Gabriel]"));
     assert!(
         desk.app
-            .library_store_if_present()
+            .commonplace_store_if_present()
             .unwrap()
             .unwrap()
             .find_editions(SOLITUDE_TITLE, 1)
@@ -693,7 +693,7 @@ fn add_a_source_fills_from_a_search_and_saves_the_corrected_version() {
     let (_, record) = project.sources.iter().next().unwrap();
     assert_eq!(record["publisher"], "Harper Perennial Classics");
     let link = sources::library_provenance(record).unwrap();
-    let store = desk.app.library_store_if_present().unwrap().unwrap();
+    let store = desk.app.commonplace_store_if_present().unwrap().unwrap();
     let (edition, metadata) = store.find_editions(SOLITUDE_TITLE, 1).unwrap().remove(0);
     assert_eq!(link.identity.work_id, edition.work.external_id());
     assert_eq!(
@@ -749,7 +749,7 @@ fn a_conference_paper_keeps_its_type() {
         project.sources.get("catalogueindexes").unwrap()["type"],
         "entry-encyclopedia"
     );
-    assert!(!folder.path().join("Brain").exists());
+    assert!(!folder.path().join("Commonplace").exists());
 }
 
 #[test]
@@ -804,7 +804,7 @@ fn the_form_shows_translator_isbn_place_and_accessed() {
 
 #[test]
 fn rc28_view_menu_reaches_each_other_desk_in_shortcut_order() {
-    use crate::app::brain::DeskView;
+    use crate::app::outline::DeskView;
     use crate::palette::{Action, Title};
 
     for (width, height) in [(80, 24), (100, 30), (120, 40), (170, 48)] {
@@ -815,8 +815,8 @@ fn rc28_view_menu_reaches_each_other_desk_in_shortcut_order() {
             height,
         );
         desk.app
-            .brain
-            .set_paths(fixture.path().join("Brain"), fixture.path().join("cache"));
+            .commonplace
+            .set_paths(fixture.path().join("Commonplace"), fixture.path().join("cache"));
         for current in DeskView::ALL {
             desk.app.switch_desk_view(current);
             let rows = desk.app.bar_rows(Title::View);
@@ -829,9 +829,9 @@ fn rc28_view_menu_reaches_each_other_desk_in_shortcut_order() {
                 .collect();
             let expected: Vec<_> = [
                 (DeskView::Write, "Super+1"),
-                (DeskView::Library, "Super+2"),
-                (DeskView::Brain, "Super+3"),
-                (DeskView::Review, "Super+4"),
+                (DeskView::Read, "Super+2"),
+                (DeskView::Outline, "Super+3"),
+                (DeskView::Study, "Super+4"),
             ]
             .into_iter()
             .filter(|(view, _)| *view != current)
@@ -839,24 +839,24 @@ fn rc28_view_menu_reaches_each_other_desk_in_shortcut_order() {
             assert_eq!(destinations, expected, "{current:?}");
         }
         desk.menu(&["View", "Write"]);
-        desk.menu(&["View", "Library"]);
-        assert_eq!(desk.app.desk_view, DeskView::Library);
+        desk.menu(&["View", "read"]);
+        assert_eq!(desk.app.desk_view, DeskView::Read);
     }
 }
 
 #[test]
 fn rc28_outline_commands_explain_their_scope_and_cannot_move_hidden_scenes() {
-    use crate::app::brain::DeskView;
+    use crate::app::outline::DeskView;
     use crate::palette::{Action, Title};
 
     let fixture = tempfile::tempdir().unwrap();
     let mut desk = Desk::open(book("rc28-outline-command-scope", true), 80, 24);
     desk.app
-        .brain
-        .set_paths(fixture.path().join("Brain"), fixture.path().join("cache"));
+        .commonplace
+        .set_paths(fixture.path().join("Commonplace"), fixture.path().join("cache"));
     let scene = first_scene(&desk.root);
     let before = fs::read_to_string(&scene).unwrap();
-    for view in [DeskView::Library, DeskView::Brain, DeskView::Review] {
+    for view in [DeskView::Read, DeskView::Outline, DeskView::Study] {
         desk.app.switch_desk_view(view);
         desk.menu(&["Project", "Move down"]);
         assert!(
@@ -891,8 +891,8 @@ fn rc28_outline_commands_explain_their_scope_and_cannot_move_hidden_scenes() {
 }
 
 #[test]
-fn rc28_project_search_from_library_opens_the_result_in_write() {
-    use crate::app::brain::DeskView;
+fn rc28_project_search_from_read_opens_the_result_in_write() {
+    use crate::app::outline::DeskView;
 
     let fixture = tempfile::tempdir().unwrap();
     let root = book("rc28-project-search-context", true);
@@ -903,9 +903,9 @@ fn rc28_project_search_from_library_opens_the_result_in_write() {
     .unwrap();
     let mut desk = Desk::open(root, 80, 24);
     desk.app
-        .brain
-        .set_paths(fixture.path().join("Brain"), fixture.path().join("cache"));
-    desk.app.switch_desk_view(DeskView::Library);
+        .commonplace
+        .set_paths(fixture.path().join("Commonplace"), fixture.path().join("cache"));
+    desk.app.switch_desk_view(DeskView::Read);
     desk.app.run_action(palette::Action::FindInBook);
     desk.typed("telescope");
     desk.key(KeyCode::Enter);
@@ -918,14 +918,14 @@ fn rc28_project_search_from_library_opens_the_result_in_write() {
 }
 
 #[test]
-fn rc28_library_keeps_a_tag_filter_when_reopened_and_undoes_prompt_edits() {
+fn rc28_read_keeps_a_tag_filter_when_reopened_and_undoes_prompt_edits() {
     use grimoire_brain::bounded_store::PagedBrain;
     use grimoire_brain::library::Edition;
     use grimoire_brain::model::{Builtin, NodeId, Place};
     use serde_json::json;
 
     let fixture = tempfile::tempdir().unwrap();
-    let library = fixture.path().join("Brain");
+    let library = fixture.path().join("Commonplace");
     let cache = fixture.path().join("cache");
     let mut store = PagedBrain::open_library(&library, &cache).unwrap();
     for title in ["Saffron Gardens", "Bridge Atlas"] {
@@ -944,7 +944,7 @@ fn rc28_library_keeps_a_tag_filter_when_reopened_and_undoes_prompt_edits() {
     }
     drop(store);
     let mut desk = Desk::open(book("rc28-library-filter", true), 80, 24);
-    desk.app.brain.set_paths(library, cache);
+    desk.app.commonplace.set_paths(library, cache);
     desk.press(KeyEvent::new(KeyCode::Char('2'), KeyModifiers::SUPER));
     desk.typed("f#concept");
     desk.key(KeyCode::Enter);
@@ -962,16 +962,16 @@ fn rc28_library_keeps_a_tag_filter_when_reopened_and_undoes_prompt_edits() {
 }
 
 #[test]
-fn named_brain_pages_are_reachable_from_today_and_exclude_day_pages() {
+fn named_outline_pages_are_reachable_from_today_and_exclude_day_pages() {
     let fixture = tempfile::tempdir().unwrap();
     let mut desk = Desk::open(book("brain-pages", true), 80, 24);
     desk.app
-        .brain
-        .set_paths(fixture.path().join("Brain"), fixture.path().join("cache"));
-    desk.menu(&["View", "Brain"]);
-    assert!(desk.shows("Write │ Library │ Brain │ Review"));
+        .commonplace
+        .set_paths(fixture.path().join("Commonplace"), fixture.path().join("cache"));
+    desk.menu(&["View", "Outline"]);
+    assert!(desk.shows("Write │ read │ Outline │ Study 0"));
     desk.key(KeyCode::Char('p'));
-    assert!(desk.shows("Brain · Pages"));
+    assert!(desk.shows("Outline · Pages"));
     assert!(desk.shows("No pages yet"));
     desk.key(KeyCode::Char('n'));
     desk.typed("Reading list");
@@ -983,7 +983,7 @@ fn named_brain_pages_are_reachable_from_today_and_exclude_day_pages() {
     desk.key(KeyCode::Enter);
     assert!(desk.shows("A history of maps"));
     desk.key(KeyCode::Char('t'));
-    assert!(desk.shows("Brain · Today"));
+    assert!(desk.shows("Outline · Today"));
     assert!(!desk.shows("Reading list"));
     desk.key(KeyCode::Char('p'));
     assert!(desk.shows("Reading list"));
@@ -992,41 +992,41 @@ fn named_brain_pages_are_reachable_from_today_and_exclude_day_pages() {
 }
 
 #[test]
-fn brain_beside_write_saves_tagged_notes_and_keeps_the_manuscript_draft() {
+fn outline_beside_write_saves_tagged_notes_and_keeps_the_manuscript_draft() {
     let fixture = tempfile::tempdir().unwrap();
     let mut desk = Desk::open(book("brain-beside", true), 80, 24);
     desk.app
-        .brain
-        .set_paths(fixture.path().join("Brain"), fixture.path().join("cache"));
+        .commonplace
+        .set_paths(fixture.path().join("Commonplace"), fixture.path().join("cache"));
     desk.key(KeyCode::Tab);
     desk.typed("The manuscript retains its own draft.");
     let prose = desk.app.editor.text();
-    desk.menu(&["View", "Brain beside Write"]);
-    assert!(desk.shows("Brain · Project notes"));
+    desk.menu(&["View", "Outline beside Write"]);
+    assert!(desk.shows("Outline · Project notes"));
     desk.key(KeyCode::Char('n'));
     desk.typed("Research for this project");
     desk.press(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::SUPER));
-    assert!(desk.shows("Brain · Today"));
+    assert!(desk.shows("Outline · Today"));
     desk.press(KeyEvent::new(KeyCode::Char('1'), KeyModifiers::SUPER));
     assert!(desk.shows("Research for this project"));
-    let side = desk.app.brain.side_area;
+    let side = desk.app.commonplace.side_area;
     desk.app.on_click(side.x + 1, side.y);
     desk.key(KeyCode::Enter);
     assert!(desk.shows("Research for this project"));
     assert_eq!(desk.app.editor.text(), prose);
     let meta = Project::load(&desk.root).unwrap().meta;
-    let tag = meta.brain_tag.expect("Project tag stored on disk");
+    let tag = meta.outline_tag.expect("Project tag stored on disk");
     assert!(tag.parse::<grimoire_brain::model::NodeId>().is_ok());
 }
 
 #[test]
-fn brain_links_backlinks_tags_and_saved_lists_are_editable_from_the_keyboard() {
+fn outline_links_backlinks_tags_and_saved_lists_are_editable_from_the_keyboard() {
     let fixture = tempfile::tempdir().unwrap();
     let mut desk = Desk::open(book("brain-commands", true), 100, 30);
     desk.app
-        .brain
-        .set_paths(fixture.path().join("Brain"), fixture.path().join("cache"));
-    desk.menu(&["View", "Brain"]);
+        .commonplace
+        .set_paths(fixture.path().join("Commonplace"), fixture.path().join("cache"));
+    desk.menu(&["View", "Outline"]);
     for title in ["City maps", "Reading list"] {
         desk.key(KeyCode::Char('n'));
         desk.typed(title);
@@ -3703,29 +3703,29 @@ const EVERY_KEY: &[(&str, &str, &[&str])] = &[
     ("Everywhere", "F9", &[]),
     ("Everywhere", "F10", &[]),
     ("Everywhere", "F11", &[]),
-    ("Brain", "n", &[]),
-    ("Brain", "Enter", &[]),
-    ("Brain", "Ctrl-S", &["n", "c"]),
-    ("Brain", "Esc", &["n"]),
-    ("Brain", "↑", &[]),
-    ("Brain", "↓", &["↑"]),
-    ("Brain", "→", &[]),
-    ("Brain", "←", &["→"]),
-    ("Brain", "p", &[]),
-    ("Brain", "t", &["p"]),
-    ("Review cards", "Enter", &[]),
-    ("Review cards", "Space", &[]),
-    ("Review cards", "0", &["Enter"]),
-    ("Review cards", "1", &["Enter"]),
-    ("Review cards", "2", &["Enter"]),
-    ("Review cards", "3", &["Enter"]),
-    ("Review cards", "4", &["Enter"]),
-    ("Review cards", "5", &["Enter"]),
-    ("Review cards", "f", &[]),
-    ("Review cards", "↑", &["Enter", "↓"]),
-    ("Review cards", "↓", &["Enter"]),
-    ("Review cards", "r", &[]),
-    ("Review cards", "Esc", &["f"]),
+    ("Outline", "n", &[]),
+    ("Outline", "Enter", &[]),
+    ("Outline", "Ctrl-S", &["n", "c"]),
+    ("Outline", "Esc", &["n"]),
+    ("Outline", "↑", &[]),
+    ("Outline", "↓", &["↑"]),
+    ("Outline", "→", &[]),
+    ("Outline", "←", &["→"]),
+    ("Outline", "p", &[]),
+    ("Outline", "t", &["p"]),
+    ("Study", "Enter", &[]),
+    ("Study", "Space", &[]),
+    ("Study", "0", &["Enter"]),
+    ("Study", "1", &["Enter"]),
+    ("Study", "2", &["Enter"]),
+    ("Study", "3", &["Enter"]),
+    ("Study", "4", &["Enter"]),
+    ("Study", "5", &["Enter"]),
+    ("Study", "f", &[]),
+    ("Study", "↑", &["Enter", "↓"]),
+    ("Study", "↓", &["Enter"]),
+    ("Study", "r", &[]),
+    ("Study", "Esc", &["f"]),
     ("The outline", "↑", &[]),
     ("The outline", "↓", &["↑"]),
     ("The outline", "j", &["↑"]),
@@ -3832,14 +3832,14 @@ fn desk_for(section: &str) -> (Desk, std::sync::mpsc::Receiver<music::Cmd>) {
     }
     let (mut d, rx) = music_desk_at(root);
     d.app
-        .brain
-        .set_paths(d.root.join("Brain"), d.root.join("brain-cache"));
+        .commonplace
+        .set_paths(d.root.join("Commonplace"), d.root.join("commonplace-cache"));
     let long: String = (1..=80)
         .map(|n| format!("Wren walked on, line {n}.\n\n"))
         .collect();
     match section {
         "Everywhere" | "The outline" => {}
-        "Brain" => {
+        "Outline" => {
             d.press(key_named("Super+3"));
             for note in ["First note", "Second note"] {
                 d.key(KeyCode::Char('n'));
@@ -3847,11 +3847,11 @@ fn desk_for(section: &str) -> (Desk, std::sync::mpsc::Receiver<music::Cmd>) {
                 d.key(KeyCode::Enter);
             }
         }
-        "Review cards" => {
+        "Study" => {
             use grimoire_brain::bounded_store::PagedBrain;
             use grimoire_brain::model::Place;
-            let library = d.root.join("Brain");
-            let cache = d.root.join("brain-cache");
+            let library = d.root.join("Commonplace");
+            let cache = d.root.join("commonplace-cache");
             {
                 let mut store = PagedBrain::open_library(&library, &cache).unwrap();
                 store

@@ -4,7 +4,7 @@
     "title": "Opening the menu bar",
     "help_topic": "wros",
     "event": "MenuBarOpened",
-    "instructions": "Press Enter to open the menu bar. While writing, press Esc to open it again. Use the arrow keys to choose a menu and press Enter to open it. Esc closes the menu and returns to writing."
+    "instructions": "Press Enter to open the menu bar. While writing, press Esc to open it again. Use the arrow keys to choose a menu and press Enter to open it. Esc closes the menu and returns to writing. The View menu lists the other views. Switch with Super+1 for Write, Super+2 for read, Super+3 for Outline, or Super+4 for Study."
   },
   {
     "id": 2,
