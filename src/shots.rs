@@ -7,12 +7,19 @@
 
 use super::*;
 use crate::app::Setup;
+use crate::app::outline::DeskView;
+use crate::gauges::{Gauges, Widget, Wifi};
 use crate::music::{Repeat, State as MusicState, Track};
+use crate::palette::Title;
+use grimoire_brain::{bounded_store::PagedBrain, library::Edition, model::Place};
 use grimoire_core::settings::Settings;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier};
+use ratatui::text::Span;
+use serde_json::{Value, json};
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::time::Duration;
 
@@ -278,35 +285,74 @@ impl Shot {
 
     /// The frame as JSON: `crop` is the part to cut out for a grid, if any.
     fn json(&self, name: &str, crop: Option<Rect>) -> String {
+        self.frame_json(name, crop, false)
+    }
+
+    fn preview_json(&self, name: &str) -> String {
+        self.frame_json(name, None, true)
+    }
+
+    fn frame_json(&self, name: &str, crop: Option<Rect>, preview: bool) -> String {
         let buf = self.term.backend().buffer();
-        let hex = |c: Color| match c {
-            Color::Rgb(r, g, b) => format!("\"#{r:02x}{g:02x}{b:02x}\""),
-            _ => "null".into(),
+        let colour = |c: Color| match c {
+            Color::Rgb(r, g, b) => json!(format!("#{r:02x}{g:02x}{b:02x}")),
+            Color::Reset => Value::Null,
+            Color::Indexed(i) if preview => json!(i),
+            _ if preview => json!(format!("{c:?}")),
+            _ => Value::Null,
         };
+        let modifiers = [
+            Modifier::BOLD,
+            Modifier::ITALIC,
+            Modifier::UNDERLINED,
+            Modifier::REVERSED,
+            Modifier::DIM,
+            Modifier::HIDDEN,
+            Modifier::CROSSED_OUT,
+        ];
+        let modifiers = &modifiers[..if preview { modifiers.len() } else { 3 }];
+        let mut symbols = BTreeSet::new();
         let mut rows = Vec::new();
         for y in 0..buf.area.height {
             let mut cells = Vec::new();
             for x in 0..buf.area.width {
                 let c = &buf[(x, y)];
-                let m = c.modifier;
-                let style = (m.contains(Modifier::BOLD) as u8)
-                    | (m.contains(Modifier::ITALIC) as u8) << 1
-                    | (m.contains(Modifier::UNDERLINED) as u8) << 2;
-                let sym = c.symbol().replace('\\', "\\\\").replace('"', "\\\"");
-                cells.push(format!("[\"{sym}\",{},{},{style}]", hex(c.fg), hex(c.bg)));
+                let symbol = c.symbol();
+                if preview {
+                    symbols.insert(symbol);
+                }
+                let style = modifiers.iter().enumerate().fold(0u8, |bits, (i, &m)| {
+                    bits | (u8::from(c.modifier.contains(m)) << i)
+                });
+                cells.push((symbol, colour(c.fg), colour(c.bg), style));
             }
-            rows.push(format!("[{}]", cells.join(",")));
+            rows.push(cells);
         }
-        let crop = crop.map_or("null".into(), |r| {
-            format!("[{},{},{},{}]", r.x, r.y, r.width, r.height)
+        let mut frame = json!({
+            "name": name,
+            "theme": self.app.theme.name,
+            "w": buf.area.width,
+            "h": buf.area.height,
+            "crop": crop.map(|r| (r.x, r.y, r.width, r.height)),
+            "rows": rows,
         });
-        format!(
-            "{{\"name\":\"{name}\",\"theme\":\"{}\",\"w\":{},\"h\":{},\"crop\":{crop},\"rows\":[{}]}}",
-            self.app.theme.name.replace('"', "\\\""),
-            buf.area.width,
-            buf.area.height,
-            rows.join(",")
-        )
+        if preview {
+            frame["console"] = json!(self.app.linux_console);
+            // Share Ratatui's widths for both full cells and their constituent glyphs.
+            let mut widths = BTreeMap::new();
+            for symbol in symbols {
+                widths.insert(symbol.to_owned(), Span::raw(symbol).width());
+                if symbol.chars().count() > 1 {
+                    for ch in symbol.chars() {
+                        let ch = ch.to_string();
+                        let width = Span::raw(ch.as_str()).width();
+                        widths.insert(ch, width);
+                    }
+                }
+            }
+            frame["widths"] = json!(widths);
+        }
+        frame.to_string()
     }
 
     /// The Pomodoro/Visualizer pane with its frame.
@@ -325,6 +371,135 @@ impl Drop for Shot {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.root);
     }
+}
+
+/// `GRIMOIRE_PREVIEW=<file.json> cargo test --locked owner_preview -- --ignored`
+/// captures the rc30 chrome for `tools/unifont-preview.py`.
+#[test]
+#[ignore]
+fn owner_preview() {
+    let Ok(out) = std::env::var("GRIMOIRE_PREVIEW") else {
+        return;
+    };
+    let (w, h) = (170, 48);
+    let mut frames = Vec::new();
+
+    let fixture = tempfile::tempdir().unwrap();
+    let library = fixture.path().join("Commonplace");
+    let cache = fixture.path().join("cache");
+    {
+        let mut store = PagedBrain::open_library(&library, &cache).unwrap();
+        let today = store.ensure_today(chrono::Local::now().date_naive()).unwrap();
+        store
+            .create_note_with_text(
+                Place {
+                    parent: Some(today),
+                    after: None,
+                },
+                "What falls out of the ledger? :: A tide table in the old archivist's hand.",
+            )
+            .unwrap();
+        let record = json!({"type": "book", "title": "The Harbour and Its Tides"});
+        store
+            .create_work(
+                Place::default(),
+                Edition::new(record.as_object().unwrap().clone(), 1234),
+            )
+            .unwrap();
+    }
+
+    for theme in ["Grimoire", "Gruvbox Dark", "Nord", "Rainbow"] {
+        let mut s = Shot::new("owner-preview", theme, w, h, false);
+        s.app.commonplace.set_paths(library.clone(), cache.clone());
+        // Load the due card so the Study tile already shows its dot in Write.
+        s.app.switch_desk_view(DeskView::Study);
+        s.app.switch_desk_view(DeskView::Write);
+        s.app.linux_console = false;
+        s.app.tile_glyphs = true;
+        s.app.deck.lock_available = true;
+        s.app.deck.suspend_available = true;
+        s.app.deck.quit_offered = false;
+        s.app.deck.gauges = Gauges {
+            battery: Some(76),
+            battery_minutes: Some(135),
+            light: Some(50),
+            volume: Some(70),
+            wifi: Some(Wifi::Bars(2)),
+            wifi_radio: Some(true),
+            ..Default::default()
+        };
+        s.app.deck.shell.wifi_networks = Some(wros_sys::Simulated::default().wifi_networks);
+        s.app.deck.clock = "14:07".into();
+        s.app.deck.backup_mark = Some(crate::app::BackupMark::Done("13:52".into()));
+
+        s.app.deck.state.current_mut().outline = true;
+        s.key(KeyCode::Tab, KeyModifiers::NONE);
+        assert!(!s.app.rect_tree.is_empty());
+        frames.push(s.preview_json("write-outline"));
+        s.app.deck.state.current_mut().outline = false;
+        s.draw();
+        assert!(s.app.rect_tree.is_empty());
+        frames.push(s.preview_json("write-bare"));
+
+        if theme == "Grimoire" {
+            s.app.linux_console = true;
+            s.app.tile_glyphs = false;
+            // ui::draw applies for_console and retains the preset name for the caption.
+            s.draw();
+            frames.push(s.preview_json("write-bare"));
+            s.app.open_bar(Some(Title::File), true);
+            s.draw();
+            frames.push(s.preview_json("file-menu"));
+            s.app.close_bar();
+            s.app.linux_console = false;
+            s.app.tile_glyphs = true;
+        }
+
+        for (name, view) in [
+            ("read", DeskView::Read),
+            ("outline", DeskView::Outline),
+            ("study", DeskView::Study),
+        ] {
+            s.app.switch_desk_view(view);
+            assert_eq!(s.app.desk_view, view, "{}", s.app.msg);
+            s.draw();
+            frames.push(s.preview_json(name));
+        }
+        s.app.switch_desk_view(DeskView::Write);
+        for (name, title) in [("file-menu", Title::File), ("power-menu", Title::Power)] {
+            s.app.open_bar(Some(title), true);
+            s.draw();
+            frames.push(s.preview_json(name));
+        }
+        s.app.close_bar();
+        s.draw();
+
+        for (name, kind) in [
+            ("wifi", Widget::Wifi),
+            ("sound", Widget::Sound),
+            ("battery", Widget::Battery),
+            ("clock", Widget::Clock),
+        ] {
+            let &(rect, _) = s
+                .app
+                .widget_hits()
+                .iter()
+                .find(|(_, widget)| *widget == kind)
+                .unwrap();
+            s.app.on_click(rect.x, rect.y);
+            assert!(matches!(s.app.overlay, app::Overlay::Widget { kind: k, .. } if k == kind));
+            s.draw();
+            frames.push(s.preview_json(name));
+            s.key(KeyCode::Esc, KeyModifiers::NONE);
+        }
+
+        s.app.toggle_focus_mode();
+        s.draw();
+        assert!(s.app.focus_mode);
+        frames.push(s.preview_json("focus"));
+    }
+
+    fs::write(out, format!("[{}]", frames.join(",\n"))).unwrap();
 }
 
 #[test]

@@ -50,7 +50,13 @@ let
   # test_update_live, test_update_rollback, test_update_support, test_update_transactions) drive
   # dpkg and apt-get against a Debian archive; they stay in the Debian builder's suite (#131).
   python-suite = pkgs.runCommand "wros-python-suite" {
-    nativeBuildInputs = [ pkgs.python3 pkgs.gnupg pkgs.kbd pkgs.console-setup pkgs.xkeyboard_config ];
+    nativeBuildInputs = [
+      (pkgs.python3.withPackages (ps: [ ps.pillow ]))
+      pkgs.gnupg
+      pkgs.kbd
+      pkgs.console-setup
+      pkgs.xkeyboard_config
+    ];
   } ''
     cp -r ${src} source
     chmod -R u+w source
@@ -74,7 +80,7 @@ let
     python3 -m unittest test_keyboard test_clock test_sound test_media_key test_passwd_helper \
       test_recovery_menu test_boot_settings test_boot_unlock test_session_launcher \
       test_display_manager test_nixos_update test_nixos_install_core test_nixos_installer \
-      test_update_reply_contract test_nixos_bundle_tool
+      test_update_reply_contract test_nixos_bundle_tool test_unifont_preview
     mkdir -p "$out"
     echo "pass" > "$out/result"
   '';
