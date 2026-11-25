@@ -670,6 +670,8 @@ impl App {
             Some("the backup")
         } else if self.deck.shell.backup.sync.job.is_some() {
             Some("the sync")
+        } else if self.deck.shell.backup.shelved_sync_running().is_some() {
+            Some("the previous project's sync")
         } else {
             None
         }

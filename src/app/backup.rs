@@ -283,6 +283,11 @@ pub struct SyncState {
     /// The operation the running job performs, so its reply is handled right.
     pub running: Option<crate::sync_service::Request>,
     pub last: Option<Result<crate::sync_service::Reply, String>>,
+    /// A finished run's reply, read early (a shelved project's, while power waits) and
+    /// handled in full by `tick_sync` once that project is open again.
+    done: Option<Result<crate::sync_service::Reply, String>>,
+    /// The shelved run's outcome was said, if it needed saying.
+    told: bool,
     /// When the next periodic sync is due; `None` until the book is first seen.
     pub next: Option<std::time::Instant>,
     /// A save or edit restarts this pause, independently of the periodic run.
@@ -327,12 +332,41 @@ impl SyncState {
         self.next = Some(now + SYNC_EVERY);
         self.after_activity = None;
     }
+    /// Read a finished run's reply, if there is one, without handling it.
+    fn collect(&mut self) {
+        if self.done.is_some() {
+            return;
+        }
+        let Some(job) = &self.job else {
+            return;
+        };
+        self.done = match job.result.try_recv() {
+            Ok(result) => Some(result),
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                Some(Err("the sync worker stopped".to_string()))
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => None,
+        };
+    }
+    /// The finished run's reply, once; `None` while it runs or when none ran.
+    fn take_finished(&mut self) -> Option<Result<crate::sync_service::Reply, String>> {
+        self.collect();
+        self.done.take()
+    }
+    /// Whether a run is still going (one whose reply is in counts as finished).
+    fn still_running(&mut self) -> bool {
+        self.collect();
+        self.job.is_some() && self.done.is_none()
+    }
     /// One line on where sync stands, for the Backups screen.
     pub fn line(&self) -> String {
         if let Some(job) = &self.job {
             return job.status_line().replacen("Working:", "Syncing:", 1);
         }
-        match &self.last {
+        Self::result_line(&self.last)
+    }
+    fn result_line(last: &Option<Result<crate::sync_service::Reply, String>>) -> String {
+        match last {
             None => "Not synced yet".into(),
             Some(Err(error)) => format!("Sync did not finish: {error}"),
             Some(Ok(reply)) => match reply.status.as_str() {
@@ -391,6 +425,40 @@ impl Backups {
                 .then(|| snapshot.time.clone())
             })
             .max()
+    }
+    /// A project switched away from whose last sync still runs, if any: restart, shut
+    /// down and Quit wait for it as for the open project's (#168).
+    pub(crate) fn shelved_sync_running(&mut self) -> Option<PathBuf> {
+        self.shelved_sync
+            .iter_mut()
+            .find_map(|(root, sync)| sync.still_running().then(|| root.clone()))
+    }
+    /// One line for each project switched away from whose last sync ended without
+    /// syncing, said once; its reply is still handled when that project reopens.
+    fn shelved_sync_news(&mut self) -> Vec<String> {
+        let mut news = Vec::new();
+        for (root, sync) in &mut self.shelved_sync {
+            if sync.told || sync.still_running() || sync.done.is_none() {
+                continue;
+            }
+            sync.told = true;
+            let switching = matches!(
+                sync.running,
+                Some(
+                    crate::sync_service::Request::Enable { .. }
+                        | crate::sync_service::Request::Disable { .. }
+                )
+            );
+            if switching || matches!(&sync.done, Some(Ok(reply)) if reply.status == "synced") {
+                continue;
+            }
+            let line = SyncState::result_line(&sync.done);
+            news.push(format!(
+                "{}: {line}. It syncs again when you open it.",
+                crate::books::pretty(root)
+            ));
+        }
+        news
     }
     pub fn new(root: &Path, background: bool) -> Self {
         Self {
@@ -752,6 +820,7 @@ impl App {
         next_backups.sync.script = script;
         next_backups.sync.env = env;
         if sync.job.is_some() || sync.last.is_some() {
+            sync.told = false;
             next_backups.shelved_sync.insert(previous, sync);
         }
     }
@@ -780,6 +849,18 @@ impl App {
     /// existing tick collect it before the writer retries the action.
     pub(crate) fn sync_before_leave(&mut self) -> bool {
         if self.final_sync_done() {
+            if let Some(root) = self.deck.shell.backup.shelved_sync_running() {
+                // This project's final sync is done: keep it counted, so the next try
+                // doesn't start another one.
+                self.deck.shell.backup.sync.leaving = true;
+                self.msg = format!(
+                    "Still syncing {}; try again when it finishes.",
+                    crate::books::pretty(&root)
+                );
+                self.deck.note = self.msg.clone();
+                self.deck.shell.notices.push(&self.msg);
+                return false;
+            }
             return true;
         }
         self.msg = "Syncing before leaving this project; try again when it finishes.".into();
@@ -800,18 +881,11 @@ impl App {
                 .sync
                 .observe(std::time::Instant::now(), dirty);
         }
+        for line in self.deck.shell.backup.shelved_sync_news() {
+            self.deck.shell.notices.push(&line);
+        }
         let sync = &mut self.deck.shell.backup.sync;
-        let finished = sync
-            .job
-            .as_ref()
-            .and_then(|job| match job.result.try_recv() {
-                Ok(result) => Some(result),
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    Some(Err("the sync worker stopped".to_string()))
-                }
-                Err(std::sync::mpsc::TryRecvError::Empty) => None,
-            });
-        if let Some(result) = finished {
+        if let Some(result) = sync.take_finished() {
             sync.job = None;
             match (sync.running.take(), result) {
                 (Some(Sync::Enable { .. }), Ok(_)) => self.request_sync_run(false),

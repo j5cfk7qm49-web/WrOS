@@ -1738,6 +1738,201 @@ fn switching_projects_saves_and_keeps_the_old_projects_sync_in_the_background() 
     );
 }
 
+/// Like `sync_stub`, but a project's runs wait while `hold-<its folder name>` exists in
+/// the stub folder.
+fn held_sync_stub(desk: &mut Desk, sync_reply: &str) -> std::path::PathBuf {
+    let dir = sync_stub(desk, sync_reply);
+    std::fs::write(
+        dir.join("wros-sync"),
+        "import json, os, sys, time\nfrom pathlib import Path\n\
+         request = json.load(sys.stdin)\nhere = Path(os.environ['STUB_DIR'])\n\
+         with open(here / 'log', 'a') as log:\n    log.write(json.dumps(request) + '\\n')\n\
+         while (here / ('hold-' + Path(request['project']).name)).exists():\n\
+         \x20   time.sleep(0.02)\n\
+         print((here / (request['operation'] + '.json')).read_text())\n",
+    )
+    .unwrap();
+    dir
+}
+
+fn runs_for(dir: &std::path::Path, root: &std::path::Path) -> usize {
+    sync_log(dir)
+        .iter()
+        .filter(|r| r["project"] == root.to_string_lossy().as_ref())
+        .count()
+}
+
+/// Switch from a syncing project, whose final sync is held, to another; `next_syncs` says
+/// whether that one syncs too. Returns the stub folder and the old project's hold file.
+fn switch_away_while_syncing(
+    tag: &str,
+    reply: &str,
+    next_syncs: bool,
+) -> (Desk, std::path::PathBuf, std::path::PathBuf) {
+    let mut desk = Desk::open(book(tag, true), 120, 40);
+    let dir = held_sync_stub(&mut desk, reply);
+    let hold = dir.join(format!(
+        "hold-{}",
+        desk.root.file_name().unwrap().to_string_lossy()
+    ));
+    std::fs::write(&hold, "").unwrap();
+    std::fs::write(desk.root.join(".grimoire/sync.json"), "{}").unwrap();
+    desk.app.focus = Focus::Editor;
+    desk.typed("Words saved when switching. ");
+    let next = book(&format!("{tag}-next"), true);
+    if next_syncs {
+        std::fs::write(next.join(".grimoire/sync.json"), "{}").unwrap();
+    }
+    assert!(desk.app.open_book(&next), "{}", desk.app.msg);
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while runs_for(&dir, &desk.root) == 0 && std::time::Instant::now() < end {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert_eq!(
+        runs_for(&dir, &desk.root),
+        1,
+        "the old project's final sync started"
+    );
+    (desk, dir, hold)
+}
+
+#[test]
+fn restart_after_switching_projects_waits_for_the_previous_projects_sync() {
+    use std::sync::{Arc, Mutex};
+    use wros_sys::{Backend, PowerAction, Reply, Request, Simulated};
+    struct Recorded(Arc<Mutex<Vec<Request>>>, Simulated);
+    impl Backend for Recorded {
+        fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
+            self.0.lock().unwrap().push(request.clone());
+            self.1.request(request)
+        }
+    }
+    let (mut desk, dir, hold) = switch_away_while_syncing(
+        "power-shelved",
+        r#"{"ok":true,"data":{"status":"offline","message":"Drive could not be reached"}}"#,
+        false,
+    );
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    desk.app
+        .deck
+        .use_test_backend(Box::new(Recorded(calls.clone(), Simulated::laptop())));
+    let asked = |calls: &Arc<Mutex<Vec<Request>>>| {
+        calls
+            .lock()
+            .unwrap()
+            .contains(&Request::Power(PowerAction::Restart))
+    };
+    desk.app.overlay = Overlay::Deck(Page::Power {
+        action: PowerAction::Restart,
+        yes: true,
+    });
+    desk.key(KeyCode::Enter);
+    for _ in 0..10 {
+        desk.app.tick_deck();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert!(
+        !asked(&calls),
+        "no restart while the previous project syncs"
+    );
+    assert!(desk.app.deck.power_wait.is_some());
+    assert!(
+        desk.app.msg.contains("previous project's sync"),
+        "{}",
+        desk.app.msg
+    );
+    std::fs::remove_file(&hold).unwrap();
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while !asked(&calls) && std::time::Instant::now() < end {
+        desk.app.tick_deck();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert!(asked(&calls), "goes ahead by itself once that sync ends");
+    assert_eq!(sync_log(&dir).len(), 1);
+}
+
+#[test]
+fn quitting_after_a_switch_waits_for_the_previous_projects_sync_and_keeps_its_reply() {
+    let (mut desk, dir, hold) = switch_away_while_syncing(
+        "quit-shelved",
+        r#"{"ok":true,"data":{"status":"offline","message":"Drive could not be reached"}}"#,
+        false,
+    );
+    desk.ctrl('q');
+    assert!(!desk.left);
+    assert!(desk.app.msg.contains("Still syncing"), "{}", desk.app.msg);
+    desk.ctrl('q');
+    assert!(!desk.left, "a second press must not cancel that sync");
+    assert!(!desk.armed);
+    std::fs::remove_file(&hold).unwrap();
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while desk.app.deck.shell.backup.shelved_sync_running().is_some()
+        && std::time::Instant::now() < end
+    {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    desk.app.tick_deck();
+    assert!(
+        desk.app
+            .deck
+            .shell
+            .notices
+            .iter()
+            .any(|n| n.contains("could not be reached") && n.contains("syncs again")),
+        "an unfinished sync of a project not open is said"
+    );
+    // Its reply is still handled when that project reopens.
+    assert!(desk.app.open_book(&desk.root), "{}", desk.app.msg);
+    desk.app.tick_deck();
+    assert!(
+        desk.app
+            .deck
+            .shell
+            .backup
+            .sync
+            .line()
+            .contains("could not be reached")
+    );
+    assert_eq!(sync_log(&dir).len(), 1);
+}
+
+#[test]
+fn quitting_a_syncing_project_while_the_previous_one_syncs_runs_its_final_sync_once() {
+    let (mut desk, dir, hold) = switch_away_while_syncing(
+        "quit-both",
+        r#"{"ok":true,"data":{"status":"synced"}}"#,
+        true,
+    );
+    let here = desk.app.project.root.clone();
+    wait_sync(&mut desk);
+    let before = runs_for(&dir, &here);
+    desk.ctrl('q');
+    assert!(!desk.left);
+    wait_sync(&mut desk);
+    for _ in 0..3 {
+        desk.ctrl('q');
+        assert!(!desk.left, "the previous project still syncs");
+        assert!(!desk.armed);
+        assert!(desk.app.msg.contains("Still syncing"), "{}", desk.app.msg);
+        wait_sync(&mut desk);
+    }
+    assert_eq!(
+        runs_for(&dir, &here),
+        before + 1,
+        "one final sync of the open project, not one per press"
+    );
+    std::fs::remove_file(&hold).unwrap();
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while desk.app.deck.shell.backup.shelved_sync_running().is_some()
+        && std::time::Instant::now() < end
+    {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    desk.ctrl('q');
+    assert!(desk.left, "{}", desk.app.msg);
+    assert_eq!(runs_for(&dir, &here), before + 1);
+}
+
 #[test]
 fn quitting_waits_for_a_final_sync_without_arming_force_quit() {
     let mut desk = Desk::open(book("sync-quit", true), 120, 40);

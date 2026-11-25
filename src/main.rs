@@ -1569,7 +1569,9 @@ fn quit_or_arm(app: &mut App, armed: &mut bool) -> bool {
     if *armed || app.try_quit() {
         return true;
     }
-    if app.deck.shell.backup.sync.job.is_some() {
+    if app.deck.shell.backup.sync.job.is_some()
+        || app.deck.shell.backup.shelved_sync_running().is_some()
+    {
         return false;
     }
     *armed = true;
