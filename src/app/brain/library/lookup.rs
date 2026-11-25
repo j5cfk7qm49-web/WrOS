@@ -7,6 +7,8 @@ use anyhow::{Context, Result, ensure};
 use grimoire_core::sources::Record;
 use serde_json::{Value, json};
 
+use crate::catalogue::query::{doi, isbn};
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Kind {
     Doi,
@@ -21,37 +23,9 @@ pub(super) struct Lookup {
 
 impl Lookup {
     pub(super) fn new(kind: Kind, input: &str) -> Result<Self> {
-        let input = input.trim();
         let id = match kind {
-            Kind::Doi => {
-                let doi = input.strip_prefix("https://doi.org/").unwrap_or(input);
-                let doi = doi.strip_prefix("doi:").unwrap_or(doi).trim();
-                let valid = doi.split_once('/').is_some_and(|(prefix, suffix)| {
-                    prefix.strip_prefix("10.").is_some_and(|digits| {
-                        (4..=9).contains(&digits.len())
-                            && digits.bytes().all(|b| b.is_ascii_digit())
-                    }) && !suffix.is_empty()
-                });
-                ensure!(
-                    valid
-                        && doi.len() <= 256
-                        && !doi.chars().any(|c| c.is_whitespace() || c.is_control()),
-                    "Enter a DOI beginning with 10."
-                );
-                doi.to_owned()
-            }
-            Kind::Isbn => {
-                let digits: String = input
-                    .chars()
-                    .filter(|c| !c.is_whitespace() && *c != '-')
-                    .map(|c| c.to_ascii_uppercase())
-                    .collect();
-                ensure!(
-                    valid_isbn(&digits),
-                    "Enter an ISBN-10 or ISBN-13 with its check digit"
-                );
-                digits
-            }
+            Kind::Doi => doi(input).context("Enter a DOI beginning with 10.")?,
+            Kind::Isbn => isbn(input).context("Enter an ISBN-10 or ISBN-13 with its check digit")?,
         };
         Ok(Self { kind, id })
     }
@@ -118,30 +92,6 @@ impl Lookup {
         record.insert("id".into(), json!("source"));
         Ok(record)
     }
-}
-
-fn valid_isbn(value: &str) -> bool {
-    let length = value.len();
-    let modulus = match length {
-        10 => 11,
-        13 => 10,
-        _ => return false,
-    };
-    let mut checksum = 0;
-    for (index, digit) in value.bytes().enumerate() {
-        let number = match digit {
-            b'0'..=b'9' => usize::from(digit - b'0'),
-            b'X' if length == 10 && index == 9 => 10,
-            _ => return false,
-        };
-        checksum += number
-            * if length == 10 {
-                10 - index
-            } else {
-                1 + 2 * (index % 2)
-            };
-    }
-    checksum.is_multiple_of(modulus)
 }
 
 fn escape_segment(value: &str) -> String {
