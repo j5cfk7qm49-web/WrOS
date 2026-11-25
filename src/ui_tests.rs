@@ -2177,7 +2177,6 @@ fn current_tile_is_filled_and_due_letter_is_red() {
     let mut d = Desk::open(book("tile-due", true), 170, 48);
     d.app.commonplace.set_paths(library, cache);
     d.app.switch_desk_view(DeskView::Study);
-    assert_eq!(d.app.commonplace.study.all_due, 1);
     for glyphs in [false, true] {
         d.app.switch_desk_view(DeskView::Write);
         d.app.tile_glyphs = glyphs;

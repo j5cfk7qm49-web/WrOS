@@ -58,7 +58,7 @@ impl DeskView {
 pub struct CommonplaceDesk {
     pub(super) store: Option<PagedBrain>,
     pub(super) read: ReadDesk,
-    pub(crate) study: StudyDesk,
+    pub(super) study: StudyDesk,
     outline: Option<Outline>,
     other_outline: Option<Outline>,
     active_side: bool,
