@@ -162,6 +162,36 @@ The owner left the how to me; I chose 1.
 The `F2 off` hint in the mock-up is illustrative. The real off switch is the Settings row; any
 in-picker key is the builder's call, and must not clash with existing picker keys.
 
+## Calls made after the builder check (mine, for the owner to check)
+
+1. **Add a source keeps what the writer saves.**
+   - A catalogue pick in Add a source fills the form. The writer may correct it. On save, the
+     Library edition and the project record are both made from the saved form, so a later
+     "Details changed. Update?" review never offers to undo their corrections.
+   - The form gains rows for every field a pick can fill and MLA needs: Translator, ISBN,
+     Place (`publisher-place`) and Accessed. Nothing a pick filled is carried along hidden.
+   - The type list grows to cover what Crossref returns: Conference paper, Report, Thesis and
+     Other, beside Book, Chapter, Journal article and Web page.
+   - A record whose CSL type isn't in the list keeps its own type rather than becoming Book.
+2. **Web addresses are fetched only on paste or Enter, never while being typed.** A
+   half-typed address can name a different, real host. The catalogue APIs still search as you
+   type.
+3. **Editions join their book.** A pick whose Open Library work ID (or DOI, for Crossref)
+   matches a work already in the Library is added as an edition of that work, not as a new
+   work.
+   - Picking the same edition twice reuses it.
+   - `accept_import` (or a sibling) must report which work and edition it created or matched,
+     so the picker can cite it.
+4. **Book author names.** Open Library gives one string per name. Split it into family and
+   given names by rule:
+   - The last word is the family name, keeping lower-case particles ("de", "van", "von",
+     "wa", "da", "del", "le", "la") with it.
+   - The whole name stays `literal` when the rule can't tell (one word, a comma already
+     present, an organisation).
+   - Crossref's structured names are used as they come.
+   - Fixtures cover "Gabriel García Márquez" (known to split wrong) and "Ngũgĩ wa Thiong'o".
+   - See the owner's decision below on whether `@` shows the result before citing.
+
 ## Left to the builder
 
 - Module layout, thread and channel plumbing, and where polling hooks into the tick.
