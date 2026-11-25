@@ -528,6 +528,145 @@ fn offline_shows_one_quiet_line() {
 }
 
 #[test]
+fn add_a_source_fills_from_a_search_and_saves_the_corrected_version() {
+    use grimoire_brain::bounded_store::PagedBrain;
+    use grimoire_core::sources;
+
+    let (mut desk, folder, _) = catalogue_writer("catalogue-corrected-source", solitude_fixture());
+    let library = folder.path().join("Brain");
+    let cache = folder.path().join("cache");
+    drop(PagedBrain::open_library(&library, &cache).unwrap());
+    desk.app.run_action(palette::Action::AddProjectSource);
+    desk.typed(SOLITUDE_QUERY);
+    poll_catalogue(&mut desk, |desk| desk.shows(SOLITUDE_TITLE));
+    desk.key(KeyCode::Enter);
+    poll_catalogue(&mut desk, |desk| desk.shows("Publisher [Harper Perennial]"));
+    assert!(desk.shows("Authors (Family, Given; …) [García Márquez, Gabriel]"));
+    assert!(
+        desk.app
+            .library_store_if_present()
+            .unwrap()
+            .unwrap()
+            .find_editions(SOLITUDE_TITLE, 1)
+            .unwrap()
+            .is_empty()
+    );
+
+    desk.keys(&[KeyCode::Tab; 7]);
+    desk.typed(" Classics");
+    desk.key(KeyCode::Enter);
+
+    let project = sources::Snapshot::open(&desk.root).unwrap();
+    let (_, record) = project.sources.iter().next().unwrap();
+    assert_eq!(record["publisher"], "Harper Perennial Classics");
+    let link = sources::library_provenance(record).unwrap();
+    let store = desk.app.library_store_if_present().unwrap().unwrap();
+    let (edition, metadata) = store.find_editions(SOLITUDE_TITLE, 1).unwrap().remove(0);
+    assert_eq!(link.identity.work_id, edition.work.external_id());
+    assert_eq!(
+        link.identity.edition_id,
+        grimoire_brain::model::NodeId::Note(edition.edition).external_id()
+    );
+    assert_eq!(metadata.bibliography["publisher"], "Harper Perennial Classics");
+    assert!(!desk.app.review_library_changes(false));
+}
+
+#[test]
+fn a_conference_paper_keeps_its_type() {
+    use crate::catalogue::{crossref, fetch::FixtureFetch, openlibrary};
+    use grimoire_core::sources;
+
+    let query = "catalogue studies";
+    let fixture = FixtureFetch::new()
+        .reply(&openlibrary::search_url(query), 200, r#"{"docs":[]}"#)
+        .reply(
+            &crossref::search_url(query),
+            200,
+            r#"{"message":{"items":[
+                {"type":"proceedings-article","title":["Searching Catalogues"]},
+                {"type":"reference-entry","title":["Catalogue Indexes"]}
+            ]}}"#,
+        );
+    let (mut desk, folder, _) = catalogue_writer("catalogue-form-types", fixture);
+    for (title, label) in [
+        ("Searching Catalogues", "Type [Conference paper]"),
+        ("Catalogue Indexes", "Type [entry-encyclopedia]"),
+    ] {
+        desk.app.run_action(palette::Action::AddProjectSource);
+        desk.typed(query);
+        poll_catalogue(&mut desk, |desk| desk.shows("Catalogue Indexes"));
+        if title == "Catalogue Indexes" {
+            desk.key(KeyCode::Down);
+        }
+        desk.key(KeyCode::Enter);
+        assert!(desk.shows(label));
+        assert!(desk.shows(&format!("Title [{title}]")));
+        desk.key(KeyCode::Enter);
+    }
+
+    let project = sources::Snapshot::open(&desk.root).unwrap();
+    assert_eq!(
+        project.sources.get("searchingcatalogues").unwrap()["type"],
+        "paper-conference"
+    );
+    assert_eq!(
+        project.sources.get("catalogueindexes").unwrap()["type"],
+        "entry-encyclopedia"
+    );
+    assert!(!folder.path().join("Brain").exists());
+}
+
+#[test]
+fn the_form_shows_translator_isbn_place_and_accessed() {
+    use crate::catalogue::fetch::FixtureFetch;
+    use grimoire_core::sources;
+    use serde_json::json;
+
+    let (mut desk, _folder, fetch) = catalogue_writer("catalogue-form-fields", FixtureFetch::new());
+    desk.app.run_action(palette::Action::AddProjectSource);
+    desk.draw();
+    for label in ["Translator", "ISBN []", "Place []", "Accessed"] {
+        assert!(desk.shows(label), "missing {label}");
+    }
+    desk.keys(&[KeyCode::Tab; 3]);
+    desk.typed("Crime and Punishment");
+    desk.keys(&[KeyCode::BackTab; 4]);
+    desk.typed("2026-11-24");
+    desk.key(KeyCode::BackTab);
+    desk.typed("9780140621808");
+    desk.key(KeyCode::BackTab);
+    desk.typed("London");
+    desk.key(KeyCode::BackTab);
+    desk.typed("Pevear, Richard; Volokhonsky, Larissa");
+    desk.key(KeyCode::Enter);
+
+    let project = sources::Snapshot::open(&desk.root).unwrap();
+    let (_, record) = project.sources.iter().next().unwrap();
+    assert_eq!(
+        record["translator"],
+        json!([
+            {"family": "Pevear", "given": "Richard"},
+            {"family": "Volokhonsky", "given": "Larissa"}
+        ])
+    );
+    assert_eq!(record["ISBN"], "9780140621808");
+    assert_eq!(record["publisher-place"], "London");
+    assert_eq!(record["accessed"], json!({"date-parts": [[2026, 11, 24]]}));
+
+    desk.app.run_action(palette::Action::ProjectSources);
+    desk.key(KeyCode::Enter);
+    for value in [
+        "[Pevear, Richard; Volokhonsky",
+        "ISBN [9780140621808]",
+        "Place [London]",
+        "[2026-11-24]",
+    ] {
+        assert!(desk.shows(value), "missing {value}");
+    }
+    assert!(fetch.requests().is_empty());
+}
+
+#[test]
 fn rc28_view_menu_reaches_each_other_desk_in_shortcut_order() {
     use crate::app::brain::DeskView;
     use crate::palette::{Action, Title};

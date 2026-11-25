@@ -79,7 +79,8 @@ enum Page {
     },
     Form {
         original_key: Option<String>,
-        kind: usize,
+        catalogue_record: Option<sources::Record>,
+        kind: String,
         fields: Vec<String>,
         field: usize,
     },
@@ -152,13 +153,17 @@ struct LibraryChange {
     proposed: sources::Record,
 }
 
-const TYPES: [(&str, &str); 4] = [
+const TYPES: [(&str, &str); 8] = [
     ("Book", "book"),
     ("Chapter", "chapter"),
     ("Journal article", "article-journal"),
     ("Web page", "webpage"),
+    ("Conference paper", "paper-conference"),
+    ("Report", "report"),
+    ("Thesis", "thesis"),
+    ("Other", "document"),
 ];
-const FIELDS: [(&str, &str); 13] = [
+const FIELDS: [(&str, &str); 17] = [
     ("Key (leave blank to suggest one)", "id"),
     ("Title", "title"),
     ("Authors (Family, Given; …)", "author"),
@@ -172,7 +177,14 @@ const FIELDS: [(&str, &str); 13] = [
     ("Edition", "edition"),
     ("DOI", "DOI"),
     ("URL", "URL"),
+    ("Translator (Family, Given; …)", "translator"),
+    ("Place", "publisher-place"),
+    ("ISBN", "ISBN"),
+    ("Accessed (YYYY, YYYY-MM or YYYY-MM-DD)", "accessed"),
 ];
+const FORM_SEARCH: usize = 0;
+const FORM_TYPE: usize = 1;
+const FORM_FIELD_START: usize = 2;
 
 impl App {
     fn sources_dialog(&mut self, page: Page) {
@@ -185,7 +197,16 @@ impl App {
                 Err(e) => (None, format!("{e:#}")),
             }
         };
-        let catalogue = matches!(page, Page::Pick { .. } | Page::BrainPick(_)).then(|| {
+        let catalogue = matches!(
+            page,
+            Page::Pick { .. }
+                | Page::BrainPick(_)
+                | Page::Form {
+                    original_key: None,
+                    ..
+                }
+        )
+        .then(|| {
             CatalogueSearch(Rc::new(RefCell::new(CatalogueState {
                 search: self.new_catalogue_search(),
                 resolving: None,
@@ -437,6 +458,17 @@ impl App {
         dialog: &mut SourceDialog,
         mut record: sources::Record,
     ) -> Result<()> {
+        if matches!(dialog.page, Page::Form { original_key: None, .. }) {
+            dialog.close_catalogue_editions();
+            dialog.page = form(Some(("", &record)));
+            dialog.query.clear();
+            dialog.selected = 0;
+            if let Some(catalogue) = &dialog.catalogue {
+                catalogue.0.borrow_mut().search.edit("", Instant::now());
+            }
+            dialog.notice.clear();
+            return Ok(());
+        }
         let Page::Pick { target, .. } = &dialog.page else {
             return Ok(());
         };
@@ -1025,24 +1057,43 @@ impl App {
             },
             Page::Form {
                 original_key,
+                catalogue_record,
                 kind,
                 fields,
                 field,
             } => match key {
-                Key::Tab | Key::Down => *field = (*field + 1) % (FIELDS.len() + 1),
-                Key::BackTab | Key::Up => *field = (*field + FIELDS.len()) % (FIELDS.len() + 1),
-                Key::Left if *field == 0 && original_key.is_none() => {
-                    *kind = (*kind + TYPES.len() - 1) % TYPES.len()
+                Key::Up | Key::Down | Key::Char(_) | Key::Backspace if *field == FORM_SEARCH => {
+                    update_search(&mut dialog.query, &mut dialog.selected, key);
                 }
-                Key::Right if *field == 0 && original_key.is_none() => {
-                    *kind = (*kind + 1) % TYPES.len()
+                Key::Tab | Key::Down => {
+                    *field = if *field == FIELDS.len() + 1 {
+                        usize::from(original_key.is_some())
+                    } else {
+                        *field + 1
+                    };
+                }
+                Key::BackTab | Key::Up => {
+                    *field = if *field == usize::from(original_key.is_some()) {
+                        FIELDS.len() + 1
+                    } else {
+                        *field - 1
+                    };
+                }
+                Key::Left | Key::Right if *field == FORM_TYPE && original_key.is_none() => {
+                    let index = TYPES.iter().position(|(_, csl)| *csl == kind.as_str());
+                    let next = if key == Key::Left {
+                        (index.unwrap_or(0) + TYPES.len() - 1) % TYPES.len()
+                    } else {
+                        (index.unwrap_or(TYPES.len() - 1) + 1) % TYPES.len()
+                    };
+                    *kind = TYPES[next].1.to_owned();
                 }
                 Key::Enter => {
                     if let Some(Page::Pick { chosen: Some(cite), .. }) =
                         dialog.editing_citation.as_deref_mut()
                     {
                         let prior = cite.record(dialog.snapshot.as_ref());
-                        let result = form_record(prior, *kind, fields);
+                        let result = form_record(prior, kind, fields);
                         match result {
                             Ok(record) => {
                                 cite.works_cited = source_line(&record);
@@ -1056,29 +1107,40 @@ impl App {
                         self.overlay = Overlay::ProjectSources(dialog);
                         return;
                     }
-                    let result = dialog
-                        .snapshot
-                        .as_mut()
-                        .ok_or_else(|| anyhow::anyhow!("The source file cannot be read."))
-                        .and_then(|snapshot| {
-                            let mut next = snapshot.clone();
-                            let prior = original_key
-                                .as_deref()
-                                .and_then(|key| next.sources.get(key));
-                            let mut record = form_record(prior, *kind, fields)?;
-                            if let Some(key) = original_key {
-                                next.sources.update(key, record)?;
-                            } else {
-                                if !record.contains_key("id") {
-                                    record.insert(
-                                        "id".into(),
-                                        json!(next.sources.suggested_key(&record)),
-                                    );
-                                }
-                                next.sources.add(record)?;
+                    let result = (|| -> Result<()> {
+                        let mut next = dialog
+                            .snapshot
+                            .clone()
+                            .ok_or_else(|| anyhow::anyhow!("The source file cannot be read."))?;
+                        let prior = original_key
+                            .as_deref()
+                            .and_then(|key| next.sources.get(key))
+                            .or(catalogue_record.as_ref());
+                        let mut record = form_record(prior, kind, fields)?;
+                        if let Some(key) = original_key {
+                            next.sources.update(key, record)?;
+                        } else {
+                            let key = record.get("id").and_then(Value::as_str).map_or_else(
+                                || next.sources.suggested_key(&record),
+                                str::to_owned,
+                            );
+                            record.insert("id".into(), Value::String(key.clone()));
+                            next.sources.add(record)?;
+                            if catalogue_record.is_some()
+                                && let Ok(Some(store)) = self.library_store_if_present()
+                            {
+                                let record = next.sources.get(&key).expect("source just added");
+                                let edition = keep_in_library(store, record)?;
+                                let accepted = sources::accepted_library_record(
+                                    &key,
+                                    library_identity(edition),
+                                    record,
+                                )?;
+                                next.sources.update(&key, accepted)?;
                             }
-                            next.save(&dialog.book)
-                        });
+                        }
+                        next.save(&dialog.book)
+                    })();
                     match result {
                         Ok(()) => {
                             self.sources_saved();
@@ -1087,8 +1149,10 @@ impl App {
                         Err(e) => dialog.notice = format!("{e:#}"),
                     }
                 }
-                _ if *field > 0 && !(*field == 1 && original_key.is_some()) => {
-                    edit(&mut fields[*field - 1], key, 2048)
+                _ if *field >= FORM_FIELD_START
+                    && !(*field == FORM_FIELD_START && original_key.is_some()) =>
+                {
+                    edit(&mut fields[*field - FORM_FIELD_START], key, 2048);
                 }
                 _ => (),
             },
@@ -1187,9 +1251,17 @@ impl App {
 impl SourceDialog {
     fn picker_catalogue(&self) -> Option<&CatalogueSearch> {
         // The Brain's picker receives its catalogue rows and keys in the Library task.
-        self.catalogue
-            .as_ref()
-            .filter(|_| matches!(self.page, Page::Pick { chosen: None, .. }))
+        self.catalogue.as_ref().filter(|_| {
+            matches!(
+                self.page,
+                Page::Pick { chosen: None, .. }
+                    | Page::Form {
+                        original_key: None,
+                        field: FORM_SEARCH,
+                        ..
+                    }
+            )
+        })
     }
 
     fn resolving_catalogue(&self) -> bool {
@@ -1231,10 +1303,11 @@ impl SourceDialog {
             catalogue.0.borrow_mut().search.tick(now);
             return None;
         }
-        if !matches!(self.page, Page::Pick { chosen: None, .. }) {
-            return None;
-        }
-        let local_count = self.matches().len();
+        let local_count = match self.page {
+            Page::Pick { chosen: None, .. } => self.matches().len(),
+            Page::Form { original_key: None, .. } => 0,
+            _ => return None,
+        };
         let mut catalogue = catalogue.0.borrow_mut();
         // Open Library can arrive after Crossref. Keep the selected result in view when
         // it moves down to make room for books.
@@ -1268,6 +1341,9 @@ impl SourceDialog {
     }
 
     fn matches(&self) -> Vec<(&str, &sources::Record)> {
+        if matches!(self.page, Page::Form { .. }) {
+            return Vec::new();
+        }
         let query = self.query.trim().to_lowercase();
         self.snapshot
             .iter()
@@ -1290,9 +1366,14 @@ impl SourceDialog {
 
     pub fn paste(&mut self, input: &str) {
         let target = match &mut self.page {
-            Page::List | Page::BrainPick(_) | Page::Pick { chosen: None, .. } => {
-                Some(&mut self.query)
-            }
+            Page::List
+            | Page::BrainPick(_)
+            | Page::Pick { chosen: None, .. }
+            | Page::Form {
+                original_key: None,
+                field: FORM_SEARCH,
+                ..
+            } => Some(&mut self.query),
             Page::Pick {
                 chosen: Some(cite),
                 field: 0,
@@ -1308,8 +1389,10 @@ impl SourceDialog {
                 fields,
                 field,
                 ..
-            } if *field > 0 && !(*field == 1 && original_key.is_some()) => {
-                Some(&mut fields[*field - 1])
+            } if *field >= FORM_FIELD_START
+                && !(*field == FORM_FIELD_START && original_key.is_some()) =>
+            {
+                Some(&mut fields[*field - FORM_FIELD_START])
             }
             _ => None,
         };
@@ -1454,7 +1537,7 @@ fn field_value(record: Option<&sources::Record>, key: &str) -> String {
         return String::new();
     };
     match key {
-        "author" | "editor" => record
+        "author" | "editor" | "translator" => record
             .get(key)
             .and_then(Value::as_array)
             .into_iter()
@@ -1471,7 +1554,7 @@ fn field_value(record: Option<&sources::Record>, key: &str) -> String {
             })
             .collect::<Vec<_>>()
             .join("; "),
-        "issued" => {
+        "issued" | "accessed" => {
             if let Some(date) = record.get(key).and_then(|date| date["literal"].as_str()) {
                 return date.to_owned();
             }
@@ -1500,33 +1583,26 @@ fn field_value(record: Option<&sources::Record>, key: &str) -> String {
 }
 
 fn form(existing: Option<(&str, &sources::Record)>) -> Page {
-    let record = existing.map(|(_, record)| record);
+    let (key, record) = existing.map_or(("", None), |(key, record)| (key, Some(record)));
     Page::Form {
-        original_key: existing.map(|(key, _)| key.to_owned()),
-        kind: record
-            .and_then(|record| {
-                TYPES
-                    .iter()
-                    .position(|(_, csl)| *csl == text(record, "type"))
-            })
-            .unwrap_or(0),
+        original_key: (!key.is_empty()).then(|| key.to_owned()),
+        catalogue_record: record.filter(|_| key.is_empty()).cloned(),
+        kind: record.map_or(TYPES[0].1, |record| text(record, "type")).to_owned(),
         fields: FIELDS
             .iter()
             .map(|(_, key)| field_value(record, key))
             .collect(),
-        field: 0,
+        field: if record.is_some() { FORM_TYPE } else { FORM_SEARCH },
     }
 }
 
 fn form_record(
     prior: Option<&sources::Record>,
-    kind: usize,
+    kind: &str,
     fields: &[String],
 ) -> Result<sources::Record> {
     let mut record = prior.cloned().unwrap_or_default();
-    if prior.is_none() {
-        record.insert("type".into(), json!(TYPES[kind].1));
-    }
+    record.insert("type".into(), json!(kind));
     anyhow::ensure!(!fields[1].trim().is_empty(), "Enter the title.");
     for ((_, key), field) in FIELDS.iter().zip(fields) {
         let field = field.trim();
@@ -1538,15 +1614,36 @@ fn form_record(
             continue;
         }
         let value = match *key {
-            "author" | "editor" => Value::Array(field.split(';').map(str::trim).filter(|n| !n.is_empty()).map(|name| {
-                name.split_once(',').map_or_else(|| json!({"family": name}), |(family, given)| json!({"family": family.trim(), "given": given.trim()}))
-            }).collect()),
-            "issued" => {
-                let date = field.split('-').map(str::parse::<i32>).collect::<std::result::Result<Vec<_>, _>>()?;
-                anyhow::ensure!((1..=3).contains(&date.len()) && date[0] > 0
-                    && date.get(1).is_none_or(|m| (1..=12).contains(m))
-                    && date.get(2).is_none_or(|d| chrono::NaiveDate::from_ymd_opt(date[0], date[1] as u32, *d as u32).is_some()),
-                    "Enter a date in YYYY, YYYY-MM or YYYY-MM-DD form.");
+            "author" | "editor" | "translator" => Value::Array(
+                field
+                    .split(';')
+                    .map(str::trim)
+                    .filter(|n| !n.is_empty())
+                    .map(|name| {
+                        name.split_once(',').map_or_else(
+                            || json!({"family": name}),
+                            |(family, given)| {
+                                json!({"family": family.trim(), "given": given.trim()})
+                            },
+                        )
+                    })
+                    .collect(),
+            ),
+            "issued" | "accessed" => {
+                let date = field
+                    .split('-')
+                    .map(str::parse::<i32>)
+                    .collect::<std::result::Result<Vec<_>, _>>()?;
+                anyhow::ensure!(
+                    (1..=3).contains(&date.len())
+                        && date[0] > 0
+                        && date.get(1).is_none_or(|m| (1..=12).contains(m))
+                        && date.get(2).is_none_or(|&day| {
+                            chrono::NaiveDate::from_ymd_opt(date[0], date[1] as u32, day as u32)
+                                .is_some()
+                        }),
+                    "Enter a date in YYYY, YYYY-MM or YYYY-MM-DD form."
+                );
                 json!({"date-parts": [date]})
             }
             _ => json!(field),
@@ -1684,7 +1781,12 @@ pub(super) fn draw(f: &mut Frame, dialog: &SourceDialog, area: Rect, t: &Theme) 
     } else {
         68
     };
-    let r = centred(area, width.min(area.width), 20.min(area.height));
+    let height = if matches!(dialog.page, Page::Form { .. }) {
+        24
+    } else {
+        20
+    };
+    let r = centred(area, width.min(area.width), height.min(area.height));
     f.render_widget(Clear, r);
     let title = match &dialog.page {
         Page::List => "Project sources",
@@ -1826,7 +1928,7 @@ pub(super) fn draw(f: &mut Frame, dialog: &SourceDialog, area: Rect, t: &Theme) 
                 "Enter save   Shift-Tab back   Esc cancel"
             }
         }
-        Page::Pick { chosen: None, .. } if dialog.catalogue_view.is_some() => {
+        Page::Pick { chosen: None, .. } | Page::Form { .. } if dialog.catalogue_view.is_some() => {
             lines = draw_editions(dialog, dialog.catalogue_view.unwrap_or(0), inner, active);
             "↑/↓ choose   Enter select   ←/Esc back"
         }
@@ -1939,46 +2041,84 @@ pub(super) fn draw(f: &mut Frame, dialog: &SourceDialog, area: Rect, t: &Theme) 
             kind,
             fields,
             field,
+            ..
         } => {
-            let type_name = original_key
-                .as_ref()
-                .and_then(|key| {
-                    if let Some(Page::Pick { chosen: Some(cite), .. }) =
-                        dialog.editing_citation.as_deref()
+            let searching = *field == FORM_SEARCH;
+            let width = usize::from(inner.width);
+            if original_key.is_none() && let Some(catalogue) = &dialog.catalogue {
+                let catalogue = catalogue.0.borrow();
+                lines.push(Line::styled(
+                    truncate(&format!("Search [{}]", dialog.query), width),
+                    if searching { active } else { Style::default() },
+                ));
+                lines.push(catalogue_header(&catalogue));
+                if let Some(status) = catalogue_status(&catalogue) {
+                    lines.push(Line::from(truncate(status, width)));
+                }
+                if searching {
+                    let width = width.saturating_sub(2);
+                    let room = usize::from(inner.height)
+                        .saturating_sub(lines.len() + 4)
+                        .min(5);
+                    let first = (dialog.selected + 1).saturating_sub(room);
+                    for (i, hit) in catalogue
+                        .search
+                        .hits()
+                        .iter()
+                        .enumerate()
+                        .skip(first)
+                        .take(room)
                     {
-                        cite.record(dialog.snapshot.as_ref())
-                    } else {
-                        dialog.snapshot.as_ref()?.sources.get(key)
+                        lines.push(picker_row(
+                            &catalogue_row(hit, width),
+                            i == dialog.selected,
+                            width,
+                            active,
+                        ));
                     }
-                })
-                .map_or(TYPES[*kind].0, |record| text(record, "type"));
+                }
+            }
+            let type_name = if original_key.is_some() {
+                kind.as_str()
+            } else {
+                TYPES
+                    .iter()
+                    .find_map(|&(label, csl)| (csl == kind.as_str()).then_some(label))
+                    .unwrap_or(kind.as_str())
+            };
             lines.push(Line::styled(
-                format!("Type [{type_name}]"),
-                if *field == 0 {
+                truncate(&format!("Type [{type_name}]"), width),
+                if *field == FORM_TYPE {
                     active
                 } else {
                     Style::default()
                 },
             ));
-            let room = inner.height.saturating_sub(5).max(1) as usize;
+            let room = usize::from(inner.height)
+                .saturating_sub(lines.len() + 1 + usize::from(!dialog.notice.is_empty()))
+                .max(1);
             for (i, ((label, _), entry)) in FIELDS
                 .iter()
                 .zip(fields)
                 .enumerate()
-                .skip(field.saturating_sub(room))
+                .skip(field.saturating_sub(room + FORM_FIELD_START - 1))
                 .take(room)
             {
                 let row = format!("{label} [{entry}]");
                 lines.push(Line::styled(
-                    truncate(&row, inner.width as usize),
-                    if i + 1 == *field {
+                    truncate(&row, width),
+                    if i + FORM_FIELD_START == *field {
                         active
                     } else {
                         Style::default()
                     },
                 ));
             }
-            "←/→ type   Tab field   Enter save   Esc cancel"
+            if searching {
+                "↑/↓ choose  → editions  Enter search/pick  Tab form  Esc cancel"
+            } else {
+                "←/→ type   Tab field   Enter save   Esc cancel"
+            }
         }
         Page::Import {
             path,
