@@ -29,11 +29,22 @@ and shows any citation keys it would leave without a source.
 **Tools › Notes › Resolve source conflict…** lets you choose which record to
 keep when both this desk and Google Drive changed the same source.
 
-Type `@` at the start of a word to choose a project source. Type `@@` for a
-literal at sign. Use the arrow keys and Enter to select a source, then enter a
-page or range if needed. Tab moves to **Author named in my sentence** and **Add
-another source**. Enter inserts the citation and Esc cancels. One Undo removes
-the inserted citation. Project sources remain available offline.
+Type `@` at the start of a word to pick a source. Type `@@` for a literal at
+sign. Project and Library matches appear first, followed by **Catalogue** rows.
+Search by title, author, ISBN or DOI. To look up a web page, paste its HTTPS
+address or type it and press Enter. Use `↑` and `↓` to select a row, or press
+`→` on a catalogue book to see its editions. Press Enter to pick the source.
+You can also search from the top of **Add a source** to fill in the form.
+
+The page step shows the source's Works Cited entry under its key. Press `e`
+to edit the source details. Saving takes you back to the page step, where you
+can enter a page or range if needed. Tab moves to **Author named in my sentence**
+and **Add another source**. Enter inserts the citation and Esc cancels. One
+Undo removes the inserted citation.
+
+The **Catalogue** header shows whether online search is on. To turn it off,
+open **Settings › Writing › Manuscript** and toggle **Search catalogues online
+from @ and Add a source**. Project and Library sources remain available offline.
 
 Press `p` in Export to check citation keys and paper details before writing Word
 or PDF. MLA export formats the citations and adds Works Cited when the paper

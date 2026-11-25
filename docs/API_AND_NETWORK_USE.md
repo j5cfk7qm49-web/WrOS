@@ -109,17 +109,37 @@ or removing a local file if the timeline checkpoint fails.
 
 ## Library lookups
 
-- **Crossref** receives the DOI typed into a Library lookup. WrOS requests
-  the single work through HTTPS and shows the result for review. [Crossref REST API](https://www.crossref.org/documentation/retrieve-metadata/rest-api)
-- **Open Library** receives the ISBN typed into a Library lookup. WrOS uses
-  a single HTTPS Books API request to obtain edition details and shows them
-  for review. [Open Library Books API](https://openlibrary.org/dev/docs/api/books)
+Catalogue search is available from `@` in Write, Brain and Library, and from
+the search line in **Add a source**. While typing, WrOS waits for at least
+three non-space characters and a 500 ms pause. Pasting the search line or
+pressing Enter with no result selected submits it without the typing pause.
+Live search allows one request in flight per catalogue and at least one second
+between requests to the same catalogue. Each search keeps up to 16 recent replies
+in memory and discards replies for older input.
 
-Both requests use the generic User-Agent `WrOS Library`. They send no
-project text, notes, account identifiers, email or credentials. Lookups
-start only on Enter. The desk keeps up to 16 results in memory and limits
-itself to one request at a time. Imported results remain in the local
-Brain journal.
+- **Open Library** (`openlibrary.org`) and **Crossref** (`api.crossref.org`)
+  receive the search line for text searches. An exact lookup sends only the
+  normalized ISBN to Open Library or the normalized DOI to Crossref. Opening
+  the editions list sends Open Library the work ID and paging parameters.
+- **Author names** are resolved when you pick an Open Library book. For an
+  uncached name, Open Library receives its author ID. When available, WrOS sends
+  the Wikidata person ID to `query.wikidata.org` and the Library of Congress
+  name authority ID to `id.loc.gov` to look up the citation form of the name.
+  The resolved names are cached locally.
+- **Web pages** are fetched from the site named in the address, using its URL
+  to read citation metadata. The fetch starts only when you paste the address
+  or submit it with Enter.
+
+Project text, notes, the sentence around `@`, and account details stay local
+during these lookups. Every request uses HTTPS, the generic User-Agent
+`WrOS Library` and a 10-second timeout. Catalogue API replies are capped at
+1 MiB and redirects are disabled. Web page reads stop at `</head>` or 2 MiB,
+whichever comes first, and can follow up to three redirects over HTTPS.
+
+**Settings › Writing › Manuscript › Search catalogues online from @ and Add a
+source** is on by default. Turning it off leaves local sources available in
+the pickers. The Library's `d` (DOI) and `l` (ISBN) shortcuts still send an
+exact lookup when you press Enter.
 
 ## Local system integration
 
