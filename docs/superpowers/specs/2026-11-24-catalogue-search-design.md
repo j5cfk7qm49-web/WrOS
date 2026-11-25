@@ -182,14 +182,32 @@ in-picker key is the builder's call, and must not clash with existing picker key
    - Picking the same edition twice reuses it.
    - `accept_import` (or a sibling) must report which work and edition it created or matched,
      so the picker can cite it.
-4. **Book author names.** Open Library gives one string per name. Split it into family and
-   given names by rule:
-   - The last word is the family name, keeping lower-case particles ("de", "van", "von",
-     "wa", "da", "del", "le", "la") with it.
-   - The whole name stays `literal` when the rule can't tell (one word, a comma already
-     present, an organisation).
+4. **Book author names come from the Library of Congress name file** (owner asked whether a
+   database splits names; checked 2026-11-24). Its headings are the cataloguers' citation form:
+   "García Márquez, Gabriel, 1927-2014", "Beauvoir, Simone de, 1908-1986",
+   "Ngũgĩ wa Thiongʼo, 1938-2025" (no comma: kept whole). Resolve once per author, when a book
+   is picked (never per keystroke), and cache the answer locally. Try these in order:
+   1. The Open Library author record (`/authors/OLxxxA.json`). Its `remote_ids.wikidata` gives
+      the person.
+   2. Wikidata's LC authority ID for that person (property P244), from one SPARQL request to
+      `query.wikidata.org`.
+   3. `https://id.loc.gov/authorities/names/<id>.json`. The heading is in the body, and also in
+      the `X-PrefLabel` header of a HEAD request (seen 2026-11-24). Drop the trailing dates.
+      "Family, Given" becomes `family`/`given`; a heading with no comma stays `literal`.
+   4. When there's no link, use the Open Library `personal_name` if it contains a comma
+      (right for Beauvoir and García Márquez; often unsplit for others).
+   5. Last, the rule: the last word is the family name, keeping lower-case particles ("de",
+      "van", "von", "wa", "da", "del", "le", "la") with it. A name stays `literal` when unclear.
+   - Don't use Wikidata's own family/given-name properties. They hold legal names ("Bertrand de
+     Beauvoir") and split compound surnames into separate entries.
+   - Don't use id.loc.gov's name search without an ID. It returns namesakes first ("Morrison,
+     Anthony P." before "Morrison, Toni").
+   - These steps send only the author's identifiers, never the search line. List
+     `query.wikidata.org` and `id.loc.gov` in `docs/API_AND_NETWORK_USE.md`. Every request
+     follows the Constraints' network rules.
    - Crossref's structured names are used as they come.
-   - Fixtures cover "Gabriel García Márquez" (known to split wrong) and "Ngũgĩ wa Thiong'o".
+   - Test fixtures cover each step and the fallbacks, including "Gabriel García Márquez" and
+     "Ngũgĩ wa Thiong'o".
    - See the owner's decision below on whether `@` shows the result before citing.
 
 ## Left to the builder
