@@ -470,6 +470,42 @@ impl LibraryDesk {
     }
 }
 
+// The catalogue pickers call this in later tasks.
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn keep_in_library(
+    store: &mut PagedBrain,
+    record: &sources::Record,
+) -> anyhow::Result<EditionKey> {
+    let edition = Edition::new(record.clone(), Utc::now().timestamp());
+    let fingerprint = sources::library_fingerprint(record)?;
+    let candidates = store
+        .find_editions(edition.title(), 32)
+        .map_err(anyhow::Error::msg)?;
+    if let Some((key, _)) = candidates.iter().find(|(_, existing)| {
+        sources::library_fingerprint(&existing.bibliography)
+            .is_ok_and(|found| found == fingerprint)
+    }) {
+        return Ok(*key);
+    }
+
+    let work = record.get("x-wros-catalogue").and_then(|catalogue| {
+        candidates.into_iter().find_map(|(key, existing)| {
+            let existing = existing.bibliography.get("x-wros-catalogue")?;
+            let same = ["openlibrary_work", "doi"].into_iter().any(|field| {
+                catalogue[field]
+                    .as_str()
+                    .is_some_and(|id| !id.is_empty() && existing[field].as_str() == Some(id))
+            });
+            same.then_some(key.work)
+        })
+    });
+    match work {
+        Some(work) => store.add_edition(work, edition),
+        None => store.create_work(Place::default(), edition),
+    }
+    .map_err(anyhow::Error::msg)
+}
+
 fn update_metadata(edition: &mut Edition, input: &str) -> anyhow::Result<()> {
     use serde_json::{Value, json};
     let (field, value) = input
@@ -715,6 +751,36 @@ fn row_style(theme: &Theme, selected: bool) -> Style {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn catalogue_picks_join_their_work_and_reuse_editions() {
+        let fixture = tempfile::tempdir().unwrap();
+        let mut store = PagedBrain::open(fixture.path(), 1).unwrap();
+        let record = |publisher: &str, year: u16, work: &str| {
+            serde_json::json!({
+                "type": "book",
+                "title": "Crime and Punishment",
+                "publisher": publisher,
+                "issued": {"date-parts": [[year]]},
+                "x-wros-catalogue": {"openlibrary_work": work},
+            })
+            .as_object()
+            .unwrap()
+            .clone()
+        };
+        let penguin = record("Penguin Books", 1998, "OL166894W");
+        let vintage = record("Vintage", 1993, "OL166894W");
+        let first = keep_in_library(&mut store, &penguin).unwrap();
+        let second = keep_in_library(&mut store, &vintage).unwrap();
+        assert_eq!(first.work, second.work);
+        assert_ne!(first.edition, second.edition);
+        assert_eq!(store.edition(second).unwrap().unwrap().bibliography, vintage);
+
+        assert_eq!(keep_in_library(&mut store, &penguin).unwrap(), first);
+        let other = record("Vintage", 1998, "OL1W");
+        let third = keep_in_library(&mut store, &other).unwrap();
+        assert_ne!(first.work, third.work);
+    }
 
     #[test]
     fn rc28_library_catalog_preview_waits_for_the_current_input() {
