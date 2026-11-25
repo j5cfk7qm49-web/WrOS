@@ -37,7 +37,7 @@
 | `F7` | the music player |
 | `F8` | spelling suggestions |
 | `F9` | themes |
-| `F10` | open the menu bar |
+| `F10` | open the menu bar; Left from File reaches the view tiles |
 | `F11` | show or hide an independent editable document |
 
 ## Outline
