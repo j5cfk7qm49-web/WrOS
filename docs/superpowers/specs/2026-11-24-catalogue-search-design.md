@@ -208,7 +208,22 @@ in-picker key is the builder's call, and must not clash with existing picker key
    - Crossref's structured names are used as they come.
    - Test fixtures cover each step and the fallbacks, including "Gabriel García Márquez" and
      "Ngũgĩ wa Thiong'o".
-   - See the owner's decision below on whether `@` shows the result before citing.
+5. **`@` shows the source in its existing page step, with no extra key.** Every `@` pick
+   already stops at rc27's step (Page, "Author named in my sentence", Add another source)
+   before anything is written. That step gains a top line with the picked source's Works Cited
+   entry, as `sources.json` will hold it (author, title, publisher, year). `e` there opens
+   the full Add a source form on that record, and its save returns to the page step. Proposed
+   2026-11-24, awaiting the owner's approval of this doc.
+   ```
+   garcia-marquez-solitude
+   García Márquez, Gabriel. One Hundred Years of Solitude. Harper Perennial, 2006.
+   Page [194]
+   [ ] Author named in my sentence
+   Add another source
+   ```
+6. **Page numbers.** The page being quoted is typed in that step, as in rc27; no catalogue
+   can supply it. An article's or chapter's span in its container (`page`, for Works Cited's
+   "pp. 45–67") is filled from Crossref.
 
 ## Left to the builder
 
