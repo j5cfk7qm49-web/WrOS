@@ -75,7 +75,6 @@ let
       test_recovery_menu test_boot_settings test_boot_unlock test_session_launcher \
       test_display_manager test_nixos_update test_nixos_install_core test_nixos_installer \
       test_update_reply_contract test_nixos_bundle_tool
-    python3 tools/hp-measure/test-kit.py ${hp-measure}
     mkdir -p "$out"
     echo "pass" > "$out/result"
   '';

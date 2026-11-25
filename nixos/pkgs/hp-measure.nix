@@ -54,4 +54,8 @@ pkgs.runCommand "wros-hp-measure" {
       --pdftoppm ${poppler}/bin/pdftoppm --pdftotext ${poppler}/bin/pdftotext \
       --tesseract ${tesseract}/bin/tesseract --hayro ${hayroBench}/bin/wros-hayro-bench \
       --model-dir fast=$models/fast --model-dir standard=$models/standard --model-dir best=$models/best"
+
+  # The kit checks itself as it is built (manifest hashes, the wrapper's arguments, a render and
+  # extract), rather than in python-suite, which would otherwise build all of this for every run.
+  python3 -B ${recipe}/test-kit.py "$out"
 ''

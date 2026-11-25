@@ -330,6 +330,8 @@ fn nothing_in_ctrl_k_is_missing_from_the_bar() {
                     | A::Open(_) | A::Theme(_) | A::OpenBookAt(_) | A::Beside(_) | A::HelpTopic(_)
                     // The views: the W r O S tiles on the bar switch them (rc30).
                     | A::SwitchDeskView(_)
+                    // The panels: the bottom bar's Wi-Fi, sound, battery and clock open them.
+                    | A::OpenWidget(_)
                     // Settings rows, reached through the Settings menu.
                     | A::Settings | A::SystemSettings | A::MusicSource
                     | A::Spellcheck | A::SpellingLanguage | A::Icons | A::LineWidth

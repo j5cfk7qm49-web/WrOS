@@ -129,7 +129,8 @@ the outline hidden, it shows the project, chapter, scene and scene words. Click
 Wi-Fi, sound, battery or the clock to open a panel. They show networks; volume
 and the playing track; charge and brightness; or the date and a month calendar.
 The battery panel opens the night light preview. Each panel links to Settings.
-Esc or a click outside closes it.
+Esc or a click outside closes it. Find anything opens them by name too: Wi-Fi, Sound,
+Battery and brightness, and Date and calendar.
 The lower bar shows project progress, today's words and messages. When no
 message is fresh, the playing track scrolls there. Focus mode hides the top bar
 and keeps one line at the bottom for location, today's words and warnings.
