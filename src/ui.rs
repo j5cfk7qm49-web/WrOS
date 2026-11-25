@@ -19,6 +19,14 @@ pub const LEFT_W: u16 = (scene::W + 2) as u16;
 const SCENE_H: u16 = (scene::H + 2) as u16;
 const MIN_TREE: u16 = 6;
 
+// The native renderer's one-cell tiles. Keep the same code points available to
+// TestBackend in builds without wros-graphics.
+pub(crate) const TILE_LEFT: char = '\u{E100}';
+pub(crate) const TILE_RIGHT: char = '\u{E101}';
+pub(crate) const TILE_RIGHT_DUE: char = '\u{E102}';
+pub(crate) const TILE_LETTERS: [char; 4] = ['\u{E110}', '\u{E111}', '\u{E112}', '\u{E113}'];
+pub(crate) const TILE_POWER: char = '\u{E114}';
+
 pub fn draw(
     f: &mut Frame,
     app: &mut App,
@@ -48,9 +56,8 @@ pub fn draw(
     use crate::app::outline::DeskView;
     let nonwriting_view = app.desk_view != DeskView::Write;
     let bar_line = nonwriting_view || !app.focus_mode;
-    let [bar, view_bar, main, status] = Layout::vertical([
+    let [bar, main, status] = Layout::vertical([
         Constraint::Length(u16::from(bar_line)),
-        Constraint::Length(u16::from(nonwriting_view)),
         Constraint::Min(3),
         Constraint::Length(1),
     ])
@@ -59,7 +66,6 @@ pub fn draw(
     app.view_hits.clear();
     app.music_row_hits.clear();
     app.commonplace.side_area = Rect::default();
-    crate::app::outline::draw_view_bar(f, app, view_bar, &t);
 
     if nonwriting_view {
         app.rect_tree = Rect::default();
@@ -79,8 +85,7 @@ pub fn draw(
         paint_band(f.buffer_mut(), status, band);
     }
     if bar_line {
-        crate::app::overlays::draw_bar_line(f, app, bar, &t);
-        draw_status_marks(f, app, bar, &t);
+        crate::app::overlays::draw_bar_line(f, app, bar, &t, true);
         if let Some(band) = band {
             paint_band(f.buffer_mut(), bar, band);
         }
@@ -96,7 +101,7 @@ pub fn draw(
             height: 1,
             ..f.area()
         };
-        crate::app::overlays::draw_bar_line(f, app, top, &t);
+        crate::app::overlays::draw_bar_line(f, app, top, &t, false);
         if let Some(band) = band {
             paint_band(f.buffer_mut(), top, band);
         }
@@ -1332,8 +1337,9 @@ pub(crate) fn status_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(St
 }
 
 /// How much a mark matters when the line is short: words not saved most,
-/// then conflicts and a failed backup, then words waiting, then the rest.
-const UNSAVED: u8 = 3;
+/// then conflicts, a failed backup, words waiting, and the rest.
+const UNSAVED: u8 = 4;
+const CONFLICT: u8 = 3;
 const TROUBLE: u8 = 2;
 const PENDING: u8 = 1;
 const CALM: u8 = 0;
@@ -1353,7 +1359,7 @@ fn ranked_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(String, Style
                 format!("⚠ {conflicts}")
             },
             Style::default().fg(t.warn),
-            TROUBLE,
+            CONFLICT,
         ));
     }
     // Saved is a steady dim tick; saving, waiting and not saved say so.
@@ -1449,40 +1455,45 @@ fn ranked_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(String, Style
     out
 }
 
-/// The marks drawn at the right end of the bar's line, clear of its titles.
-pub(crate) fn draw_status_marks(f: &mut Frame, app: &App, line: Rect, t: &Theme) {
-    let titles_end = app
-        .bar_hits
-        .borrow()
-        .iter()
-        .map(|(r, _)| r.right())
-        .max()
-        .unwrap_or(line.x);
+/// Draw the marks between the logo and Power. Return where the titles must stop.
+pub(crate) fn draw_status_marks(f: &mut Frame, app: &App, line: Rect, t: &Theme) -> u16 {
     let mut marks = ranked_marks(app, t, false);
-    // Without room, the mark that matters least goes first (the rightmost of
-    // equals), so an unsaved warning is the last to go.
+    let mut gap = "  ";
     while !marks.is_empty() {
         let width: u16 = marks
             .iter()
-            .map(|(s, _, _)| s.chars().count() as u16 + 2)
+            .map(|(s, _, _)| (s.chars().count() + gap.len()) as u16)
             .sum::<u16>()
             + 1;
-        if titles_end + 2 + width <= line.right() {
+        if width <= line.width {
             let mut spans = vec![];
             for (text, style, _) in marks {
-                spans.push(Span::raw("  "));
+                spans.push(Span::raw(gap));
                 spans.push(Span::styled(text, style));
             }
             spans.push(Span::raw(" "));
             let area = Rect::new(line.right() - width, line.y, width, 1);
             f.render_widget(Paragraph::new(Line::from(spans)), area);
-            return;
+            return area.x.saturating_sub(2).max(line.x);
         }
         let least = marks.iter().map(|(_, _, rank)| *rank).min().unwrap_or(CALM);
-        if let Some(at) = marks.iter().rposition(|(_, _, rank)| *rank == least) {
+        if least >= CONFLICT && gap == "  " {
+            // When the titles and other marks are gone, shorten the warnings first.
+            gap = " ";
+            for (text, _, rank) in &mut marks {
+                *text = match (*rank == UNSAVED, app.linux_console) {
+                    (true, true) => "unsaved",
+                    (false, true) => "conflict",
+                    (true, false) => "●",
+                    (false, false) => "⚠",
+                }
+                .into();
+            }
+        } else if let Some(at) = marks.iter().rposition(|(_, _, rank)| *rank == least) {
             marks.remove(at);
         }
     }
+    line.right().saturating_sub(1).max(line.x)
 }
 
 // ── overlays ─────────────────────────────────────────────────────────

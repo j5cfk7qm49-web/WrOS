@@ -307,6 +307,8 @@ pub struct App {
     /// (`ESC[58;…m`) and reads them as faint, blink and font switches, and it
     /// turns dark backgrounds black.
     pub linux_console: bool,
+    /// The native renderer has the private-use glyphs for the top bar.
+    pub tile_glyphs: bool,
     /// Which English it knows.
     pub spell_lang: spell::Language,
     /// The tree shows a symbol beside each row.
@@ -616,10 +618,11 @@ pub enum Overlay {
         id: u64,
         buf: String,
     },
-    /// The menu bar across the top: lit on `title`, with its dropdown `open`
-    /// on row `sel`, and a side group of Tools open beside it on its own row.
+    /// The menu bar across the top, lit on a view tile or a title. An open
+    /// dropdown highlights row `sel` and can open a Tools side group beside it.
     Bar {
         title: Title,
+        tile: Option<outline::DeskView>,
         open: bool,
         sel: usize,
         side: Option<(Side, usize)>,
@@ -1088,6 +1091,7 @@ impl App {
             catalogue_on: setup.settings.catalogue_search,
             catalogue_fetch: catalogue::default_fetch(),
             linux_console: false,
+            tile_glyphs: false,
             spell_lang: spell::Language::parse(&setup.settings.spelling),
             icons_on: setup.settings.icons,
             speller: None,
@@ -5514,16 +5518,6 @@ impl App {
         // The menu bar first: its titles, an open menu's rows, or a click away
         // that closes the menu.
         if self.bar_click(x, y) || self.settings_click(x, y) {
-            return;
-        }
-        if self.overlay == Overlay::None
-            && let Some(&(_, view)) = self
-                .commonplace
-                .view_hits
-                .iter()
-                .find(|(rect, _)| hit(*rect, x, y))
-        {
-            self.switch_desk_view(view);
             return;
         }
         if self.desk_view == outline::DeskView::Outline && self.overlay == Overlay::None {

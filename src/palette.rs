@@ -143,7 +143,7 @@ pub enum Action {
     SelectAll,
     Cut,
     Copy,
-    /// The power rows of the WrOS menu: the same rows, and confirmations, as
+    /// The rows of the Power menu: the same rows, and confirmations, as
     /// Settings › System › Battery and power.
     Lock,
     Sleep,
@@ -163,7 +163,6 @@ pub enum Action {
 /// The menu bar's titles, left to right.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Title {
-    Wros,
     #[default]
     File,
     Edit,
@@ -172,11 +171,11 @@ pub enum Title {
     Tools,
     Settings,
     Help,
+    Power,
 }
 
 impl Title {
     pub const ALL: [Title; 8] = [
-        Title::Wros,
         Title::File,
         Title::Edit,
         Title::View,
@@ -184,11 +183,11 @@ impl Title {
         Title::Tools,
         Title::Settings,
         Title::Help,
+        Title::Power,
     ];
 
     pub fn label(self) -> &'static str {
         match self {
-            Title::Wros => "WrOS",
             Title::File => "File",
             Title::Edit => "Edit",
             Title::View => "View",
@@ -196,12 +195,17 @@ impl Title {
             Title::Tools => "Tools",
             Title::Settings => "Settings",
             Title::Help => "Help",
+            Title::Power => "Power",
         }
     }
 
-    /// The letter that opens it, underlined in its title: its first.
+    /// The letter that opens the menu, underlined in its title.
     pub fn letter(self) -> char {
-        self.label().chars().next().unwrap().to_ascii_lowercase()
+        if self == Self::Power {
+            'w'
+        } else {
+            self.label().chars().next().unwrap().to_ascii_lowercase()
+        }
     }
 
     pub fn index(self) -> usize {

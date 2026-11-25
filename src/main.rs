@@ -274,6 +274,7 @@ fn main() -> Result<()> {
     // once so login/splash text cannot survive in cells absent from frame one.
     terminal.clear().context("clearing the writing console")?;
     app.linux_console &= !display::graphical(&terminal);
+    app.tile_glyphs = display::graphical(&terminal) && !display::windowed(&terminal);
     if session::native() && !display::graphical(&terminal) {
         app.deck.graphical_session = false;
         app.msg = "Graphical display unavailable. WrOS opened in plain text.".into();

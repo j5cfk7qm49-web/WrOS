@@ -68,7 +68,6 @@ pub struct CommonplaceDesk {
     pub(super) backup_attempted: Option<std::time::Instant>,
     paths: Option<(PathBuf, PathBuf)>,
     note_hits: Vec<(Rect, usize)>,
-    pub(crate) view_hits: Vec<(Rect, DeskView)>,
 }
 
 struct Outline {
@@ -1060,45 +1059,6 @@ impl App {
             .browse(key.code, key.modifiers.contains(KeyModifiers::SHIFT))
         {
             self.msg = format!("Could not open Outline notes · {error}");
-        }
-    }
-}
-
-pub(crate) fn draw_view_bar(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
-    use ratatui::style::Modifier;
-    app.commonplace.view_hits.clear();
-    if area.is_empty() {
-        return;
-    }
-    let mut x = area.x;
-    for view in DeskView::ALL {
-        let label = if view == DeskView::Study {
-            format!("Study {}", app.commonplace.study.all_due)
-        } else {
-            view.label().into()
-        };
-        let width = label.len() as u16 + 2;
-        if x + width > area.right() {
-            break;
-        }
-        let rect = Rect::new(x, area.y, width, 1);
-        let style = if view == app.desk_view {
-            Style::default()
-                .fg(theme.accent)
-                .bg(theme.sel)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(theme.text)
-        };
-        f.render_widget(Line::styled(format!(" {label} "), style), rect);
-        app.commonplace.view_hits.push((rect, view));
-        x += width;
-        if x < area.right() && view != DeskView::Study {
-            f.render_widget(
-                Line::styled("│", Style::default().fg(theme.border)),
-                Rect::new(x, area.y, 1, 1),
-            );
-            x += 1;
         }
     }
 }
