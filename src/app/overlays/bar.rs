@@ -3,8 +3,11 @@
 //! arrows and the mouse open a menu; the highlighted row's line of
 //! explanation shows on the status line.
 use super::*;
+use crate::app::outline::DeskView;
 use crate::app::shell::Category;
 use crate::palette::{Side, Title};
+use crate::ui::{TILE_LEFT, TILE_LETTERS, TILE_POWER, TILE_RIGHT};
+use ratatui::style::Color;
 
 /// No dropdown is taller than this many rows; a short screen scrolls them.
 pub const MAX_ROWS: usize = 12;
@@ -41,6 +44,7 @@ impl BarRow {
 /// What the mouse can land on in the bar and its dropdowns.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BarHit {
+    Tile(DeskView),
     Title(Title),
     Row(usize),
     SideRow(usize),
@@ -56,7 +60,7 @@ impl App {
     pub fn bar_rows(&self, title: Title) -> Vec<BarRow> {
         let m = self.mod_label();
         let writing = self.open.is_some();
-        let write_key = |key| if self.brain_accepts_input() { "" } else { key };
+        let write_key = |key| if self.desk_accepts_input() { "" } else { key };
         let key = |action: wros_sys::shortcuts::Action, default: &str| {
             self.deck
                 .shortcuts
@@ -65,39 +69,6 @@ impl App {
         };
         use wros_sys::shortcuts::Action as Shortcut;
         let rows = match title {
-            Title::Wros => {
-                let mut rows = vec![BarRow::new("About WrOS", "", Action::About)];
-                if self.deck.live_session {
-                    rows.push(
-                        BarRow::new("Install WrOS to disk…", "", Action::InstallToDisk).dim_unless(
-                            self.deck.installer_available,
-                            "The installer can't run on this console or image.",
-                        ),
-                    );
-                }
-                rows.push(if self.deck.live_session {
-                    BarRow::new("Lock", "", Action::Lock)
-                        .dim_unless(false, "A live session has no personal lock.")
-                } else if self.deck.graphical_session && !self.deck.lock_available {
-                    BarRow::new("Lock", "", Action::Lock)
-                        .dim_unless(false, "Lock isn't in the graphical session yet.")
-                } else {
-                    BarRow::new("Lock", "", Action::Lock).dim_unless(
-                        self.deck.lock_available,
-                        "Lock is unavailable in this image or session.",
-                    )
-                });
-                rows.push(
-                    BarRow::new("Sleep", "", Action::Sleep)
-                        .dim_unless(self.deck.suspend_available, wros_sys::SUSPEND_UNAVAILABLE),
-                );
-                rows.push(BarRow::new("Restart…", "", Action::Restart));
-                rows.push(BarRow::new("Shut down…", "", Action::ShutDown));
-                if self.deck.quit_offered {
-                    rows.push(BarRow::new("Quit", format!("{m}Q"), Action::Quit));
-                }
-                rows
-            }
             Title::File => {
                 let mut rows = vec![];
                 if !self.conflicts().is_empty() {
@@ -128,7 +99,7 @@ impl App {
                 ));
                 rows
             }
-            Title::Edit if self.brain_accepts_input() => vec![
+            Title::Edit if self.desk_accepts_input() => vec![
                 BarRow::new("Undo", format!("{m}Z"), Action::Undo),
                 BarRow::new("Redo", format!("{m}Y"), Action::Redo),
                 BarRow::new("Paste", format!("{m}V"), Action::Paste),
@@ -173,32 +144,15 @@ impl App {
                 rows
             }
             Title::View => {
-                use crate::app::brain::DeskView;
-                let mut rows: Vec<_> = DeskView::ALL
-                    .into_iter()
-                    .enumerate()
-                    .filter(|(_, view)| *view != self.desk_view)
-                    .map(|(index, view)| {
-                        BarRow::new(
-                            if view == DeskView::Review {
-                                "Review cards"
-                            } else {
-                                view.label()
-                            },
-                            format!("Super+{}", index + 1),
-                            Action::SwitchDeskView(view),
-                        )
-                    })
-                    .collect();
-                rows.push(BarRow::new(
-                    if self.brain.side_visible && self.desk_view == DeskView::Write {
-                        "Hide Brain beside Write"
+                let mut rows = vec![BarRow::new(
+                    if self.commonplace.side_visible && self.desk_view == DeskView::Write {
+                        "Hide Outline beside Write"
                     } else {
-                        "Brain beside Write"
+                        "Outline beside Write"
                     },
                     "",
-                    Action::BrainBeside,
-                ));
+                    Action::OutlineBeside,
+                )];
                 if self.desk_view == DeskView::Write {
                     if writing || self.focus_mode {
                         rows.push(BarRow::new(
@@ -357,7 +311,41 @@ impl App {
                 BarRow::new("Interactive tutorial…", "", Action::Tutorial),
                 BarRow::new("License…", "", Action::License),
                 BarRow::new("Donate…", "", Action::Donate),
+                BarRow::new("About WrOS", "", Action::About),
             ],
+            Title::Power => {
+                let mut rows = vec![];
+                if self.deck.live_session {
+                    rows.push(
+                        BarRow::new("Install WrOS to disk…", "", Action::InstallToDisk).dim_unless(
+                            self.deck.installer_available,
+                            "The installer can't run on this console or image.",
+                        ),
+                    );
+                }
+                rows.push(if self.deck.live_session {
+                    BarRow::new("Lock", "", Action::Lock)
+                        .dim_unless(false, "A live session has no personal lock.")
+                } else if self.deck.graphical_session && !self.deck.lock_available {
+                    BarRow::new("Lock", "", Action::Lock)
+                        .dim_unless(false, "Lock isn't in the graphical session yet.")
+                } else {
+                    BarRow::new("Lock", "", Action::Lock).dim_unless(
+                        self.deck.lock_available,
+                        "Lock is unavailable in this image or session.",
+                    )
+                });
+                rows.push(
+                    BarRow::new("Sleep", "", Action::Sleep)
+                        .dim_unless(self.deck.suspend_available, wros_sys::SUSPEND_UNAVAILABLE),
+                );
+                rows.push(BarRow::new("Restart…", "", Action::Restart));
+                rows.push(BarRow::new("Shut down…", "", Action::ShutDown));
+                if self.deck.quit_offered {
+                    rows.push(BarRow::new("Quit", format!("{m}Q"), Action::Quit));
+                }
+                rows
+            }
         };
         // #125: no silent cut. A menu that outgrows the cap fails the twelve-row test (and any
         // debug build) instead of losing its last row; a short screen still scrolls.
@@ -404,7 +392,7 @@ impl App {
                     BarRow::new("Check names…", "", Action::CheckNames),
                     BarRow::new(
                         "Corkboard…",
-                        if self.brain_accepts_input() { "" } else { "b" },
+                        if self.desk_accepts_input() { "" } else { "b" },
                         Action::Corkboard,
                     ),
                     BarRow::new("Footnote navigator…", "", Action::Footnotes),
@@ -438,9 +426,9 @@ impl App {
                 BarRow::new("Look up the name here", format!("{m}O"), Action::OpenCodex)
                     .dim_unless(writing, WRITE_FIRST),
                 BarRow::new(
-                    "Library",
+                    "read",
                     "Super+2",
-                    Action::SwitchDeskView(crate::app::brain::DeskView::Library),
+                    Action::SwitchDeskView(crate::app::outline::DeskView::Read),
                 ),
             ],
             Side::Practice => vec![
@@ -492,6 +480,7 @@ impl App {
         self.bar_last = title;
         self.overlay = Overlay::Bar {
             title,
+            tile: None,
             open,
             sel: 0,
             side: None,
@@ -509,10 +498,26 @@ impl App {
         self.bar_last = Title::Tools;
         self.overlay = Overlay::Bar {
             title: Title::Tools,
+            tile: None,
             open: true,
             sel,
             side: Some((side, 0)),
         };
+    }
+
+    fn select_bar_tile(&mut self, view: DeskView) {
+        self.overlay = Overlay::Bar {
+            title: Title::File,
+            tile: Some(view),
+            open: false,
+            sel: 0,
+            side: None,
+        };
+    }
+
+    fn activate_bar_tile(&mut self, view: DeskView) {
+        self.close_bar();
+        self.switch_desk_view(view);
     }
 
     pub fn close_bar(&mut self) {
@@ -543,6 +548,7 @@ impl App {
             open: true,
             sel,
             side,
+            ..
         } = &self.overlay
         else {
             return None;
@@ -564,6 +570,7 @@ impl App {
     pub(super) fn on_bar_key(&mut self, key: Key) {
         let Overlay::Bar {
             title,
+            tile,
             open,
             sel,
             side,
@@ -586,10 +593,37 @@ impl App {
             self.close_bar();
             return;
         }
+        if let Some(view) = tile {
+            match key {
+                Key::Left | Key::Right => {
+                    let at = DeskView::ALL.iter().position(|&v| v == view).unwrap();
+                    let next = if key == Key::Left {
+                        at.saturating_sub(1)
+                    } else {
+                        at + 1
+                    };
+                    if let Some(&view) = DeskView::ALL.get(next) {
+                        self.select_bar_tile(view);
+                    } else {
+                        self.open_bar(Some(Title::File), false);
+                    }
+                    return;
+                }
+                Key::Enter | Key::Char(' ') => {
+                    self.activate_bar_tile(view);
+                    return;
+                }
+                Key::Down => return,
+                _ => {}
+            }
+        } else if title == Title::File && key == Key::Left {
+            self.select_bar_tile(DeskView::Write);
+            return;
+        }
         if !open {
             match key {
                 Key::Left => self.open_bar(Some(title.step(-1)), false),
-                Key::Right => self.open_bar(Some(title.step(1)), false),
+                Key::Right => self.open_bar(Some(title.step(1)), title == Title::Help),
                 Key::Down | Key::Enter | Key::Char(' ') => self.open_bar(Some(title), true),
                 Key::Esc => self.close_bar(),
                 Key::Char(c) => {
@@ -685,9 +719,8 @@ impl App {
         }
     }
 
-    /// A click while the bar is showing. True if the bar took it: a title
-    /// opens (or, open already, closes), a row runs, and anywhere else closes
-    /// an open menu without reaching what's under it.
+    /// A click while the bar is showing. A tile switches views, a title toggles
+    /// its menu, a row runs, and a click elsewhere closes an open menu.
     pub fn bar_click(&mut self, x: u16, y: u16) -> bool {
         let hit = self
             .bar_hits
@@ -698,6 +731,10 @@ impl App {
             .map(|(_, h)| *h);
         let up = matches!(self.overlay, Overlay::Bar { .. });
         match (hit, &self.overlay) {
+            (Some(BarHit::Tile(view)), Overlay::None | Overlay::Bar { .. }) => {
+                self.activate_bar_tile(view);
+                true
+            }
             (
                 Some(BarHit::Title(t)),
                 Overlay::Bar {
@@ -802,36 +839,128 @@ fn hit(r: Rect, x: u16, y: u16) -> bool {
     x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height
 }
 
-/// The bar's line: the titles, with the one in use lit. Records where each
-/// title is for the mouse.
-pub fn draw_bar_line(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
-    let lit = match &app.overlay {
-        Overlay::Bar { title, .. } => Some(*title),
+/// The view tiles, titles, marks and Power, with hit rectangles for the mouse.
+pub fn draw_bar_line(f: &mut Frame, app: &App, area: Rect, t: &Theme, show_marks: bool) {
+    if area.is_empty() {
+        return;
+    }
+    let (lit, tile) = match &app.overlay {
+        Overlay::Bar {
+            tile: Some(view), ..
+        } => (None, Some(*view)),
+        Overlay::Bar { title, .. } => (Some(*title), None),
         Overlay::Palette {
             under_bar: true, ..
-        } => Some(app.bar_last),
-        _ => None,
+        } => (Some(app.bar_last), None),
+        _ => (None, None),
     };
+    f.render_widget(Clear, area);
     let look: wros_shell::Theme = t.into();
+    let power_style = if lit == Some(Title::Power) {
+        wros_shell::look::highlight(look).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(t.text)
+    };
+    let (power, power_width) = if app.tile_glyphs {
+        (
+            vec![Span::styled(
+                String::from_iter([TILE_LEFT, TILE_POWER, TILE_RIGHT]),
+                power_style,
+            )],
+            3_u16,
+        )
+    } else {
+        (
+            vec![
+                Span::styled("[Po", power_style),
+                Span::styled("w", power_style.add_modifier(Modifier::UNDERLINED)),
+                Span::styled("er]", power_style),
+            ],
+            7,
+        )
+    };
+    let power_width = power_width.min(area.width);
+    let power_x = area.right() - power_width;
+    let power_area = Rect::new(power_x, area.y, power_width, 1);
+
+    // The tile frames and divider use the border colour as their ink. On the
+    // band, give them a different ground so the lines are visible.
+    let base = if crate::ui::bar_band(t, app.linux_console).is_some() {
+        Style::default().bg(t.sel)
+    } else {
+        Style::default()
+    };
     let mut spans = vec![Span::raw(" ")];
-    let mut x = area.x + 1;
+    let mut x = area.x.saturating_add(1).min(power_x);
     let mut hits = app.bar_hits.borrow_mut();
-    hits.retain(|(_, h)| !matches!(h, BarHit::Title(_)));
-    for title in Title::ALL {
-        let parts = wros_shell::look::underlined_title(title.label(), 0, lit == Some(title), look);
+    hits.retain(|(_, h)| !matches!(h, BarHit::Tile(_) | BarHit::Title(_)));
+    for (view, glyph) in DeskView::ALL.into_iter().zip(TILE_LETTERS) {
+        let due = view == DeskView::Study && app.commonplace.study.all_due > 0;
+        let width = 3;
+        if width > power_x - x {
+            break;
+        }
+        let (frame, letter) = if view == app.desk_view {
+            let filled = Style::default().fg(Color::Black).bg(t.accent);
+            (filled, filled)
+        } else {
+            // Cards due: the whole S tile in the warning colour. A cell has one ink, so the letter
+            // cell's share of the box would turn red anyway; the frame follows it.
+            if due {
+                (base.fg(t.warn), base.fg(t.warn))
+            } else {
+                (base.fg(t.border), base.fg(t.dim))
+            }
+        };
+        let letter = if tile == Some(view) {
+            letter.add_modifier(Modifier::UNDERLINED | Modifier::BOLD)
+        } else {
+            letter
+        };
+        let (left, symbol, right) = if app.tile_glyphs {
+            (TILE_LEFT, glyph, TILE_RIGHT)
+        } else {
+            ('[', view.label().chars().next().unwrap(), ']')
+        };
+        spans.push(Span::styled(left.to_string(), frame));
+        spans.push(Span::styled(symbol.to_string(), letter));
+        spans.push(Span::styled(right.to_string(), frame));
+        hits.push((Rect::new(x, area.y, width, 1), BarHit::Tile(view)));
+        x += width;
+    }
+    if power_x - x >= 2 {
+        spans.push(Span::raw(" "));
+        spans.push(Span::styled("│", base.fg(t.border)));
+        x += 2;
+    }
+    let titles_end = if show_marks {
+        crate::ui::draw_status_marks(f, app, Rect::new(x, area.y, power_x - x, 1), t)
+    } else {
+        power_x.saturating_sub(1).max(x)
+    };
+    for title in Title::ALL
+        .into_iter()
+        .take_while(|&title| title != Title::Power)
+    {
         let w = title.label().chars().count() as u16 + 2;
-        if x + w > area.x + area.width {
+        if w > titles_end - x {
             break;
         }
         hits.push((Rect::new(x, area.y, w, 1), BarHit::Title(title)));
         x += w;
-        spans.extend(parts);
+        spans.extend(wros_shell::look::underlined_title(
+            title.label(),
+            0,
+            lit == Some(title),
+            look,
+        ));
     }
-    f.render_widget(Clear, Rect::new(area.x, area.y, x - area.x, 1));
     f.render_widget(
         Paragraph::new(Line::from(spans)),
         Rect::new(area.x, area.y, x - area.x, 1),
     );
+    f.render_widget(Paragraph::new(Line::from(power)), power_area);
+    hits.push((power_area, BarHit::Title(Title::Power)));
 }
 
 /// The open menu, under its title, and a side group beside it.
@@ -841,6 +970,7 @@ pub(super) fn draw_dropdowns(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         open: true,
         sel,
         side,
+        ..
     } = &app.overlay
     else {
         return;
@@ -860,10 +990,11 @@ pub(super) fn draw_dropdowns(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         &rows,
         *sel,
         side.is_none(),
+        app.linux_console,
         t,
     );
     let mut hits = app.bar_hits.borrow_mut();
-    hits.retain(|(_, h)| matches!(h, BarHit::Title(_)));
+    hits.retain(|(_, h)| matches!(h, BarHit::Tile(_) | BarHit::Title(_)));
     for (i, r) in &menu.rows {
         hits.push((*r, BarHit::Row(*i)));
     }
@@ -873,14 +1004,24 @@ pub(super) fn draw_dropdowns(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             .rows
             .iter()
             .find(|(i, _)| *i == *sel)
-            .map_or(menu.area.y, |(_, r)| r.y - 1);
+            .map_or(menu.area.y, |(_, r)| r.y);
         let w = list_width(&side_rows);
         let x = if menu.area.right() + w <= area.right() {
             menu.area.right()
         } else {
             menu.area.x.saturating_sub(w)
         };
-        let drawn = draw_list(f, area, x, row_y, &side_rows, *at, true, t);
+        let drawn = draw_list(
+            f,
+            area,
+            x,
+            row_y,
+            &side_rows,
+            *at,
+            true,
+            app.linux_console,
+            t,
+        );
         hits.push((drawn.area, BarHit::Cover));
         for (i, r) in drawn.rows {
             hits.push((r, BarHit::SideRow(i)));
@@ -904,7 +1045,7 @@ fn list_width(rows: &[BarRow]) -> u16 {
         .map(|r| r.key.chars().count())
         .max()
         .unwrap_or(0);
-    // Border, marker, label, a gap, the key, a space, border.
+    // Side padding, marker, label, a gap, the key, a space, side padding.
     (1 + 2 + label + 3 + key + 1 + 1) as u16
 }
 
@@ -920,26 +1061,19 @@ fn draw_list(
     rows: &[BarRow],
     sel: usize,
     lit: bool,
+    linux_console: bool,
     t: &Theme,
 ) -> Drawn {
     let w = list_width(rows).min(area.width);
     // The status line stays visible under a menu.
-    let room = area
-        .bottom()
-        .saturating_sub(1)
-        .saturating_sub(y)
-        .saturating_sub(2) as usize;
-    let shown = rows.len().min(MAX_ROWS).min(room.max(1));
-    let h = shown as u16 + 2;
+    let y = y.min(area.bottom().saturating_sub(2)).max(area.y);
+    let room = area.bottom().saturating_sub(1).saturating_sub(y) as usize;
+    let shown = rows.len().min(MAX_ROWS).min(room);
+    let h = shown as u16;
     let x = x.min(area.right().saturating_sub(w));
-    let y = y.min(area.bottom().saturating_sub(h));
     let rect = Rect::new(x, y, w, h);
-    f.render_widget(Clear, rect);
-    let block = pane_block("", true, t);
-    let inner = block.inner(rect);
-    f.render_widget(block, rect);
+    let (inner, band) = draw_panel(f, area, rect, linux_console, t);
     let start = (sel + 1).saturating_sub(shown);
-    let look: wros_shell::Theme = t.into();
     let mut drawn = vec![];
     for (line, (i, row)) in rows.iter().enumerate().skip(start).take(shown).enumerate() {
         let on = i == sel;
@@ -948,11 +1082,11 @@ fn draw_list(
         } else {
             Style::default().fg(t.text)
         };
+        let r = Rect::new(inner.x, inner.y + line as u16, inner.width, 1);
         let style = match (on, lit) {
-            (true, true) if row.dim.is_some() => Style::default().fg(t.dim).bg(t.sel),
-            (true, true) => wros_shell::look::highlight(look),
+            (true, true) => light_panel_row(f, rect, r.y, linux_console, t),
             (true, false) => base.bg(t.sel),
-            _ => base,
+            _ => base.bg(band),
         };
         let label_w = inner
             .width
@@ -967,7 +1101,6 @@ fn draw_list(
             truncate(&row.label, label_w),
             row.key,
         );
-        let r = Rect::new(inner.x, inner.y + line as u16, inner.width, 1);
         f.render_widget(Paragraph::new(Line::styled(text, style)), r);
         drawn.push((i, r));
     }
@@ -977,9 +1110,92 @@ fn draw_list(
     }
 }
 
+/// The Platinum band and shadow shared by dropdowns and widget panels.
+pub(super) fn draw_panel(
+    f: &mut Frame,
+    area: Rect,
+    rect: Rect,
+    linux_console: bool,
+    t: &Theme,
+) -> (Rect, Color) {
+    f.render_widget(Clear, rect);
+    let band = crate::ui::bar_band(t, linux_console).unwrap_or(t.sel);
+    let inner = Rect::new(
+        rect.x.saturating_add(1),
+        rect.y,
+        rect.width.saturating_sub(2),
+        rect.height,
+    );
+    for cy in rect.top()..rect.bottom() {
+        for cx in rect.left()..rect.right() {
+            let cell = &mut f.buffer_mut()[(cx, cy)];
+            cell.set_fg(t.text).set_bg(band);
+            if linux_console && (cx == rect.left() || cx + 1 == rect.right()) {
+                cell.set_symbol("│").set_fg(t.border);
+            }
+        }
+    }
+    if !rect.is_empty() {
+        let clip = area.intersection(f.area());
+        let buf = f.buffer_mut();
+        for cy in rect.y.saturating_add(1)..rect.bottom() {
+            if rect.right() < clip.right() && cy >= clip.top() && cy < clip.bottom() {
+                shadow_cell(&mut buf[(rect.right(), cy)], t.dim);
+            }
+        }
+        if rect.bottom() < clip.bottom() {
+            for cx in rect.x.saturating_add(1)..=rect.right().min(clip.right().saturating_sub(1)) {
+                if cx >= clip.left() {
+                    shadow_cell(&mut buf[(cx, rect.bottom())], t.dim);
+                }
+            }
+        }
+    }
+    (inner, band)
+}
+
+pub(super) fn light_panel_row(
+    f: &mut Frame,
+    panel: Rect,
+    y: u16,
+    linux_console: bool,
+    t: &Theme,
+) -> Style {
+    if !linux_console {
+        for x in panel.left()..panel.right() {
+            f.buffer_mut()[(x, y)].set_fg(Color::Black).set_bg(t.accent);
+        }
+    }
+    Style::default().fg(Color::Black).bg(t.accent)
+}
+
+fn shadow_cell(cell: &mut ratatui::buffer::Cell, dim: ratatui::style::Color) {
+    cell.set_fg(dim);
+    if let ratatui::style::Color::Rgb(r, g, b) = cell.bg {
+        cell.set_bg(ratatui::style::Color::Rgb(r / 2, g / 2, b / 2));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shadow_preserves_symbols_and_darkens_only_rgb_backgrounds() {
+        use ratatui::style::Color;
+
+        let mut cell = ratatui::buffer::Cell::default();
+        cell.set_symbol("X").set_bg(Color::Rgb(101, 50, 9));
+        shadow_cell(&mut cell, Color::DarkGray);
+        assert_eq!(cell.symbol(), "X");
+        assert_eq!(cell.fg, Color::DarkGray);
+        assert_eq!(cell.bg, Color::Rgb(50, 25, 4));
+        cell.set_bg(Color::Blue);
+        shadow_cell(&mut cell, Color::Gray);
+        assert_eq!(cell.symbol(), "X");
+        assert_eq!(cell.fg, Color::Gray);
+        assert_eq!(cell.bg, Color::Blue);
+    }
 
     #[test]
     fn a_letter_jumps_round_to_the_next_row_starting_with_it() {

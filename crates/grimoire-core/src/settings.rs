@@ -15,6 +15,8 @@ pub struct Settings {
     /// In focus mode, the line being written stays near the middle of the
     /// screen. On unless turned off.
     pub typewriter: bool,
+    /// Play a chime at the end of each Pomodoro phase. On unless turned off.
+    pub pomodoro_chime: bool,
     /// The voice *Read aloud* uses: a Piper voice's file, `say`, `spd-say`,
     /// `espeak-ng` or `windows`. Empty picks the most natural one there is.
     pub voice: String,
@@ -34,6 +36,7 @@ impl Default for Settings {
             icons: false,
             line_width: LINE_WIDTH,
             typewriter: true,
+            pomodoro_chime: true,
             voice: String::new(),
             spelling: "en_US".into(),
             catalogue_search: true,
@@ -70,6 +73,7 @@ impl Settings {
                     }
                 }
                 "typewriter" => out.typewriter = v.trim() != "false",
+                "pomodoro_chime" => out.pomodoro_chime = v.trim() != "false",
                 "voice" => out.voice = v.trim().trim_matches('"').to_string(),
                 "spelling" => out.spelling = v.trim().trim_matches('"').to_string(),
                 "catalogue_search" => out.catalogue_search = v.trim() != "false",
@@ -91,7 +95,7 @@ impl Settings {
         format!(
             "spellcheck = {}\nicons = {}\n\
              # Widest a line of prose runs, in columns; 0 fills the pane.\n\
-             line_width = {}\ntypewriter = {}\n\
+             line_width = {}\ntypewriter = {}\npomodoro_chime = {}\n\
              # The voice for Read aloud; empty picks the most natural one.\n\
              voice = \"{}\"\n\
              # Which English spellcheck knows: en_US, en_GB, en_CA or en_AU.\n\
@@ -101,6 +105,7 @@ impl Settings {
             self.icons,
             self.line_width,
             self.typewriter,
+            self.pomodoro_chime,
             self.voice.replace('"', ""),
             self.spelling,
             self.catalogue_search,
@@ -161,12 +166,23 @@ mod tests {
     }
 
     #[test]
+    fn pomodoro_chime_defaults_on_and_round_trips() {
+        assert!(Settings::parse("typewriter = false\n").pomodoro_chime);
+        for enabled in [false, true] {
+            let settings = Settings::parse(&format!("pomodoro_chime = {enabled}\n"));
+            assert_eq!(settings.pomodoro_chime, enabled);
+            assert_eq!(Settings::parse(&settings.to_text()), settings);
+        }
+    }
+
+    #[test]
     fn every_setting_survives_a_save() {
         let s = Settings {
             spellcheck: false,
             icons: true,
             line_width: 60,
             typewriter: false,
+            pomodoro_chime: false,
             voice: "/home/me/voices/en_US-lessac-high.onnx".into(),
             spelling: "en_GB".into(),
             catalogue_search: false,

@@ -1,8 +1,8 @@
 //! The project bibliography and the keyboard citation picker.
 
 use super::*;
-use crate::app::brain::BrainReferenceTarget;
-use crate::app::brain::library::{CataloguePick, keep_in_library};
+use crate::app::outline::OutlineReferenceTarget;
+use crate::app::read::{CataloguePick, keep_in_commonplace};
 use crate::catalogue::{Hit, SearchStatus};
 use grimoire_brain::library::EditionKey;
 use grimoire_brain::model::NodeId;
@@ -21,7 +21,7 @@ pub struct SourceDialog {
     query: String,
     selected: usize,
     notice: String,
-    library: Vec<LibraryPick>,
+    library: Vec<EditionPick>,
     catalogue: Option<CatalogueSearch>,
     catalogue_view: Option<usize>,
     staged: BTreeSet<String>,
@@ -52,9 +52,9 @@ impl PartialEq for CatalogueSearch {
 #[derive(Debug, Clone, PartialEq)]
 enum Page {
     List,
-    BrainPick(BrainReferenceTarget),
-    LibraryChanges {
-        changes: std::collections::VecDeque<LibraryChange>,
+    OutlinePick(OutlineReferenceTarget),
+    EditionChanges {
+        changes: std::collections::VecDeque<EditionChange>,
         export: bool,
         scroll: usize,
     },
@@ -103,7 +103,7 @@ struct Citation {
     key: String,
     page: String,
     suppress: bool,
-    library: Option<Box<LibraryPick>>,
+    library: Option<Box<EditionPick>>,
     edited: Option<Box<sources::Record>>,
     works_cited: String,
 }
@@ -120,7 +120,7 @@ impl Citation {
         }
     }
 
-    fn from_library(pick: LibraryPick) -> Self {
+    fn from_library(pick: EditionPick) -> Self {
         let mut cite = Self::new(pick.key.clone(), &pick.record);
         cite.library = Some(Box::new(pick));
         cite
@@ -138,14 +138,14 @@ impl Citation {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct LibraryPick {
+struct EditionPick {
     key: String,
     edition: EditionKey,
     record: sources::Record,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct LibraryChange {
+struct EditionChange {
     project_key: String,
     edition: EditionKey,
     before: sources::Record,
@@ -188,7 +188,7 @@ const FORM_FIELD_START: usize = 2;
 impl App {
     fn sources_dialog(&mut self, page: Page) {
         let book = self.project.root.clone();
-        let (snapshot, notice) = if matches!(page, Page::BrainPick(_)) {
+        let (snapshot, notice) = if matches!(page, Page::OutlinePick(_)) {
             (None, String::new())
         } else {
             match sources::Snapshot::open(&book) {
@@ -199,7 +199,7 @@ impl App {
         let catalogue = matches!(
             page,
             Page::Pick { .. }
-                | Page::BrainPick(_)
+                | Page::OutlinePick(_)
                 | Page::Form {
                     original_key: None,
                     ..
@@ -347,8 +347,8 @@ impl App {
         true
     }
 
-    pub(crate) fn open_brain_library_picker(&mut self, target: BrainReferenceTarget) {
-        self.sources_dialog(Page::BrainPick(target));
+    pub(crate) fn open_outline_edition_picker(&mut self, target: OutlineReferenceTarget) {
+        self.sources_dialog(Page::OutlinePick(target));
     }
 
     pub(crate) fn paste_project_sources(&mut self, text: &str) {
@@ -376,16 +376,16 @@ impl App {
     }
 
     fn refresh_citation_library(&mut self, dialog: &mut SourceDialog) {
-        let brain = matches!(dialog.page, Page::BrainPick(_));
-        if !brain && !matches!(dialog.page, Page::Pick { .. }) {
+        let outline = matches!(dialog.page, Page::OutlinePick(_));
+        if !outline && !matches!(dialog.page, Page::Pick { .. }) {
             return;
         }
         dialog.library.clear();
         let project = dialog.snapshot.as_ref().map(|snapshot| &snapshot.sources);
-        if !brain && project.is_none() {
+        if !outline && project.is_none() {
             return;
         }
-        let Ok(Some(store)) = self.library_store_if_present() else {
+        let Ok(Some(store)) = self.commonplace_store_if_present() else {
             return;
         };
         let query = dialog.query.trim();
@@ -394,7 +394,7 @@ impl App {
         };
         let linked: std::collections::BTreeSet<_> = project
             .into_iter()
-            .filter(|_| !brain)
+            .filter(|_| !outline)
             .flat_map(sources::Sources::iter)
             .filter_map(|(_, record)| sources::library_provenance(record).map(|link| link.identity))
             .collect();
@@ -452,18 +452,21 @@ impl App {
         }
     }
 
-    // A Brain link completes the picker immediately. Citation and form picks advance a step.
+    // An Outline link completes the picker immediately. Citation and form picks advance a step.
     fn finish_catalogue_pick(
         &mut self,
         dialog: &mut SourceDialog,
         mut record: sources::Record,
     ) -> Result<bool> {
-        if let Page::BrainPick(target) = &dialog.page {
+        if let Page::OutlinePick(target) = &dialog.page {
             let store = self
-                .library_store_if_present()?
-                .ok_or_else(|| anyhow::anyhow!("The Library is unavailable"))?;
-            let edition = keep_in_library(store, &record)?;
-            self.write_brain_reference(target, Some((edition, text(&record, "title").to_owned())))?;
+                .commonplace_store_if_present()?
+                .ok_or_else(|| anyhow::anyhow!("Commonplace is unavailable"))?;
+            let edition = keep_in_commonplace(store, &record)?;
+            self.write_outline_reference(
+                target,
+                Some((edition, text(&record, "title").to_owned())),
+            )?;
             return Ok(true);
         }
         if matches!(
@@ -486,12 +489,12 @@ impl App {
         let Page::Pick { target, .. } = &dialog.page else {
             return Ok(false);
         };
-        let library = if let Ok(Some(store)) = self.library_store_if_present() {
-            let edition = keep_in_library(store, &record)?;
+        let library = if let Ok(Some(store)) = self.commonplace_store_if_present() {
+            let edition = keep_in_commonplace(store, &record)?;
             let metadata = store
                 .edition(edition)
                 .map_err(anyhow::Error::msg)?
-                .ok_or_else(|| anyhow::anyhow!("The Library edition is unavailable"))?;
+                .ok_or_else(|| anyhow::anyhow!("The Commonplace edition is unavailable"))?;
             Some((edition, metadata.bibliography))
         } else {
             None
@@ -509,7 +512,7 @@ impl App {
                 sources::library_provenance(record).is_some_and(|link| link.identity == identity)
             });
             let pick = if let Some((key, record)) = linked {
-                LibraryPick {
+                EditionPick {
                     key: key.to_owned(),
                     edition,
                     record: record.clone(),
@@ -598,7 +601,7 @@ impl App {
         if linked.is_empty() {
             return false;
         }
-        let Ok(Some(store)) = self.library_store_if_present() else {
+        let Ok(Some(store)) = self.commonplace_store_if_present() else {
             return false;
         };
         let mut changes = std::collections::VecDeque::new();
@@ -607,7 +610,7 @@ impl App {
                 && let Ok(Some(proposed)) =
                     sources::proposed_library_update(record, &current.bibliography)
             {
-                changes.push_back(LibraryChange {
+                changes.push_back(EditionChange {
                     project_key: key.into(),
                     edition,
                     before: record.clone(),
@@ -618,7 +621,7 @@ impl App {
         if changes.is_empty() {
             return false;
         }
-        self.sources_dialog(Page::LibraryChanges {
+        self.sources_dialog(Page::EditionChanges {
             changes,
             export,
             scroll: 0,
@@ -626,7 +629,7 @@ impl App {
         true
     }
 
-    fn accept_library_change(&mut self, book: &Path, change: &LibraryChange) -> Result<()> {
+    fn accept_library_change(&mut self, book: &Path, change: &EditionChange) -> Result<()> {
         anyhow::ensure!(self.project.root == book, "The open project changed");
         let mut sources_file = sources::Snapshot::open(book)?;
         anyhow::ensure!(
@@ -634,15 +637,15 @@ impl App {
             "The project source changed. Open the review again."
         );
         let current = self
-            .library_store_if_present()?
-            .ok_or_else(|| anyhow::anyhow!("The Library is unavailable"))?
+            .commonplace_store_if_present()?
+            .ok_or_else(|| anyhow::anyhow!("Commonplace is unavailable"))?
             .edition(change.edition)
             .map_err(anyhow::Error::msg)?
-            .ok_or_else(|| anyhow::anyhow!("The edition disappeared from Library"))?;
+            .ok_or_else(|| anyhow::anyhow!("The edition disappeared from Commonplace"))?;
         anyhow::ensure!(
             sources::proposed_library_update(&change.before, &current.bibliography)?.as_ref()
                 == Some(&change.proposed),
-            "The Library edition changed. Open the review again."
+            "The Commonplace edition changed. Open the review again."
         );
         sources_file
             .sources
@@ -698,18 +701,18 @@ impl App {
                 let existing = on_disk.sources.get(&citation.key);
                 let record = if let Some(pick) = &citation.library {
                     let accepted = sources::library_provenance(&pick.record).ok_or_else(|| {
-                        anyhow::anyhow!("The Library record has no accepted details")
+                        anyhow::anyhow!("The Commonplace record has no accepted details")
                     })?;
                     let current = self
-                        .library_store_if_present()?
-                        .ok_or_else(|| anyhow::anyhow!("The Library is unavailable"))?
+                        .commonplace_store_if_present()?
+                        .ok_or_else(|| anyhow::anyhow!("Commonplace is unavailable"))?
                         .edition(pick.edition)
                         .map_err(anyhow::Error::msg)?
-                        .ok_or_else(|| anyhow::anyhow!("The Library edition is unavailable"))?;
+                        .ok_or_else(|| anyhow::anyhow!("The Commonplace edition is unavailable"))?;
                     anyhow::ensure!(
                         sources::library_fingerprint(&current.bibliography)?
                             == accepted.fingerprint,
-                        "The Library edition changed. Open the picker again."
+                        "The Commonplace edition changed. Open the picker again."
                     );
                     anyhow::ensure!(
                         existing.map_or_else(
@@ -795,7 +798,7 @@ impl App {
                 self.overlay = Overlay::ProjectSources(dialog);
                 return;
             }
-            if matches!(dialog.page, Page::LibraryChanges { export: true, .. }) {
+            if matches!(dialog.page, Page::EditionChanges { export: true, .. }) {
                 self.open_export_ready();
             }
             return;
@@ -855,9 +858,9 @@ impl App {
             }
         }
         match &mut dialog.page {
-            Page::BrainPick(target) => match key {
+            Page::OutlinePick(target) => match key {
                 Key::Char('@') if dialog.query.is_empty() => {
-                    if let Err(error) = self.write_brain_reference(target, None) {
+                    if let Err(error) = self.write_outline_reference(target, None) {
                         self.msg = format!("{error:#}");
                     }
                     return;
@@ -868,7 +871,7 @@ impl App {
                         .iter()
                         .find(|pick| current.as_ref() == Some(&pick.key))
                     {
-                        match self.write_brain_reference(
+                        match self.write_outline_reference(
                             target,
                             Some((pick.edition, text(&pick.record, "title").to_owned())),
                         ) {
@@ -879,7 +882,7 @@ impl App {
                 }
                 _ => update_search(&mut dialog.query, &mut dialog.selected, key),
             },
-            Page::LibraryChanges {
+            Page::EditionChanges {
                 changes,
                 export,
                 scroll,
@@ -1142,10 +1145,10 @@ impl App {
                             record.insert("id".into(), Value::String(key.clone()));
                             next.sources.add(record)?;
                             if catalogue_record.is_some()
-                                && let Ok(Some(store)) = self.library_store_if_present()
+                                && let Ok(Some(store)) = self.commonplace_store_if_present()
                             {
                                 let record = next.sources.get(&key).expect("source just added");
-                                let edition = keep_in_library(store, record)?;
+                                let edition = keep_in_commonplace(store, record)?;
                                 let accepted = sources::accepted_library_record(
                                     &key,
                                     library_identity(edition),
@@ -1271,7 +1274,7 @@ impl SourceDialog {
             matches!(
                 self.page,
                 Page::Pick { chosen: None, .. }
-                    | Page::BrainPick(_)
+                    | Page::OutlinePick(_)
                     | Page::Form {
                         original_key: None,
                         field: FORM_SEARCH,
@@ -1317,7 +1320,7 @@ impl SourceDialog {
     fn tick_catalogue(&mut self, now: Instant) -> Option<Result<sources::Record>> {
         let catalogue = self.catalogue.as_ref()?;
         let local_count = match self.page {
-            Page::Pick { chosen: None, .. } | Page::BrainPick(_) => self.matches().len(),
+            Page::Pick { chosen: None, .. } | Page::OutlinePick(_) => self.matches().len(),
             Page::Form {
                 original_key: None, ..
             } => 0,
@@ -1362,7 +1365,7 @@ impl SourceDialog {
         let query = self.query.trim().to_lowercase();
         self.snapshot
             .iter()
-            .filter(|_| !matches!(self.page, Page::BrainPick(_)))
+            .filter(|_| !matches!(self.page, Page::OutlinePick(_)))
             .flat_map(|s| s.sources.iter())
             .filter(|(key, source)| {
                 key.to_lowercase().contains(&query)
@@ -1382,7 +1385,7 @@ impl SourceDialog {
     pub fn paste(&mut self, input: &str) {
         let target = match &mut self.page {
             Page::List
-            | Page::BrainPick(_)
+            | Page::OutlinePick(_)
             | Page::Pick { chosen: None, .. }
             | Page::Form {
                 original_key: None,
@@ -1435,7 +1438,7 @@ fn library_pick(
     edition: EditionKey,
     identity: sources::LibraryIdentity,
     bibliography: &sources::Record,
-) -> Result<LibraryPick> {
+) -> Result<EditionPick> {
     let base = format!(
         "library-{:x}-{:x}",
         edition.edition.device, edition.edition.clock
@@ -1450,7 +1453,7 @@ fn library_pick(
             .expect("an available citation key")
     };
     let record = sources::accepted_library_record(&key, identity, bibliography)?;
-    Ok(LibraryPick {
+    Ok(EditionPick {
         key,
         edition,
         record,
@@ -1772,8 +1775,8 @@ pub(super) fn draw(f: &mut Frame, dialog: &SourceDialog, area: Rect, t: &Theme) 
     f.render_widget(Clear, r);
     let title = match &dialog.page {
         Page::List => "Project sources",
-        Page::BrainPick(_) => "Link a Library edition",
-        Page::LibraryChanges { .. } => "Details changed. Update?",
+        Page::OutlinePick(_) => "Link a Commonplace edition",
+        Page::EditionChanges { .. } => "Details changed. Update?",
         Page::Remove(_) => "Delete source",
         Page::Restore { .. } => "Restore project sources",
         Page::Drive { .. } => "Resolve source conflict",
@@ -1791,7 +1794,7 @@ pub(super) fn draw(f: &mut Frame, dialog: &SourceDialog, area: Rect, t: &Theme) 
     let active = Style::default().fg(t.accent);
     let mut lines = Vec::new();
     let help = match &dialog.page {
-        Page::LibraryChanges {
+        Page::EditionChanges {
             changes, scroll, ..
         } => {
             if let Some(change) = changes.front() {
@@ -1910,13 +1913,13 @@ pub(super) fn draw(f: &mut Frame, dialog: &SourceDialog, area: Rect, t: &Theme) 
                 "Enter save   Shift-Tab back   Esc cancel"
             }
         }
-        Page::Pick { chosen: None, .. } | Page::BrainPick(_) | Page::Form { .. }
+        Page::Pick { chosen: None, .. } | Page::OutlinePick(_) | Page::Form { .. }
             if dialog.catalogue_view.is_some() =>
         {
             lines = draw_editions(dialog, dialog.catalogue_view.unwrap_or(0), inner, active);
             "↑/↓ choose   Enter select   ←/Esc back"
         }
-        Page::List | Page::BrainPick(_) | Page::Pick { chosen: None, .. } => {
+        Page::List | Page::OutlinePick(_) | Page::Pick { chosen: None, .. } => {
             let catalogue = dialog
                 .picker_catalogue()
                 .map(|catalogue| catalogue.0.borrow());

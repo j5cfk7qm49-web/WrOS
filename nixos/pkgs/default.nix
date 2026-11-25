@@ -13,13 +13,15 @@ let
   wros-cage = import ./cage.nix { inherit pkgs lib src; };
   wros-keymaps = import ./keymaps.nix { inherit pkgs lib src; };
   wros-prose-runtime = import ./prose-runtime.nix { inherit pkgs lib src; };
+  wros-media-key = import ./media-key.nix { inherit pkgs lib src rustPlatform; };
 
   wros-helpers = import ./helpers.nix {
     inherit pkgs lib version src wros-display-hw wros-cage wros-keymaps wros-prose-runtime;
   };
 
   paths = import ./paths.nix {
-    inherit pkgs wros-helpers wros-display-hw wros-console-reset wros-cage wros-keymaps wros-prose-runtime;
+    inherit pkgs wros-helpers wros-display-hw wros-console-reset wros-cage wros-keymaps wros-prose-runtime
+      wros-media-key;
   };
 
   rustPackages = import ./rust-packages.nix {
@@ -36,11 +38,25 @@ let
 
   wros-branding = import ./branding.nix { inherit pkgs lib src; };
 
+  hayroBench = pkgs.rustPlatform.buildRustPackage {
+    pname = "wros-hayro-bench";
+    version = "0.1.0";
+    src = src + "/tools/hayro-bench";
+    cargoLock.lockFile = src + "/tools/hayro-bench/Cargo.lock";
+  };
+  hp-measure = import ./hp-measure.nix { inherit pkgs lib src hayroBench; };
+
   # The tests for what NixOS WrOS runs. The Debian update engine's own suites (test_update,
   # test_update_live, test_update_rollback, test_update_support, test_update_transactions) drive
   # dpkg and apt-get against a Debian archive; they stay in the Debian builder's suite (#131).
   python-suite = pkgs.runCommand "wros-python-suite" {
-    nativeBuildInputs = [ pkgs.python3 pkgs.gnupg pkgs.kbd pkgs.console-setup pkgs.xkeyboard_config ];
+    nativeBuildInputs = [
+      (pkgs.python3.withPackages (ps: [ ps.pillow ]))
+      pkgs.gnupg
+      pkgs.kbd
+      pkgs.console-setup
+      pkgs.xkeyboard_config
+    ];
   } ''
     cp -r ${src} source
     chmod -R u+w source
@@ -64,7 +80,7 @@ let
     python3 -m unittest test_keyboard test_clock test_sound test_media_key test_passwd_helper \
       test_recovery_menu test_boot_settings test_boot_unlock test_session_launcher \
       test_display_manager test_nixos_update test_nixos_install_core test_nixos_installer \
-      test_update_reply_contract test_nixos_bundle_tool
+      test_update_reply_contract test_nixos_bundle_tool test_unifont_preview
     mkdir -p "$out"
     echo "pass" > "$out/result"
   '';
@@ -78,9 +94,12 @@ in
     wros-cage
     wros-keymaps
     wros-prose-runtime
+    wros-media-key
     wros-helpers
     wros-licenses
     wros-branding
+    hayroBench
+    hp-measure
     paths
     python-suite;
   inherit (appTests) app-test-binary app-suite;

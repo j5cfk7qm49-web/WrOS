@@ -1,12 +1,16 @@
-//! Rendering. Panes, status line, and the theme picker overlay.
+//! Rendering. Panes, bottom bars, and the theme picker overlay.
 
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Padding, Paragraph};
+use std::time::{Instant, SystemTime};
 
+use crate::app::outline::DeskView;
 use crate::app::{App, Focus, Overlay};
+use crate::gauges::{self, Item};
+use crate::motion::Marquee;
 use crate::scene::{self, Ink, Mode, Phase};
 use crate::theme::Theme;
 use grimoire_core::create::{self, New};
@@ -18,6 +22,15 @@ pub const LEFT_W: u16 = (scene::W + 2) as u16;
 
 const SCENE_H: u16 = (scene::H + 2) as u16;
 const MIN_TREE: u16 = 6;
+const MIN_LEFT: u16 = 18;
+const MIN_EDIT: u16 = 24;
+
+// The native renderer's one-cell tiles. Keep the same code points available to
+// TestBackend in builds without wros-graphics.
+pub(crate) const TILE_LEFT: char = '\u{E100}';
+pub(crate) const TILE_RIGHT: char = '\u{E101}';
+pub(crate) const TILE_LETTERS: [char; 4] = ['\u{E110}', '\u{E111}', '\u{E112}', '\u{E113}'];
+pub(crate) const TILE_POWER: char = '\u{E114}';
 
 pub fn draw(
     f: &mut Frame,
@@ -42,45 +55,58 @@ pub fn draw(
     app.pins.board_hits.borrow_mut().clear();
     app.pins.board_preview.set(Rect::default());
 
-    // The menu bar takes the top line, except in focus mode, where it only
-    // shows while a menu is up.
+    // In focus mode the menu can still appear over the first line of prose.
     app.bar_hits.borrow_mut().clear();
-    use crate::app::brain::DeskView;
     let nonwriting_view = app.desk_view != DeskView::Write;
-    let bar_line = nonwriting_view || !app.focus_mode;
-    let [bar, view_bar, main, status] = Layout::vertical([
-        Constraint::Length(u16::from(bar_line)),
-        Constraint::Length(u16::from(nonwriting_view)),
-        Constraint::Min(3),
-        Constraint::Length(1),
+    let focused = app.focus_mode && !nonwriting_view;
+    let warning = if focused {
+        focus_warning(app, &t)
+    } else {
+        None
+    };
+    let [bar, main, info, progress] = Layout::vertical([
+        Constraint::Length(u16::from(!focused)),
+        Constraint::Min(0),
+        Constraint::Length(u16::from(!focused || warning.is_some())),
+        Constraint::Length(u16::from(!focused)),
     ])
     .areas(f.area());
     app.rect_scene = Rect::default();
     app.view_hits.clear();
+    app.widget_hits.clear();
+    app.progress_hit = Rect::default();
     app.music_row_hits.clear();
-    app.brain.side_area = Rect::default();
-    crate::app::brain::draw_view_bar(f, app, view_bar, &t);
+    app.commonplace.side_area = Rect::default();
 
     if nonwriting_view {
         app.rect_tree = Rect::default();
         app.create_hits.clear();
         match app.desk_view {
-            DeskView::Brain => crate::app::brain::draw(f, app, main, &t, false),
-            DeskView::Review => crate::app::brain::review::draw(f, app, main, &t),
-            DeskView::Library => crate::app::brain::library::draw(f, app, main, &t),
+            DeskView::Outline => crate::app::outline::draw(f, app, main, &t, false),
+            DeskView::Study => crate::app::study::draw(f, app, main, &t),
+            DeskView::Read => crate::app::read::draw(f, app, main, &t),
             _ => {}
         }
     } else {
         draw_write(f, app, main, &t);
     }
-    draw_status(f, app, status, &t);
+    let now = Instant::now();
+    if focused {
+        app.marquee = None;
+        if let Some(warning) = warning {
+            draw_focus_line(f, info, &t, &warning, app.linux_console);
+        }
+    } else {
+        draw_info_bar(f, app, info, &t, now);
+        draw_progress_bar(f, app, progress, &t, now);
+    }
     let band = bar_band(&t, app.linux_console);
     if let Some(band) = band {
-        paint_band(f.buffer_mut(), status, band);
+        paint_band(f.buffer_mut(), info, band);
+        paint_band(f.buffer_mut(), progress, band);
     }
-    if bar_line {
-        crate::app::overlays::draw_bar_line(f, app, bar, &t);
-        draw_status_marks(f, app, bar, &t);
+    if !focused {
+        crate::app::overlays::draw_bar_line(f, app, bar, &t, true);
         if let Some(band) = band {
             paint_band(f.buffer_mut(), bar, band);
         }
@@ -96,14 +122,18 @@ pub fn draw(
             height: 1,
             ..f.area()
         };
-        crate::app::overlays::draw_bar_line(f, app, top, &t);
+        crate::app::overlays::draw_bar_line(f, app, top, &t, false);
         if let Some(band) = band {
             paint_band(f.buffer_mut(), top, band);
         }
     }
 
     if !matches!(app.overlay, Overlay::None) {
-        crate::app::overlays::draw(f, app, f.area(), &t);
+        let mut overlay_area = f.area();
+        if matches!(app.overlay, Overlay::Bar { .. }) {
+            overlay_area.height = info.y.saturating_sub(overlay_area.y);
+        }
+        crate::app::overlays::draw(f, app, overlay_area, info, &t);
     }
 
     let animating = motion.is_some_and(|(motion, graphical)| {
@@ -113,7 +143,7 @@ pub fn draw(
             app.deck.state.low_power,
             crate::motion::Highlight::from_overlay(&app.overlay),
             &t,
-            std::time::Instant::now(),
+            now,
         )
     });
     if t.is_rainbow() {
@@ -130,7 +160,7 @@ fn draw_write(f: &mut Frame, app: &mut App, main: Rect, t: &Theme) {
         app.create_hits.clear();
         app.scene_visible = false;
         main
-    } else if app.deck.state.current().outline {
+    } else if app.deck.state.current().outline && main.width >= MIN_LEFT + MIN_EDIT {
         draw_left(f, app, main, t)
     } else {
         app.rect_tree = Rect::default();
@@ -143,17 +173,17 @@ fn draw_write(f: &mut Frame, app: &mut App, main: Rect, t: &Theme) {
     };
 
     let edit_area = crate::app::pins::sidebar(f, app, edit_area, t);
-    let edit_area = if app.brain.side_visible && !app.focus_mode && edit_area.height >= 12 {
+    let edit_area = if app.commonplace.side_visible && !app.focus_mode && edit_area.height >= 12 {
         let split = if edit_area.width >= 75 {
             Layout::horizontal([Constraint::Percentage(58), Constraint::Percentage(42)])
         } else {
             Layout::vertical([Constraint::Percentage(55), Constraint::Percentage(45)])
         };
-        let [write, brain] = split.areas(edit_area);
-        app.brain.side_area = brain;
+        let [write, outline] = split.areas(edit_area);
+        app.commonplace.side_area = outline;
         write
     } else {
-        app.brain.select_side(false);
+        app.commonplace.select_side(false);
         edit_area
     };
 
@@ -203,14 +233,13 @@ fn draw_write(f: &mut Frame, app: &mut App, main: Rect, t: &Theme) {
     if matches!(app.focus, Focus::Codex | Focus::Beside) && !app.side_room {
         app.activate_editor(Pane::Primary);
     }
-    if !app.brain.side_area.is_empty() {
-        crate::app::brain::draw(f, app, app.brain.side_area, t, true);
+    if !app.commonplace.side_area.is_empty() {
+        crate::app::outline::draw(f, app, app.commonplace.side_area, t, true);
     }
 }
 
-/// The ground of the menu bar and status line: the theme's own line colour, so the two bars frame
-/// the screen as the pane borders frame the panes. None on the console, whose sixteen colours
-/// would turn it into a bright block.
+/// The ground of the bars, in the same colour as the pane borders. None on the console,
+/// whose sixteen colours would turn it into a bright block.
 pub(crate) fn bar_band(t: &Theme, linux_console: bool) -> Option<ratatui::style::Color> {
     (!linux_console && matches!(t.border, ratatui::style::Color::Rgb(..))).then_some(t.border)
 }
@@ -280,16 +309,16 @@ pub(crate) fn paint_rainbow(
 fn draw_left(f: &mut Frame, app: &mut App, main: Rect, t: &Theme) -> Rect {
     let [left, edit_area] = Layout::horizontal([
         Constraint::Length(if app.deck.state.current().outline_width == LEFT_W {
-            LEFT_W.min(main.width.saturating_sub(30)).max(18)
+            LEFT_W.min(main.width.saturating_sub(30)).max(MIN_LEFT)
         } else {
             app.deck
                 .state
                 .current()
                 .outline_width
                 .min(main.width.saturating_sub(30))
-                .max(18)
+                .max(MIN_LEFT)
         }),
-        Constraint::Min(24),
+        Constraint::Min(MIN_EDIT),
     ])
     .areas(main);
 
@@ -848,7 +877,7 @@ fn marked(st: Style, colour: ratatui::style::Color, underline_colour: bool) -> S
 }
 
 fn draw_editor(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
-    let focused = app.view_is_focused() && !app.brain_accepts_input();
+    let focused = app.view_is_focused() && !app.desk_accepts_input();
     let mut title = app.open_title();
     if app.views.active == Pane::Secondary {
         title = format!("Secondary · {title}");
@@ -858,7 +887,7 @@ fn draw_editor(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
     }
     let block = if app.focus_mode {
         // Focus mode draws the page, not a pane: no frame, no title.
-        Block::default().padding(Padding::new(2, 2, 1, 0))
+        Block::default().padding(Padding::horizontal(2))
     } else {
         pane_block(&title, focused, t).padding(Padding::new(2, 2, 0, 0))
     };
@@ -1170,170 +1199,330 @@ fn draw_codex(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
     f.render_widget(Paragraph::new(list), list_area);
 }
 
-/// The bottom bar. Left: the book's words against its target, the progress
-/// bar, today's words, a running sprint and the one-line message (or, with a
-/// menu open, what its highlighted row does). Right: Wi-Fi, volume, battery
-/// and the clock, the clock dropping first when there's no room; the message
-/// is never shortened for them. Focus mode keeps to the scene, and still
-/// warns of a failed save, conflicts or a low battery.
-fn draw_status(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
-    let total = app.project.total_words();
-    let target = app.project.meta.target_words.max(1);
-    let filled = (total * 10 / target).min(10);
-    // A line like the music player's progress, heavy for the words written, light for the rest:
-    // full-height shaded blocks read as a second row on the native screen.
-    let written = "━".repeat(filled);
-    let to_go = "─".repeat(10 - filled);
-    let daily = if app.today_is_rest_day() {
-        Span::styled("  rest day", Style::default().fg(t.dim))
-    } else {
-        let today = app.today_words();
-        let today_text = if today < 0 {
-            format!("−{}", thousands(today.unsigned_abs() as usize))
-        } else {
-            thousands(today as usize)
-        };
-        let today_color = if today >= app.project.meta.daily_target as i64 {
-            t.accent
-        } else {
-            t.dim
-        };
-        let style = Style::default().fg(today_color);
-        Span::styled(format!("  today {today_text}"), style)
-    };
-
-    let mut spans = if app.desk_view == crate::app::brain::DeskView::Library {
-        vec![Span::styled(" Library", Style::default().fg(t.dim))]
-    } else if app.desk_view == crate::app::brain::DeskView::Review {
-        vec![Span::styled(" Review cards", Style::default().fg(t.dim))]
-    } else if app.desk_view == crate::app::brain::DeskView::Brain {
-        vec![Span::styled(" Brain", Style::default().fg(t.dim))]
-    } else if app.focus_mode {
-        let (title, words) = app.open.map_or((String::new(), 0), |i| {
-            (
-                app.project.nodes[i].title.clone(),
-                app.project.nodes[i].words(),
-            )
-        });
-        let mut spans = vec![
-            Span::raw(" "),
-            Span::styled(title, Style::default().fg(t.accent)),
-            Span::styled(
-                format!("  {} words", thousands(words)),
-                Style::default().fg(t.dim),
-            ),
-            daily,
-        ];
-        // The marks the hidden bar would show, when they're warnings.
-        for (text, style) in status_marks(app, t, true) {
-            spans.push(Span::raw("  "));
-            spans.push(Span::styled(text, style));
+pub(crate) fn info_section(app: &App) -> Vec<Span<'static>> {
+    match app.desk_view {
+        DeskView::Read => vec![Span::raw(crate::app::read::info(app))],
+        DeskView::Outline => crate::app::outline::info(app)
+            .map(Span::raw)
+            .into_iter()
+            .collect(),
+        DeskView::Study => vec![Span::raw(crate::app::study::info(app))],
+        DeskView::Write => {
+            if let Some(selection) = app.editor.selected_text() {
+                let words = grimoire_core::notes::count_words(&selection);
+                return vec![Span::raw(format!("{} words selected", thousands(words)))];
+            }
+            let Some(scene) = app.open.map(|i| &app.project.nodes[i]) else {
+                return Vec::new();
+            };
+            // The editor's title already shows the chapter, the scene, its words and its goal, and
+            // the outline shows the project: only what neither shows goes here (the owner's rule).
+            let mut details = Vec::new();
+            if !app.deck.state.current().outline || app.rect_tree.is_empty() {
+                details.push(app.project.meta.title.clone());
+            }
+            details.extend(
+                scene
+                    .status
+                    .iter()
+                    .filter(|s| !s.trim().is_empty())
+                    .cloned(),
+            );
+            if let Some(modified) = scene.stat.and_then(|stat| stat.modified) {
+                let age = SystemTime::now()
+                    .duration_since(modified)
+                    .unwrap_or_default();
+                details.push(format!("edited {} min ago", age.as_secs() / 60));
+            }
+            if details.is_empty() {
+                Vec::new()
+            } else {
+                vec![Span::raw(details.join(info_separator(app.linux_console)))]
+            }
         }
-        spans
-    } else {
-        vec![
-            Span::raw(" "),
-            Span::styled(thousands(total), Style::default().fg(t.text)),
-            Span::styled(
-                format!(" / {} ", thousands(target)),
-                Style::default().fg(t.dim),
-            ),
-            Span::styled(written, Style::default().fg(t.accent)),
-            Span::styled(to_go, Style::default().fg(t.dim)),
-            daily,
-        ]
+    }
+}
+
+pub(crate) fn info_separator(console: bool) -> &'static str {
+    if console { " | " } else { " · " }
+}
+
+pub(crate) fn breadcrumb_separator(console: bool) -> &'static str {
+    if console { " > " } else { " › " }
+}
+
+fn ellipsis(console: bool) -> &'static str {
+    if console { "..." } else { "…" }
+}
+
+/// Shorten at a character boundary using terminal cells, including wide titles.
+fn fit_text(text: &str, width: usize, console: bool) -> String {
+    if Span::raw(text).width() <= width {
+        return text.to_owned();
+    }
+    let ellipsis = ellipsis(console);
+    let Some(room) = width.checked_sub(Span::raw(ellipsis).width()) else {
+        return ".".repeat(width);
     };
+    let end = text
+        .char_indices()
+        .map(|(i, _)| i)
+        .take_while(|&i| Span::raw(&text[..i]).width() <= room)
+        .last()
+        .unwrap_or_default();
+    format!("{}{ellipsis}", &text[..end])
+}
 
-    if let Some((label, reached)) = app.sprint_label() {
-        spans.push(Span::styled(
-            format!("  {label}"),
-            Style::default().fg(if reached { t.accent } else { t.sun }),
-        ));
+fn info_text(info: &[Span<'_>]) -> String {
+    info.iter().map(|span| span.content.as_ref()).collect()
+}
+
+fn draw_info_bar(f: &mut Frame, app: &mut App, area: Rect, t: &Theme, now: Instant) {
+    if area.is_empty() {
+        return;
     }
-
-    // What the battery is about to make WrOS do comes first, in warning colour.
-    // With a menu open, the highlighted row says what it does.
-    if let Some(battery) = app.deck.battery.showing(std::time::Instant::now()) {
-        spans.push(Span::styled(
-            format!("  {battery}"),
-            Style::default().fg(t.warn),
-        ));
-    } else if let Some((says, _)) = app.bar_description() {
-        spans.push(Span::styled(
-            format!("  {says}"),
-            Style::default().fg(t.dim).add_modifier(Modifier::ITALIC),
-        ));
-    } else if !app.msg.is_empty() {
-        spans.push(Span::styled(
-            format!("  {}", app.msg),
-            Style::default().fg(t.accent),
-        ));
-    }
-
-    let used: usize = spans.iter().map(|s| s.content.chars().count()).sum();
+    let info = info_section(app);
+    let console = app.linux_console;
+    let text = info_text(&info);
+    let width = usize::from(area.width);
+    let text_width = Span::raw(text.as_str()).width();
+    let reserved = text_width.min(width / 2);
     let light = app
         .deck
         .light_flash
-        .is_some_and(|at| at.elapsed() < crate::gauges::LIGHT_SHOWN);
-    let clock = if app.focus_mode {
-        String::new()
-    } else {
-        app.deck.clock.clone()
-    };
-    let items = crate::gauges::fit(
+        .is_some_and(|at| now.saturating_duration_since(at) < gauges::LIGHT_SHOWN);
+    let items = gauges::fit(
         app.deck
             .gauges
-            .items(app.focus_mode, app.linux_console, light, &clock),
-        (area.width as usize).saturating_sub(used + 1),
+            .items(false, console, light, &app.deck.clock),
+        width.saturating_sub(reserved + 1),
     );
-    let room: usize = items.iter().map(|(_, s)| s.chars().count() + 2).sum();
-    spans.push(Span::raw(
-        " ".repeat((area.width as usize).saturating_sub(used + room)),
-    ));
+    let gauge_width: usize = items.iter().map(|(_, s)| gauges::item_width(s)).sum();
+    let left = fit_text(&text, width.saturating_sub(gauge_width + 1), console);
+    f.render_widget(
+        Line::styled(format!(" {left}"), Style::default().fg(t.text)),
+        area,
+    );
+
+    let mut x = area.right() - gauge_width as u16;
     let dim = Style::default().fg(t.dim);
     for (item, text) in items {
-        spans.push(Span::raw(" "));
-        match (item, app.deck.gauges.wifi) {
-            // Lit bars for the signal there is, the rest dim.
-            (crate::gauges::Item::Wifi, Some(crate::gauges::Wifi::Bars(n)))
-                if !app.linux_console =>
-            {
-                for (i, c) in text.chars().enumerate() {
-                    let lit = i < n as usize;
-                    spans.push(Span::styled(
-                        c.to_string(),
-                        if lit {
+        let width = (gauges::item_width(&text) - 2) as u16;
+        let rect = Rect::new(x + 1, area.y, width, 1);
+        if let Some(widget) = item.widget() {
+            app.widget_hits.push((rect, widget));
+        }
+        x += width + 2;
+        let line = match (item, app.deck.gauges.wifi) {
+            (Item::Wifi, Some(gauges::Wifi::Bars(n))) if !console => Line::from(
+                text.chars()
+                    .enumerate()
+                    .map(|(i, c)| {
+                        let style = if i < usize::from(n) {
                             Style::default().fg(t.text)
                         } else {
                             dim
-                        },
-                    ));
-                }
+                        };
+                        Span::styled(c.to_string(), style)
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+            (Item::Battery, _) if app.deck.gauges.low_battery() => {
+                Line::styled(text, Style::default().fg(t.warn))
             }
-            (crate::gauges::Item::Battery, _) if app.deck.gauges.low_battery() => {
-                spans.push(Span::styled(text, Style::default().fg(t.warn)));
-            }
-            _ => spans.push(Span::styled(text, dim)),
-        }
-        spans.push(Span::raw(" "));
+            _ => Line::styled(text, dim),
+        };
+        f.render_widget(line, rect);
     }
-
-    f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-/// The marks at the right of the menu bar's line: conflicts waiting to be
-/// settled, whether the words are saved, and the book's backup. With
-/// `warnings_only`, just the ones that need attention (focus mode).
-pub(crate) fn status_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(String, Style)> {
-    ranked_marks(app, t, warnings_only)
-        .into_iter()
-        .map(|(text, style, _)| (text, style))
-        .collect()
+fn daily_words(app: &App, t: &Theme) -> Span<'static> {
+    let dim = Style::default().fg(t.dim);
+    if app.today_is_rest_day() {
+        return Span::styled("  rest day", dim);
+    }
+    let today = app.today_words();
+    let sign = if today >= 0 {
+        ""
+    } else if app.linux_console {
+        "-"
+    } else {
+        "−"
+    };
+    let words = thousands(today.unsigned_abs() as usize);
+    let style = if today >= app.project.meta.daily_target as i64 {
+        Style::default().fg(t.accent)
+    } else {
+        dim
+    };
+    Span::styled(format!("  today {sign}{words}"), style)
+}
+
+fn draw_progress_bar(f: &mut Frame, app: &mut App, area: Rect, t: &Theme, now: Instant) {
+    if area.is_empty() {
+        app.marquee = None;
+        return;
+    }
+    let total = app.project.total_words();
+    let target = app.project.meta.target_words.max(1);
+    let dim = Style::default().fg(t.dim);
+    let accent = Style::default().fg(t.accent);
+    let count = Span::styled(
+        format!(" {}", thousands(total)),
+        Style::default().fg(t.text),
+    );
+    let goal = Span::styled(format!(" / {} ", thousands(target)), dim);
+    let daily = daily_words(app, t);
+    let sprint = app.sprint_label().map(|(label, reached)| {
+        let style = if reached {
+            accent
+        } else {
+            Style::default().fg(t.text)
+        };
+        Span::styled(format!("  {label}"), style)
+    });
+
+    let mut message = if let Some(battery) = app.deck.battery.showing(now) {
+        Some(Span::styled(battery, Style::default().fg(t.warn)))
+    } else if let Some((says, _)) = app.bar_description() {
+        Some(Span::styled(says, dim.add_modifier(Modifier::ITALIC)))
+    } else {
+        (!app.msg.is_empty()).then_some(Span::styled(app.msg.as_str(), accent))
+    };
+    let track = match &app.music.state {
+        crate::music::State::Playing(track) if track.playing && message.is_none() => {
+            Some(track.title.trim()).filter(|title| !title.is_empty())
+        }
+        _ => None,
+    };
+
+    let width = usize::from(area.width);
+    // A message is something to read now, so it wins room: the bar shrinks away first, then the
+    // total and target give way (today's count stays), and only a message too long even for that
+    // takes the whole line, until it clears.
+    if let Some(shown) = &message {
+        let today = daily.width() + sprint.as_ref().map_or(0, Span::width);
+        let beside_all = width.saturating_sub(count.width() + goal.width() + today + 3);
+        let beside_today = width.saturating_sub(today + 3);
+        if shown.width() > beside_all {
+            app.marquee = None;
+            app.progress_hit = Rect::default();
+            if shown.width() <= beside_today {
+                let mut left = vec![daily.clone()];
+                left.extend(sprint.clone());
+                f.render_widget(Line::from(left), area);
+                let right = Rect::new(
+                    area.right() - 1 - shown.width() as u16,
+                    area.y,
+                    shown.width() as u16,
+                    1,
+                );
+                f.render_widget(Line::styled(shown.content.clone(), shown.style), right);
+            } else {
+                let text = fit_text(&shown.content, width.saturating_sub(2), app.linux_console);
+                f.render_widget(Line::styled(format!(" {text}"), shown.style), area);
+            }
+            return;
+        }
+    }
+    let counts_width = count.width() + goal.width();
+    let room =
+        width.saturating_sub(counts_width + daily.width() + sprint.as_ref().map_or(0, Span::width));
+    let music_prefix = if app.linux_console { "Music " } else { "♪ " };
+    let prefix_width = Span::raw(music_prefix).width();
+    let right_width = if let Some(message) = &message {
+        message.width()
+    } else {
+        track.map_or(0, |title| {
+            let music_room = room.saturating_sub(width / 2 + 3).max(12);
+            (prefix_width + Span::raw(title).width()).min(music_room)
+        })
+    };
+    let min_bar = if message.is_some() {
+        0
+    } else {
+        (width / 2).min(10).min(room)
+    };
+    let right_room = room.saturating_sub(min_bar + 3).min(right_width);
+    let bar_width = room
+        .saturating_sub(if right_room == 0 { 0 } else { right_room + 3 })
+        .min(width / 2);
+    let filled = (total.min(target) as u128 * bar_width as u128 / target as u128) as usize;
+    let (written, remaining) = if app.linux_console {
+        ("=", "-")
+    } else {
+        ("━", "─")
+    };
+    app.progress_hit = Rect::new(
+        area.x,
+        area.y,
+        (counts_width + bar_width).min(width) as u16,
+        1,
+    );
+    let mut progress = vec![
+        count,
+        goal,
+        Span::styled(written.repeat(filled), accent),
+        Span::styled(remaining.repeat(bar_width - filled), dim),
+        daily,
+    ];
+    progress.extend(sprint);
+    f.render_widget(Line::from(progress), area);
+
+    let title_room = right_room.saturating_sub(prefix_width);
+    if let Some(title) = track.filter(|_| title_room > 0) {
+        let shown = if !app.deck.state.low_power && Span::raw(title).width() > title_room {
+            if app
+                .marquee
+                .as_ref()
+                .is_some_and(|m| !m.matches(title, title_room))
+            {
+                app.marquee = None;
+            }
+            let marquee = app
+                .marquee
+                .get_or_insert_with(|| Marquee::new(title, title_room, now));
+            marquee.advance(now);
+            marquee.visible().to_owned()
+        } else {
+            app.marquee = None;
+            fit_text(title, title_room, app.linux_console)
+        };
+        message = Some(Span::styled(format!("{music_prefix}{shown}"), dim));
+    } else {
+        app.marquee = None;
+    }
+    if let Some(message) = message.filter(|_| right_room > 0) {
+        let text = fit_text(&message.content, right_room, app.linux_console);
+        let right = Rect::new(
+            area.right() - 1 - right_room as u16,
+            area.y,
+            right_room as u16,
+            1,
+        );
+        f.render_widget(Line::styled(text, message.style), right);
+    }
+}
+
+fn focus_warning(app: &App, t: &Theme) -> Option<String> {
+    let marks = ranked_marks(app, t, true);
+    let warnings = marks
+        .iter()
+        .map(|(text, _, _)| text.as_str())
+        .chain(app.deck.battery.countdown_warning());
+    let text = warnings.collect::<Vec<_>>().join("  ");
+    (!text.is_empty()).then_some(text)
+}
+
+fn draw_focus_line(f: &mut Frame, area: Rect, t: &Theme, warning: &str, console: bool) {
+    let shown = fit_text(warning, usize::from(area.width), console);
+    f.render_widget(Line::styled(shown, Style::default().fg(t.warn)), area);
 }
 
 /// How much a mark matters when the line is short: words not saved most,
-/// then conflicts and a failed backup, then words waiting, then the rest.
-const UNSAVED: u8 = 3;
+/// then conflicts, a failed backup, words waiting, and the rest.
+const UNSAVED: u8 = 4;
+const CONFLICT: u8 = 3;
 const TROUBLE: u8 = 2;
 const PENDING: u8 = 1;
 const CALM: u8 = 0;
@@ -1353,13 +1542,13 @@ fn ranked_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(String, Style
                 format!("⚠ {conflicts}")
             },
             Style::default().fg(t.warn),
-            TROUBLE,
+            CONFLICT,
         ));
     }
     // Saved is a steady dim tick; saving, waiting and not saved say so.
     let dirty = app.project.dirty_count();
     let save = match &app.save_state {
-        crate::app::SaveState::Failed(_) if dirty > 0 => Some((
+        crate::app::SaveState::Failed(_) if dirty > 0 => (
             if console {
                 format!("{dirty} not saved")
             } else {
@@ -1367,9 +1556,9 @@ fn ranked_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(String, Style
             },
             Style::default().fg(t.warn),
             UNSAVED,
-        )),
-        // Not on disk yet: focus mode says so too.
-        crate::app::SaveState::Waiting(_) if dirty > 0 => Some((
+        ),
+        _ if warnings_only => return out,
+        crate::app::SaveState::Waiting(_) if dirty > 0 => (
             if console {
                 format!("{dirty} waiting")
             } else {
@@ -1377,8 +1566,8 @@ fn ranked_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(String, Style
             },
             Style::default().fg(t.sun),
             PENDING,
-        )),
-        _ if dirty > 0 => Some((
+        ),
+        _ if dirty > 0 => (
             if console {
                 "saving".into()
             } else {
@@ -1386,8 +1575,8 @@ fn ranked_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(String, Style
             },
             Style::default().fg(t.dim),
             CALM,
-        )),
-        _ => Some((
+        ),
+        _ => (
             if console {
                 "saved".into()
             } else {
@@ -1395,22 +1584,17 @@ fn ranked_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(String, Style
             },
             Style::default().fg(t.dim),
             CALM,
-        )),
+        ),
     };
-    if let Some((text, style, rank)) = save
-        && (rank > CALM || !warnings_only)
-    {
-        out.push((text, style, rank));
+    out.push(save);
+    if warnings_only {
+        return out;
     }
     if let Some(mark) = app.backup_mark() {
         use crate::app::BackupMark;
         let (text, style, rank) = match mark {
-            BackupMark::Done(at) => (
-                if console {
-                    format!("backed up {at}")
-                } else {
-                    format!("⇅ {at}")
-                },
+            BackupMark::Done => (
+                if console { "backed up" } else { "⇅" }.into(),
                 Style::default().fg(t.dim),
                 CALM,
             ),
@@ -1442,47 +1626,50 @@ fn ranked_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(String, Style
                 TROUBLE,
             ),
         };
-        if rank > CALM || !warnings_only {
-            out.push((text, style, rank));
-        }
+        out.push((text, style, rank));
     }
     out
 }
 
-/// The marks drawn at the right end of the bar's line, clear of its titles.
-pub(crate) fn draw_status_marks(f: &mut Frame, app: &App, line: Rect, t: &Theme) {
-    let titles_end = app
-        .bar_hits
-        .borrow()
-        .iter()
-        .map(|(r, _)| r.right())
-        .max()
-        .unwrap_or(line.x);
+/// Draw the marks between the logo and Power. Return where the titles must stop.
+pub(crate) fn draw_status_marks(f: &mut Frame, app: &App, line: Rect, t: &Theme) -> u16 {
     let mut marks = ranked_marks(app, t, false);
-    // Without room, the mark that matters least goes first (the rightmost of
-    // equals), so an unsaved warning is the last to go.
+    let mut gap = "  ";
     while !marks.is_empty() {
         let width: u16 = marks
             .iter()
-            .map(|(s, _, _)| s.chars().count() as u16 + 2)
+            .map(|(s, _, _)| (s.chars().count() + gap.len()) as u16)
             .sum::<u16>()
             + 1;
-        if titles_end + 2 + width <= line.right() {
+        if width <= line.width {
             let mut spans = vec![];
             for (text, style, _) in marks {
-                spans.push(Span::raw("  "));
+                spans.push(Span::raw(gap));
                 spans.push(Span::styled(text, style));
             }
             spans.push(Span::raw(" "));
             let area = Rect::new(line.right() - width, line.y, width, 1);
             f.render_widget(Paragraph::new(Line::from(spans)), area);
-            return;
+            return area.x.saturating_sub(2).max(line.x);
         }
         let least = marks.iter().map(|(_, _, rank)| *rank).min().unwrap_or(CALM);
-        if let Some(at) = marks.iter().rposition(|(_, _, rank)| *rank == least) {
+        if least >= CONFLICT && gap == "  " {
+            // When the titles and other marks are gone, shorten the warnings first.
+            gap = " ";
+            for (text, _, rank) in &mut marks {
+                *text = match (*rank == UNSAVED, app.linux_console) {
+                    (true, true) => "unsaved",
+                    (false, true) => "conflict",
+                    (true, false) => "●",
+                    (false, false) => "⚠",
+                }
+                .into();
+            }
+        } else if let Some(at) = marks.iter().rposition(|(_, _, rank)| *rank == least) {
             marks.remove(at);
         }
     }
+    line.right().saturating_sub(1).max(line.x)
 }
 
 // ── overlays ─────────────────────────────────────────────────────────

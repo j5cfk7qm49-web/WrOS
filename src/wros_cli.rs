@@ -42,7 +42,7 @@ pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
         }
         Some("prose") => prose_command(args)?,
         Some("backup") => backup_command(args)?,
-        Some("brain") => brain_command(args)?,
+        Some("outline" | "brain") => outline_command(args)?,
         Some("lexicon") => {
             let query = args
                 .next()
@@ -142,6 +142,7 @@ pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
             "  grimoire wros status [--simulate]         ",
             "read-only JSON status (alias: writingdeck)\n",
             "  grimoire wros tutorial-demo DIR          create a NEW safe demo\n",
+            "  grimoire wros outline COMMAND            list, show, recover or checkpoint notes\n",
             "  grimoire wros lexicon WORD [--data DIR]  ",
             "local WordNet 3.0 senses/antonyms (read-only)\n",
             "  grimoire wros check-config DIR           validate without rewriting\n",
@@ -159,14 +160,17 @@ pub fn command(mut args: impl Iterator<Item = String>) -> Result<()> {
     Ok(())
 }
 
-fn brain_command(mut args: impl Iterator<Item = String>) -> Result<()> {
+fn outline_command(mut args: impl Iterator<Item = String>) -> Result<()> {
+    use crate::app::outline::{default_commonplace_path, migrate_commonplace};
     use grimoire_brain::bounded_store::PagedBrain;
     use grimoire_brain::model::{NodeId, Place};
 
-    let live = grimoire_core::paths::home().join("Documents/Brain");
+    let live = default_commonplace_path();
     let action = args.next().unwrap_or_default();
     let requested = args.next().map(PathBuf::from);
-    let help = "Use brain list FOLDER, brain show FOLDER NOTE-ID, brain recover FOLDER NOTE-ID, or brain checkpoint [FOLDER]";
+    let use_live = action == "checkpoint" && requested.is_none();
+    let help = "Use outline list FOLDER, outline show FOLDER NOTE-ID, \
+                outline recover FOLDER NOTE-ID, or outline checkpoint [FOLDER]";
     let root = match (action.as_str(), requested) {
         ("list" | "show" | "recover", Some(path)) => path,
         ("checkpoint", path) => path.unwrap_or_else(|| live.clone()),
@@ -175,7 +179,7 @@ fn brain_command(mut args: impl Iterator<Item = String>) -> Result<()> {
     let node = match action.as_str() {
         "show" | "recover" => Some(
             args.next()
-                .ok_or_else(|| anyhow::anyhow!("Supply a Brain note ID"))?
+                .ok_or_else(|| anyhow::anyhow!("Supply an Outline note ID"))?
                 .parse::<NodeId>()
                 .map_err(anyhow::Error::msg)?,
         ),
@@ -184,12 +188,19 @@ fn brain_command(mut args: impl Iterator<Item = String>) -> Result<()> {
     if args.next().is_some() {
         bail!("{help}");
     }
+    if use_live {
+        migrate_commonplace(&live)?;
+    }
     if !root.join("store/journal").is_dir() {
-        bail!("Choose a folder with an existing Brain store");
+        bail!("Choose a folder with an existing Commonplace store");
     }
     let root = root.canonicalize()?;
-    if action == "recover" && live.canonicalize().is_ok_and(|path| path == root) {
-        bail!("Choose an isolated Brain restore as the source");
+    if action == "recover"
+        && [&live, &live.with_file_name("Brain")]
+            .iter()
+            .any(|path| path.canonicalize().is_ok_and(|path| path == root))
+    {
+        bail!("Choose an isolated Commonplace restore as the source");
     }
     let temporary = tempfile::tempdir()?;
     let mut source =
@@ -197,18 +208,19 @@ fn brain_command(mut args: impl Iterator<Item = String>) -> Result<()> {
     match (action.as_str(), node) {
         ("checkpoint", _) => {
             source.checkpoint().map_err(anyhow::Error::msg)?;
-            println!("Brain checkpoint verified.");
+            println!("Commonplace checkpoint verified.");
         }
         ("show" | "recover", Some(node)) => {
             let text = source
                 .note(node)
                 .map_err(anyhow::Error::msg)?
                 .ok_or_else(|| {
-                    anyhow::anyhow!("This note is hidden or missing in the isolated library")
+                    anyhow::anyhow!("This note is hidden or missing in the isolated store")
                 })?;
             if action == "show" {
                 println!("{text}");
             } else {
+                migrate_commonplace(&live)?;
                 let temporary = tempfile::tempdir()?;
                 let mut destination = PagedBrain::open_library(&live, temporary.path())
                     .map_err(anyhow::Error::msg)?;

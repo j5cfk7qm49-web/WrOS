@@ -30,8 +30,8 @@ pub struct ProjectMeta {
     pub draft: String,
     pub template: String,
     pub export_profile: String,
-    /// Stable Brain tag identity for the project's side pane.
-    pub brain_tag: Option<String>,
+    /// Stable Outline tag identity for the project's side pane.
+    pub outline_tag: Option<String>,
     #[serde(deserialize_with = "lenient_table")]
     pub mla: MlaDetails,
     pub target_words: usize,
@@ -139,7 +139,7 @@ impl Default for ProjectMeta {
             draft: String::new(),
             template: String::new(),
             export_profile: String::new(),
-            brain_tag: None,
+            outline_tag: None,
             mla: MlaDetails::default(),
             target_words: 80_000,
             daily_target: 1_000,
@@ -154,6 +154,16 @@ impl Default for ProjectMeta {
 }
 
 impl ProjectMeta {
+    fn from_settings(text: &str) -> std::result::Result<Self, toml::de::Error> {
+        let mut settings: toml::Table = toml::from_str(text)?;
+        if let Some(tag) = settings.remove("brain_tag")
+            && !settings.contains_key("outline_tag")
+        {
+            settings.insert("outline_tag".into(), tag);
+        }
+        toml::Value::Table(settings).try_into()
+    }
+
     pub fn uses_mla(&self) -> bool {
         self.export_profile == "mla-9"
     }
@@ -620,7 +630,7 @@ impl Project {
         let meta_path = project_files::path(root, FileKind::Settings);
         let meta_name = meta_path.file_name().unwrap_or_default().to_string_lossy();
         let (meta, meta_unreadable) = match fs::read_to_string(&meta_path) {
-            Ok(s) => match toml::from_str::<ProjectMeta>(&s) {
+            Ok(s) => match ProjectMeta::from_settings(&s) {
                 Ok(m) => (m, None),
                 Err(e) => (
                     ProjectMeta::default(),
@@ -1924,7 +1934,7 @@ pub fn upgrade(root: &Path) -> Result<Vec<String>> {
     let settings = project_files::path(root, FileKind::Settings);
     if fs::read_to_string(settings)
         .ok()
-        .and_then(|text| toml::from_str::<ProjectMeta>(&text).ok())
+        .and_then(|text| ProjectMeta::from_settings(&text).ok())
         .is_some_and(|meta| meta.is_essay())
     {
         return Ok(Vec::new());
@@ -3196,6 +3206,25 @@ mod tests {
         let _ = fs::remove_dir_all(&d);
         fs::create_dir_all(&d).unwrap();
         d
+    }
+
+    #[test]
+    fn brain_tag_is_read_as_outline_tag() {
+        let root = temp_dir("outline-tag");
+        let settings = root.join("project.toml");
+        fs::write(&settings, "brain_tag = \"essay\"\n").unwrap();
+        let project = Project::load(&root).unwrap();
+        let tag = project.meta.outline_tag.as_deref();
+        assert_eq!(tag, Some("essay"));
+
+        crate::submission::save_outline_tag(&root, tag.unwrap()).unwrap();
+        let saved = fs::read_to_string(&settings).unwrap();
+        assert!(saved.contains("outline_tag = \"essay\""));
+
+        fs::write(&settings, "outline_tag = \"essay\"\nbrain_tag = \"old\"\n").unwrap();
+        let project = Project::load(&root).unwrap();
+        assert_eq!(project.meta.outline_tag.as_deref(), Some("essay"));
+        fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

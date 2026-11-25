@@ -38,6 +38,7 @@ mod shelf;
 mod sources;
 mod spelling;
 mod versions;
+mod widgets;
 
 #[cfg(test)]
 pub(crate) use bar::BarRow;
@@ -74,6 +75,7 @@ impl App {
     fn route_overlay_key(&mut self, key: Key) {
         match self.overlay {
             Overlay::None => {}
+            Overlay::Widget { kind, sel } => self.on_widget_key(kind, sel, key),
             Overlay::ProjectSources(_) => self.on_project_sources_key(key),
             Overlay::PaperDetails { .. } => self.on_paper_details_key(key),
             Overlay::Deck(_) => self.on_deck_key(key),
@@ -208,9 +210,10 @@ pub(crate) fn list_nav(key: Key, sel: &mut usize, len: usize, nav: Nav) -> bool 
 }
 
 /// Draw whichever overlay is up, over the desk.
-pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
+pub fn draw(f: &mut Frame, app: &App, area: Rect, info: Rect, t: &Theme) {
     match &app.overlay {
         Overlay::None => {}
+        Overlay::Widget { kind, sel } => widgets::draw(f, app, area, info, *kind, *sel, t),
         Overlay::Deck(_) => super::wros::draw(f, app, area, t),
         Overlay::Spark { .. } => super::spark::draw(f, app, area, t),
         Overlay::Checks { .. } => super::checks::draw(f, app, area, t),

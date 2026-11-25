@@ -130,12 +130,29 @@ impl PagedBrain {
         search::search(&self.view, query, offset, count)
     }
 
+    pub fn backlink_count(&mut self, target: NodeId) -> Result<u64> {
+        self.refresh_view()?;
+        search::backlink_count(&self.view, target)
+    }
+
     pub fn due_cards(&mut self, now: i64, filter: Option<&SavedQuery>) -> Result<DueCards> {
         self.refresh_view()?;
         review_projection::due(&self.view, now, filter)
     }
 
     pub fn library_works(&mut self, filter: &Filter, offset: u32, count: u16) -> Result<Vec<Work>> {
+        self.library_works_with_count(filter, offset, count)
+            .map(|(works, _)| works)
+    }
+
+    /// A page of matching works and the number of matches before pagination.
+    /// An empty page has no row from which to read the count.
+    pub fn library_works_with_count(
+        &mut self,
+        filter: &Filter,
+        offset: u32,
+        count: u16,
+    ) -> Result<(Vec<Work>, u64)> {
         self.refresh_view()?;
         library_projection::works(&self.view, filter, offset, count)
     }

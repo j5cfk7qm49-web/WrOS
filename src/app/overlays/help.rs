@@ -35,7 +35,7 @@ impl App {
     /// The topic that explains where you are.
     pub fn help_context(&self) -> &'static str {
         match &self.overlay {
-            Overlay::Deck(_) => "wros",
+            Overlay::Deck(_) | Overlay::Widget { .. } => "wros",
             Overlay::Spark { .. } => "story-spark",
             Overlay::Checks { .. } => "writing-checks",
             Overlay::Lexicon => "lexicon",

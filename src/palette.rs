@@ -7,8 +7,9 @@ use grimoire_core::project::Kind;
 /// Everything the palette can do. Scenes and notes are opened by path.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
-    BrainBeside,
-    SwitchDeskView(crate::app::brain::DeskView),
+    OutlineBeside,
+    SwitchDeskView(crate::app::outline::DeskView),
+    OpenWidget(crate::gauges::Widget),
     Settings,
     SystemSettings,
     Workspaces,
@@ -112,6 +113,7 @@ pub enum Action {
     Beside(std::path::PathBuf),
     LineWidth,
     Typewriter,
+    PomodoroChime,
     /// An older book keeps its writing history in `.git` inside it: move it
     /// to this machine's data folder, where no sync client can damage it.
     MoveHistoryOut,
@@ -143,7 +145,7 @@ pub enum Action {
     SelectAll,
     Cut,
     Copy,
-    /// The power rows of the WrOS menu: the same rows, and confirmations, as
+    /// The rows of the Power menu: the same rows, and confirmations, as
     /// Settings › System › Battery and power.
     Lock,
     Sleep,
@@ -163,7 +165,6 @@ pub enum Action {
 /// The menu bar's titles, left to right.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Title {
-    Wros,
     #[default]
     File,
     Edit,
@@ -172,11 +173,11 @@ pub enum Title {
     Tools,
     Settings,
     Help,
+    Power,
 }
 
 impl Title {
     pub const ALL: [Title; 8] = [
-        Title::Wros,
         Title::File,
         Title::Edit,
         Title::View,
@@ -184,11 +185,11 @@ impl Title {
         Title::Tools,
         Title::Settings,
         Title::Help,
+        Title::Power,
     ];
 
     pub fn label(self) -> &'static str {
         match self {
-            Title::Wros => "WrOS",
             Title::File => "File",
             Title::Edit => "Edit",
             Title::View => "View",
@@ -196,12 +197,17 @@ impl Title {
             Title::Tools => "Tools",
             Title::Settings => "Settings",
             Title::Help => "Help",
+            Title::Power => "Power",
         }
     }
 
-    /// The letter that opens it, underlined in its title: its first.
+    /// The letter that opens the menu, underlined in its title.
     pub fn letter(self) -> char {
-        self.label().chars().next().unwrap().to_ascii_lowercase()
+        if self == Self::Power {
+            'w'
+        } else {
+            self.label().chars().next().unwrap().to_ascii_lowercase()
+        }
     }
 
     pub fn index(self) -> usize {
@@ -254,6 +260,7 @@ impl Action {
                 | Action::Icons
                 | Action::LineWidth
                 | Action::Typewriter
+                | Action::PomodoroChime
         )
     }
 }
@@ -283,22 +290,19 @@ impl Entry {
 /// Everything available right now, actions first in the order they're most
 /// often wanted, then scenes and notes in book order, then themes.
 pub fn entries(app: &crate::app::App) -> Vec<Entry> {
-    use crate::app::brain::DeskView;
+    use crate::app::outline::DeskView;
+    use crate::gauges::Widget;
     let m = app.mod_label();
     let part = app.project.meta.part_noun();
     let mut v = vec![
-        Entry::new("Brain", "Super+3", Action::SwitchDeskView(DeskView::Brain)),
+        Entry::new("read", "Super+2", Action::SwitchDeskView(DeskView::Read)),
         Entry::new(
-            "Library",
-            "Super+2",
-            Action::SwitchDeskView(DeskView::Library),
+            "Outline",
+            "Super+3",
+            Action::SwitchDeskView(DeskView::Outline),
         ),
-        Entry::new(
-            "Review cards",
-            "Super+4",
-            Action::SwitchDeskView(DeskView::Review),
-        ),
-        Entry::new("Brain beside Write", "", Action::BrainBeside),
+        Entry::new("Study", "Super+4", Action::SwitchDeskView(DeskView::Study)),
+        Entry::new("Outline beside Write", "", Action::OutlineBeside),
         Entry::new("WrOS settings", "", Action::Settings),
         Entry::new("System settings", "", Action::SystemSettings),
         Entry::new("Workspaces", "", Action::Workspaces),
@@ -585,6 +589,14 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("Read chapter aloud", "", Action::ReadChapterAloud),
         Entry::new("Read manuscript aloud", "", Action::ReadManuscriptAloud),
         Entry::new("Revision notes", "", Action::ReviewNotes),
+        Entry::new("Wi-Fi", "", Action::OpenWidget(Widget::Wifi)),
+        Entry::new("Sound", "", Action::OpenWidget(Widget::Sound)),
+        Entry::new(
+            "Battery and brightness",
+            "",
+            Action::OpenWidget(Widget::Battery),
+        ),
+        Entry::new("Date and calendar", "", Action::OpenWidget(Widget::Clock)),
     ]);
     // Every help topic, so "help sync" goes straight to it.
     for t in crate::help::TOPICS {
@@ -645,7 +657,7 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         (app.deck.quit_offered || e.action != Action::Quit)
             && app.unavailable_action(&e.action).is_none()
     });
-    if app.brain_accepts_input() {
+    if app.desk_accepts_input() {
         for entry in &mut v {
             if matches!(
                 entry.action,

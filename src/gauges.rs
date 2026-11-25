@@ -14,11 +14,14 @@ pub const LOW_BATTERY: u8 = 15;
 pub struct Gauges {
     pub battery: Option<u8>,
     pub charging: bool,
+    pub battery_minutes: Option<u64>,
     pub light: Option<u8>,
     pub volume: Option<u8>,
     pub muted: bool,
     /// `None` where the kernel doesn't report Wi-Fi at all.
     pub wifi: Option<Wifi>,
+    /// Radio state is independent of whether a network is connected.
+    pub wifi_radio: Option<bool>,
 }
 
 /// One thing at the right of the bottom bar.
@@ -29,6 +32,26 @@ pub enum Item {
     Light,
     Battery,
     Clock,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Widget {
+    Wifi,
+    Sound,
+    Battery,
+    Clock,
+}
+
+impl Item {
+    pub fn widget(self) -> Option<Widget> {
+        match self {
+            Self::Wifi => Some(Widget::Wifi),
+            Self::Volume => Some(Widget::Sound),
+            Self::Battery => Some(Widget::Battery),
+            Self::Clock => Some(Widget::Clock),
+            Self::Light => None,
+        }
+    }
 }
 
 /// How long the light shows after a brightness key.
@@ -117,9 +140,6 @@ impl Gauges {
 /// first on a narrow screen, then volume, then Wi-Fi; the battery last.
 pub fn fit(items: Vec<(Item, String)>, room: usize) -> Vec<(Item, String)> {
     let mut keep = items;
-    let width = |items: &[(Item, String)]| -> usize {
-        items.iter().map(|(_, s)| s.chars().count() + 2).sum()
-    };
     for drop in [
         Item::Clock,
         Item::Light,
@@ -127,12 +147,16 @@ pub fn fit(items: Vec<(Item, String)>, room: usize) -> Vec<(Item, String)> {
         Item::Wifi,
         Item::Battery,
     ] {
-        if width(&keep) <= room {
+        if keep.iter().map(|(_, text)| item_width(text)).sum::<usize>() <= room {
             break;
         }
         keep.retain(|(item, _)| *item != drop);
     }
     keep
+}
+
+pub(crate) fn item_width(text: &str) -> usize {
+    ratatui::text::Span::raw(text).width() + 2
 }
 
 /// The gauges now. Battery and light come from the kernel's status files; the
@@ -145,8 +169,10 @@ pub fn read() -> Gauges {
     let mut gauges = Gauges {
         battery,
         charging: charging.unwrap_or(false),
+        battery_minutes: battery_minutes(sys),
         light: wros_sys::linux::brightness(sys),
         wifi: crate::wifi::read(),
+        wifi_radio: wifi_radio(sys),
         ..Gauges::default()
     };
     if let Ok(Reply::Audio(audio)) = wros_sys::linux::Linux::default().request(Request::AudioStatus)
@@ -156,6 +182,54 @@ pub fn read() -> Gauges {
         gauges.muted = audio.muted;
     }
     gauges
+}
+
+#[cfg(target_os = "linux")]
+fn battery_minutes(sys: &std::path::Path) -> Option<u64> {
+    use std::fs;
+
+    fs::read_dir(sys.join("class/power_supply"))
+        .ok()?
+        .flatten()
+        .find_map(|entry| {
+            let path = entry.path();
+            let read = |key| fs::read_to_string(path.join(key)).ok();
+            if read("type")?.trim() != "Battery" || read("status")?.trim() != "Discharging" {
+                return None;
+            }
+            let number = |key| read(key)?.trim().parse::<u64>().ok();
+            let estimate = |amount, rate| {
+                number(amount)?
+                    .saturating_mul(60)
+                    .checked_div(number(rate)?)
+            };
+            number("time_to_empty_now")
+                .filter(|&seconds| seconds > 0)
+                .map(|seconds| seconds / 60)
+                .or_else(|| estimate("energy_now", "power_now"))
+                .or_else(|| estimate("charge_now", "current_now"))
+        })
+}
+
+#[cfg(target_os = "linux")]
+fn wifi_radio(sys: &std::path::Path) -> Option<bool> {
+    use std::fs;
+
+    fs::read_dir(sys.join("class/rfkill"))
+        .ok()?
+        .flatten()
+        .filter_map(|entry| {
+            let path = entry.path();
+            if fs::read_to_string(path.join("type")).ok()?.trim() != "wlan" {
+                return None;
+            }
+            match fs::read_to_string(path.join("soft")).ok()?.trim() {
+                "0" => Some(true),
+                "1" => Some(false),
+                _ => None,
+            }
+        })
+        .reduce(|a, b| a || b)
 }
 
 /// Touched by `/usr/libexec/wros-media-key` after a brightness or volume key (#80).
@@ -219,6 +293,7 @@ mod tests {
             volume: Some(70),
             muted: false,
             wifi: Some(Wifi::Bars(2)),
+            ..Gauges::default()
         };
         assert_eq!(
             texts(gauges.items(false, false, false, "14:07")),

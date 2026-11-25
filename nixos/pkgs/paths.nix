@@ -5,6 +5,7 @@
 , wros-cage
 , wros-keymaps
 , wros-prose-runtime
+, wros-media-key
 }:
 let
   wrapperDir = "/run/wrappers/bin";
@@ -51,7 +52,8 @@ let
     keyboardCompat = "${wros-helpers}/libexec/writingdeck-keyboard";
     liveSession = "${wros-helpers}/libexec/wros-live-session";
     lock = "${wros-helpers}/libexec/wros-lock";
-    mediaKey = "${wros-helpers}/libexec/wros-media-key";
+    # Rust since rc30 (#174); os/scripts/wros-media-key is no longer what the keys run.
+    mediaKey = "${wros-media-key}/bin/wros-media-key";
     passwd = "${wros-helpers}/libexec/wros-passwd";
     recovery = "${wros-helpers}/libexec/wros-recovery";
     rescue = "${wros-helpers}/bin/wros-rescue";

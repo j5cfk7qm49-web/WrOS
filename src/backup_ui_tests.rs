@@ -253,7 +253,7 @@ fn the_backup_mark_names_only_this_books_own_backups() {
         .snapshots
         .push(snapshot(elsewhere.clone()));
     assert_eq!(
-        app.read_backup_mark(chrono::Local::now()),
+        app.read_backup_mark(),
         None,
         "not another book's"
     );
@@ -266,18 +266,16 @@ fn the_backup_mark_names_only_this_books_own_backups() {
             project: elsewhere,
             ..Default::default()
         });
-    assert_eq!(app.read_backup_mark(chrono::Local::now()), None);
+    assert_eq!(app.read_backup_mark(), None);
     app.deck
         .shell
         .backup
         .status
         .snapshots
         .push(snapshot(root.to_string_lossy().into_owned()));
-    assert!(
-        matches!(
-            app.read_backup_mark(chrono::Local::now()),
-            Some(crate::app::BackupMark::Done(_))
-        ),
+    assert_eq!(
+        app.read_backup_mark(),
+        Some(crate::app::BackupMark::Done),
         "its own folder's snapshot counts"
     );
 }

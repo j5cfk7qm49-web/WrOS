@@ -6,9 +6,10 @@ WrOS (formerly codenamed WritingDeck OS) is an offline-first NixOS 26.05 writing
 
 WrOS opens your selected workspace. Press `Esc` for the menu bar or `Ctrl-K`
 to find an action or document. Open **Tools › Progress** for goals, calendar,
-sprints, edits, collection and challenges. The bottom bar shows writing
-progress and backup status. Esc returns from a WrOS page to writing or to
-the page you opened it from.
+sprints, edits, collection and challenges. The upper bottom bar shows where
+you are and the system widgets. The lower bar shows writing progress and
+messages. Save and backup marks sit on the top bar. Esc returns from a WrOS
+page to writing or to the page you opened it from.
 
 ## Toggle outline
 
@@ -112,10 +113,24 @@ Choose **Help › Interactive tutorial…** to see all 50 lessons. Press `d` to 
 
 The writing application runs as the writer. Ctrl+Alt+F2 opens the authenticated maintenance console. The NixOS installer creates an encrypted installation and a writer account; root stays locked. Screen locking, guarded suspend, signed generation updates, rollback and phone linking are implemented. VM tests establish their tested behavior, not physical suspend/resume or general hardware qualification.
 
-## The WrOS menu
+## The top and bottom bars
 
-The first menu on the bar holds About WrOS, Lock, Sleep,
-Restart… (Restart the computer in Ctrl-K) and Shut down…. The power rows ask first, as they do in
-Settings › System › Battery and power. On a live USB it also offers Install
-WrOS to disk…. Open File › Back up now. It backs the open project up straight away
-to its configured backup destinations.
+The W r O S tiles switch between Write, read, Outline and Study. Click a tile,
+or press Super+1 through Super+4. From the menus, Left from File reaches the
+tiles. The ⏻ Power tile at the right holds Lock, Sleep,
+Restart… (Restart the computer in Ctrl-K) and Shut down…. Esc then W opens it. The power rows ask
+first, as they do in Settings › System › Battery and power. On a live USB it
+also offers Install WrOS to disk…. About WrOS is the last item in Help. Open
+File › Back up now to back up the open project to its configured destinations.
+
+The upper bottom bar shows information about the current view. In Write, with
+the outline showing, it shows scene details or the selected word count. With
+the outline hidden, it shows the project, chapter, scene and scene words. Click
+Wi-Fi, sound, battery or the clock to open a panel. They show networks; volume
+and the playing track; charge and brightness; or the date and a month calendar.
+The battery panel opens the night light preview. Each panel links to Settings.
+Esc or a click outside closes it. Find anything opens them by name too: Wi-Fi, Sound,
+Battery and brightness, and Date and calendar.
+The lower bar shows project progress, today's words and messages. When no
+message is fresh, the playing track scrolls there. Focus mode hides the top bar
+and keeps one line at the bottom for location, today's words and warnings.

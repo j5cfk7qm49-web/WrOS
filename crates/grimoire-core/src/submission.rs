@@ -602,9 +602,9 @@ pub fn save_goals(root: &Path, book: usize, day: usize) -> Result<()> {
     crate::atomic::write_text(&path, &text)
 }
 
-pub fn save_brain_tag(root: &Path, tag: &str) -> Result<()> {
+pub fn save_outline_tag(root: &Path, tag: &str) -> Result<()> {
     let (path, name, old) = settings_text(root)?;
-    let text = put_key(&old, "brain_tag", &quoted(tag));
+    let text = put_key(&old, "outline_tag", &quoted(tag));
     toml::from_str::<toml::Table>(&text)
         .with_context(|| format!("the new {name} didn't read back"))?;
     crate::atomic::write_text(&path, &text)

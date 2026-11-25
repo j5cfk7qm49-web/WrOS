@@ -83,7 +83,7 @@ fn the_bar_has_eight_titles_in_order() {
     assert_eq!(
         labels,
         [
-            "WrOS", "File", "Edit", "View", "Project", "Tools", "Settings", "Help"
+            "File", "Edit", "View", "Project", "Tools", "Settings", "Help", "Power"
         ]
     );
     let mut letters: Vec<char> = Title::ALL.iter().map(|t| t.letter()).collect();
@@ -92,7 +92,7 @@ fn the_bar_has_eight_titles_in_order() {
     assert_eq!(letters.len(), 8, "each title its own letter");
     let d = Desk::open(book("bar-line", true), 80, 24);
     assert!(
-        d.rows()[0].starts_with("  WrOS  File  Edit  View  Project  Tools  Settings  Help"),
+        d.rows()[0].starts_with(" [W][r][O][S] │ File  Edit  View  Project  Tools  Settings  Help"),
         "{:?}",
         d.rows()[0]
     );
@@ -255,11 +255,11 @@ fn every_rc12_menu_row_has_a_place_on_the_bar() {
 }
 
 #[test]
-fn overview_is_gone_from_the_wros_menu_and_palette() {
+fn overview_is_gone_from_the_power_menu_and_palette() {
     let d = everything_offered("bar-no-overview");
     assert!(
         !d.app
-            .bar_rows(Title::Wros)
+            .bar_rows(Title::Power)
             .iter()
             .any(|r| r.label == "Overview")
     );
@@ -328,6 +328,10 @@ fn nothing_in_ctrl_k_is_missing_from_the_bar() {
                     | A::PlayPause | A::NextTrack | A::PrevTrack
                     // Things by name: scenes, notes, themes, books, topics.
                     | A::Open(_) | A::Theme(_) | A::OpenBookAt(_) | A::Beside(_) | A::HelpTopic(_)
+                    // The views: the W r O S tiles on the bar switch them (rc30).
+                    | A::SwitchDeskView(_)
+                    // The panels: the bottom bar's Wi-Fi, sound, battery and clock open them.
+                    | A::OpenWidget(_)
                     // Settings rows, reached through the Settings menu.
                     | A::Settings | A::SystemSettings | A::MusicSource
                     | A::Spellcheck | A::SpellingLanguage | A::Icons | A::LineWidth
@@ -367,7 +371,7 @@ fn bar_path_names_the_menu() {
         Some("Tools › Notes")
     );
     assert_eq!(d.app.bar_path(&A::NewScene).as_deref(), Some("Project"));
-    assert_eq!(d.app.bar_path(&A::InstallToDisk).as_deref(), Some("WrOS"));
+    assert_eq!(d.app.bar_path(&A::InstallToDisk).as_deref(), Some("Power"));
 }
 
 #[test]
@@ -378,6 +382,7 @@ fn esc_lights_the_bar_on_file_without_opening_it_and_esc_closes_it() {
         d.app.overlay,
         Overlay::Bar {
             title: Title::File,
+            tile: None,
             open: false,
             sel: 0,
             side: None
@@ -405,7 +410,7 @@ fn esc_clears_a_selection_before_opening_the_bar() {
 fn esc_then_a_letter_opens_that_menu_on_the_console_too() {
     let mut d = Desk::open(book("bar-letters", true), 100, 30);
     d.app.linux_console = true;
-    for (letter, title) in [('p', Title::Book), ('h', Title::Help), ('W', Title::Wros)] {
+    for (letter, title) in [('p', Title::Book), ('h', Title::Help), ('W', Title::Power)] {
         d.key(KeyCode::Esc);
         d.key(KeyCode::Char(letter));
         assert!(
@@ -422,27 +427,15 @@ fn esc_then_a_letter_opens_that_menu_on_the_console_too() {
 fn arrows_walk_the_titles_and_down_drops_the_menu() {
     let mut d = Desk::open(book("bar-arrows", true), 120, 35);
     d.key(KeyCode::Esc);
-    d.key(KeyCode::Left);
+    d.keys(&[KeyCode::Right; 6]);
     assert!(matches!(
         d.app.overlay,
         Overlay::Bar {
-            title: Title::Wros,
+            title: Title::Help,
             open: false,
             ..
         }
     ));
-    d.key(KeyCode::Left);
-    assert!(
-        matches!(
-            d.app.overlay,
-            Overlay::Bar {
-                title: Title::Help,
-                open: false,
-                ..
-            }
-        ),
-        "round"
-    );
     d.key(KeyCode::Down);
     assert!(matches!(
         d.app.overlay,
@@ -456,12 +449,12 @@ fn arrows_walk_the_titles_and_down_drops_the_menu() {
     assert!(matches!(
         d.app.overlay,
         Overlay::Bar {
-            title: Title::Wros,
+            title: Title::Power,
             open: true,
             ..
         }
     ));
-    assert!(d.shows("▸ About WrOS"));
+    assert!(d.shows("▸ Lock"));
 }
 
 #[test]
@@ -616,7 +609,7 @@ fn every_menu_shows_each_row_and_its_explanation_at_every_supported_size() {
 }
 
 #[test]
-fn dropdowns_fit_or_scroll_at_80x24_and_keep_the_status_line() {
+fn dropdowns_fit_or_scroll_at_80x24_and_keep_both_bottom_bars() {
     for (width, height) in [(80, 24), (80, 16)] {
         let mut d = everything_offered_at(&format!("bar-fit-{height}"), width, height);
         for title in Title::ALL {
@@ -630,7 +623,7 @@ fn dropdowns_fit_or_scroll_at_80x24_and_keep_the_status_line() {
             );
             for (r, _) in d.app.bar_hits.borrow().iter() {
                 assert!(
-                    r.right() <= width && r.bottom() < height,
+                    r.right() <= width && r.bottom() <= height - 2,
                     "{r:?} at {width}x{height}"
                 );
             }
@@ -699,7 +692,7 @@ fn a_super_tap_opens_find_anything_under_the_lit_bar() {
     assert!(matches!(
         d.app.overlay,
         Overlay::Bar {
-            title: Title::Help,
+            title: Title::Power,
             open: true,
             ..
         }
@@ -713,7 +706,7 @@ fn a_super_tap_opens_find_anything_under_the_lit_bar() {
     assert!(matches!(
         d.app.overlay,
         Overlay::Bar {
-            title: Title::Wros,
+            title: Title::File,
             open: true,
             ..
         }
@@ -799,9 +792,9 @@ fn clicking_a_title_opens_it_hovering_switches_and_clicking_away_closes() {
     assert!(matches!(d.app.overlay, Overlay::Bar { sel: 2, .. }));
     d.app.on_scroll(third.x + 2, third.y, true);
     assert!(matches!(d.app.overlay, Overlay::Bar { sel: 3, .. }));
-    // A click anywhere else closes the menu and reaches nothing under it.
+    // A click on the meter closes the menu without opening Progress.
     let sel = d.app.sel;
-    d.app.on_click(5, 20);
+    d.app.on_click(5, d.app.screen.1 - 1);
     assert_eq!(d.app.overlay, Overlay::None);
     assert_eq!(d.app.sel, sel);
     // A click on a row runs it.
@@ -869,8 +862,8 @@ fn side_groups_take_the_mouse_too() {
 #[test]
 fn where_a_side_group_covers_its_menu_the_mouse_reaches_the_group() {
     use crate::app::overlays::BarHit;
-    // At 80 columns Revision doesn't fit right of Tools and covers part of it.
-    let mut d = Desk::open(book("bar-side-cover", true), 80, 24);
+    // Tools is clamped left at 64 columns, where Revision covers part of it.
+    let mut d = Desk::open(book("bar-side-cover", true), 64, 24);
     d.app.open_side(Side::Revision);
     d.draw();
     let hits: Vec<(Rect, BarHit)> = d.app.bar_hits.borrow().clone();
@@ -896,7 +889,7 @@ fn where_a_side_group_covers_its_menu_the_mouse_reaches_the_group() {
                     .then_some((x, r.y, i))
             })
         })
-        .expect("Revision covers a Tools row at 80 columns");
+        .expect("Revision covers a Tools row at 64 columns");
     d.app.bar_hover(x, y);
     assert!(
         matches!(d.app.overlay, Overlay::Bar { side: Some((Side::Revision, at)), .. } if at == i),
@@ -917,11 +910,11 @@ fn where_a_side_group_covers_its_menu_the_mouse_reaches_the_group() {
 }
 
 #[test]
-fn lock_from_the_wros_menu_comes_back_to_the_page() {
+fn lock_from_the_power_menu_comes_back_to_the_page() {
     let mut d = Desk::open(book("bar-lock-return", true), 120, 35);
     d.key(KeyCode::Tab);
     d.app.deck.lock_available = true;
-    d.menu(&["WrOS", "Lock"]);
+    d.menu(&["Power", "Lock"]);
     assert!(d.app.deck.lock_requested);
     assert_eq!(
         d.app.overlay,
@@ -932,7 +925,7 @@ fn lock_from_the_wros_menu_comes_back_to_the_page() {
     let mut d = Desk::open(book("bar-lock-refused", true), 120, 35);
     d.app.deck.lock_available = true;
     d.app.deck.busy = true;
-    d.menu(&["WrOS", "Lock"]);
+    d.menu(&["Power", "Lock"]);
     assert!(!d.app.deck.lock_requested);
     assert_eq!(
         d.app.overlay,
@@ -1020,7 +1013,7 @@ fn no_grimoire_name_on_a_screen_the_bar_opens() {
 fn about_credits_grimoiretui_and_names_mit_and_the_outline_has_no_book_art() {
     let mut d = Desk::open(book("bar-about", true), 160, 50);
     assert!(!d.shows("☾"), "no spellbook in the outline");
-    d.menu(&["WrOS", "About WrOS"]);
+    d.menu(&["Help", "About WrOS"]);
     assert!(d.shows("About WrOS"), "{}", d.rows().join("\n"));
     assert!(d.shows("built on GrimoireTUI"));
     assert!(d.shows("Josh King"));

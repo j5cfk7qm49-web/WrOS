@@ -8,7 +8,8 @@ The upstream shortcuts remain functional. `assets/help/24-every-key.md` is the c
 | F2 / F3 | Timer start-pause / reset |
 | F4–F7 | Existing music controls (optional, off by default) |
 | F8 / F9 | Spelling suggestions / themes |
-| **F10** | Open the menu bar (from rc13; the outline has no default key) |
+| **F10** | Open the menu bar; Left from File reaches the view tiles (the outline has no default key) |
+| **Super+1–4** | Switch to Write, read, Outline or Study in tile order |
 | **F11** | Choose/show/hide the independent editable secondary pane; menu/palette chooses a replacement |
 | **F12** | WrOS home dashboard |
 | **Ctrl-D** | Strict focus; same established shortcut, tightened hiding/focus behavior |
@@ -16,6 +17,8 @@ The upstream shortcuts remain functional. `assets/help/24-every-key.md` is the c
 | Ctrl-K | Existing command palette, including home/system/workspaces/tutorial/Pinboard actions |
 | Ctrl-S / Ctrl-Q | Save / quit in conventional sessions; installed WrOS hides Quit and directs you to lock or shut down |
 | Esc | Existing close/menu behavior; closes dashboard to resume |
+
+From the menu bar, Esc then W opens Power. Select a view tile and press Enter to switch views. About WrOS is in Help.
 
 ## Custom aliases
 

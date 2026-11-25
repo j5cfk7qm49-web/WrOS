@@ -6,21 +6,23 @@ use ratatui::Frame;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
-use ratatui::widgets::{Block, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
-use super::{App, Theme, commands, draw_draft};
+use super::outline::{commands, draw_draft};
+use super::{App, Theme};
 
 #[derive(Default)]
-pub(super) struct ReviewDesk {
+pub(super) struct StudyDesk {
     filter: Option<(String, SavedQuery)>,
     due: DueCards,
     pub(super) all_due: u64,
+    reviewed: u64,
     revealed: bool,
     input: Option<Editor>,
     scroll: u16,
 }
 
-impl ReviewDesk {
+impl StudyDesk {
     pub(super) fn has_input(&self) -> bool {
         self.input.is_some()
     }
@@ -96,6 +98,7 @@ impl ReviewDesk {
             return Err(error);
         }
         self.input = None;
+        self.reviewed = 0;
         self.revealed = false;
         self.scroll = 0;
         Ok(())
@@ -142,6 +145,7 @@ impl ReviewDesk {
                     store
                         .grade_card(card.key, grade, Local::now().fixed_offset())
                         .map_err(anyhow::Error::msg)?;
+                    self.reviewed = self.reviewed.saturating_add(1);
                     self.revealed = false;
                     self.scroll = 0;
                     self.refresh(store)?;
@@ -155,38 +159,51 @@ impl ReviewDesk {
 }
 
 impl App {
-    pub(super) fn on_review_card_key(&mut self, key: KeyEvent) {
-        if key.code == KeyCode::Esc && self.brain.review.input.is_none() {
+    pub(super) fn on_study_key(&mut self, key: KeyEvent) {
+        if key.code == KeyCode::Esc && self.commonplace.study.input.is_none() {
             self.open_menu();
             return;
         }
-        if let Some(store) = &mut self.brain.store {
-            self.msg = match self.brain.review.key(store, key) {
+        if let Some(store) = &mut self.commonplace.store {
+            self.msg = match self.commonplace.study.key(store, key) {
                 Ok(message) => message.unwrap_or_default(),
-                Err(error) => format!("Review cards · {error}"),
+                Err(error) => format!("Study · {error}"),
             };
         }
     }
 }
 
-pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
-    let desk = &mut app.brain.review;
+pub(crate) fn info(app: &App) -> String {
+    let desk = &app.commonplace.study;
+    let dot = crate::ui::info_separator(app.linux_console);
     let filter = desk.filter.as_ref().map_or("All cards", |(label, _)| label);
-    let panel = Block::bordered()
-        .title(format!(
-            " Review cards · {filter} · {} due ",
-            desk.due.count
-        ))
+    let remaining = desk.due.count;
+    let mut info = format!("Study{dot}{filter}{dot}{remaining} due");
+    if desk.due.next.is_some() {
+        let current = desk.reviewed.saturating_add(1);
+        let total = desk.reviewed.saturating_add(remaining);
+        info.push_str(&format!("{dot}Card {current} of {total}"));
+    }
+    if remaining != desk.all_due {
+        info.push_str(&format!("{dot}{} left today", desk.all_due));
+    }
+    info
+}
+
+pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
+    let desk = &mut app.commonplace.study;
+    let panel = Block::new()
+        .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
         .border_style(Style::default().fg(theme.border));
     let inner = panel.inner(area);
     frame.render_widget(panel, area);
     if inner.is_empty() {
         return;
     }
-    let [controls, entry, body] = Layout::vertical([
-        Constraint::Length(1),
+    let [entry, body, controls] = Layout::vertical([
         Constraint::Length(u16::from(desk.input.is_some())),
         Constraint::Min(1),
+        Constraint::Length(1),
     ])
     .areas(inner);
     let message = if desk.input.is_some() {

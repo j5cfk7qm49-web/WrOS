@@ -298,15 +298,15 @@ def inventory_digest(inv):
 
 def checked_brain_payload(path, limit=None):
     with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
-        require(stat.S_ISREG(os.fstat(stream.fileno()).st_mode), 'Brain contains a non-file record.')
+        require(stat.S_ISREG(os.fstat(stream.fileno()).st_mode), 'Commonplace contains a non-file record.')
         checksum = stream.read(32)
         digest, payload = hashlib.sha256(), bytearray()
         while chunk := stream.read(65536):
             digest.update(chunk)
             if limit is not None:
-                require(len(payload) + len(chunk) <= limit, 'Brain manifest is too large.')
+                require(len(payload) + len(chunk) <= limit, 'Commonplace manifest is too large.')
                 payload.extend(chunk)
-        require(digest.digest() == checksum, 'A Brain record has an invalid checksum.')
+        require(digest.digest() == checksum, 'A Commonplace record has an invalid checksum.')
         return bytes(payload)
 
 
@@ -314,46 +314,46 @@ def brain_records(root, verify=False):
     store = root/'store'
     journal = store/'journal'
     require(store.is_dir() and not store.is_symlink() and journal.is_dir()
-            and not journal.is_symlink(), 'Choose an existing Brain library.')
+            and not journal.is_symlink(), 'Choose an existing Commonplace store.')
     records = sorted('store/journal/' + p.name for p in journal.iterdir()
                      if re.fullmatch(r'[0-9]{20}\.update', p.name))
     current = store/'CURRENT'
     if current.exists() or current.is_symlink():
         manifest = json.loads(checked_brain_payload(current, 65536))
         require(isinstance(manifest, dict) and manifest.get('schema') == 1
-                and manifest.get('engine') == 'loro-paged', 'Unsupported Brain store.')
-        require(isinstance(manifest.get('active'), dict), 'Brain checkpoint is missing.')
+                and manifest.get('engine') == 'loro-paged', 'Unsupported Commonplace store.')
+        require(isinstance(manifest.get('active'), dict), 'Commonplace checkpoint is missing.')
         for slot in (manifest['active'], manifest.get('previous')):
             if slot is None:
                 continue
             generation = slot.get('generation')
             require(type(generation) is int and 0 < generation < 10**20,
-                    'Invalid Brain checkpoint generation.')
+                    'Invalid Commonplace checkpoint generation.')
             records.append(f'store/checkpoint-{generation:020}.snapshot')
             if slot.get('has_pending') is True:
                 records.append(f'store/checkpoint-{generation:020}.pending')
         records.append('store/CURRENT')
-    require(records, 'Save your first Brain note before backing up.')
-    require(len(records) == len(set(records)), 'Invalid repeated Brain checkpoint.')
+    require(records, 'Save your first Commonplace note before backing up.')
+    require(len(records) == len(set(records)), 'Invalid repeated Commonplace checkpoint.')
     files = root/'files'
     if files.exists() or files.is_symlink():
-        require(files.is_dir() and not files.is_symlink(), 'Brain media folder is unsafe.')
+        require(files.is_dir() and not files.is_symlink(), 'Commonplace media folder is unsafe.')
         for media in sorted(files.iterdir()):
-            require(re.fullmatch('[a-f0-9]{64}', media.name), 'A Brain file lacks its SHA-256 name.')
+            require(re.fullmatch('[a-f0-9]{64}', media.name), 'A Commonplace file lacks its SHA-256 name.')
             records.append('files/' + media.name)
-    require(len(records) < MAX_FILES, 'Brain has too many files for this backup.')
+    require(len(records) < MAX_FILES, 'Commonplace has too many files for this backup.')
     for relative in records:
         path = root/relative
-        require(stat.S_ISREG(path.lstat().st_mode), 'Brain contains a link or special file.')
+        require(stat.S_ISREG(path.lstat().st_mode), 'Commonplace contains a link or special file.')
         if verify and relative.startswith('store/') and path != current:
             checked_brain_payload(path)
     return records
 
 
 def pin_brain(root, stage):
-    require((root/'store').is_dir() and not (root/'store').is_symlink(), 'Choose an existing Brain library.')
+    require((root/'store').is_dir() and not (root/'store').is_symlink(), 'Choose an existing Commonplace store.')
     lock = root/'store/publish.lock'
-    require(not lock.is_symlink(), 'Brain publish lock is unsafe.')
+    require(not lock.is_symlink(), 'Commonplace publish lock is unsafe.')
     with os.fdopen(os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600), 'rb') as guard:
         fcntl.flock(guard, fcntl.LOCK_SH)
         (stage/'store/journal').mkdir(parents=True)
@@ -374,12 +374,12 @@ def brain_inventory(stage):
         with path.open('rb') as stream:
             while chunk := stream.read(1024 * 1024):
                 size += len(chunk)
-                require(total + size <= MAX_BYTES, 'Brain exceeds the supported backup size.')
+                require(total + size <= MAX_BYTES, 'Commonplace exceeds the supported backup size.')
                 digest.update(chunk)
         total += size
         files[relative] = {'bytes': size, 'sha256': digest.hexdigest()}
         if relative.startswith('files/'):
-            require(digest.hexdigest() == path.name, 'A Brain media file differs from its name.')
+            require(digest.hexdigest() == path.name, 'A Commonplace media file differs from its name.')
     directories = ['store', 'store/journal']
     if (stage/'files').is_dir():
         directories.insert(0, 'files')
@@ -1111,22 +1111,22 @@ class Service:
                         relative = member.name.removeprefix('./').strip('/')
                         if member.isdir():
                             require(not relative or relative in expected['directories'],
-                                    'Unexpected directory in the Brain backup.')
+                                    'Unexpected directory in the Commonplace backup.')
                             if relative:
                                 folders.add(relative)
                             continue
                         check = wanted.get(relative)
                         require(member.isfile() and check is not None and relative not in entries
-                                and member.size == check['bytes'], 'Unexpected file in the Brain backup.')
+                                and member.size == check['bytes'], 'Unexpected file in the Commonplace backup.')
                         digest = hashlib.sha256()
                         with stream.extractfile(member) as contents:
                             while chunk := contents.read(1024 * 1024):
                                 digest.update(chunk)
                         require(digest.hexdigest() == check['sha256'],
-                                'A Brain file differs when read back from the backup.')
+                                'A Commonplace file differs when read back from the backup.')
                         entries.add(relative)
                 require(process.wait(timeout=1800) == 0 and entries == set(wanted)
-                        and folders == set(expected['directories']), 'Brain backup verification was incomplete.')
+                        and folders == set(expected['directories']), 'Commonplace backup verification was incomplete.')
             finally:
                 if process.poll() is None:
                     process.kill()
@@ -1134,14 +1134,14 @@ class Service:
     def backup_brain(self, library, automatic=False, revision=''):
         require(self.current is not None, 'Connect an encrypted backup repository first.')
         require(isinstance(revision, str) and (not revision or re.fullmatch('[a-f0-9]{64}', revision)),
-                'Invalid Brain revision.')
+                'Invalid Commonplace revision.')
         root = Path(library).resolve(strict=True)
-        require(not root.is_relative_to(self.state.resolve()), 'Choose the Brain library outside backup state.')
+        require(not root.is_relative_to(self.state.resolve()), 'Choose the Commonplace store outside backup state.')
         destination = self.repository(self.current['repository'])
         if not destination.startswith('rclone:'):
             repo = Path(destination)
             require(not repo.is_relative_to(root) and not root.is_relative_to(repo),
-                    'Backup repository and Brain must be separate directories.')
+                    'Backup repository and Commonplace must be separate directories.')
         with tempfile.TemporaryDirectory(prefix='.wros-brain-backup-', dir=root) as temporary:
             stage = Path(temporary)
             pin_brain(root, stage)
@@ -1152,22 +1152,22 @@ class Service:
             if automatic:
                 tags += ['--tag', 'auto']
             output = self.restic(['backup', *tags, '--host', 'wros', '--', str(stage)], stage,
-                                 phase='Encrypting Brain notes and media')
+                                 phase='Encrypting Commonplace notes and media')
             summaries = [json.loads(line) for line in output.splitlines() if line.strip()]
             identifier = next((row.get('snapshot_id') for row in summaries
                                if row.get('message_type') == 'summary'), None)
-            require(identifier, 'Backup did not return a complete Brain snapshot.')
+            require(identifier, 'Backup did not return a complete Commonplace snapshot.')
             snapshot = next((row for row in self.snapshots(kind=BRAIN_TAG)
                              if row['id'].startswith(identifier)), None)
-            require(snapshot is not None, 'Brain snapshot could not be found for verification.')
-            progress('Reading back the Brain backup without a disk copy')
+            require(snapshot is not None, 'Commonplace snapshot could not be found for verification.')
+            progress('Reading back the Commonplace backup without a disk copy')
             self.verify_brain_stream(snapshot, original)
             self.current['verified'][snapshot['id']] = now()
             self.save()
             self.record_latest(root, snapshot, kind=BRAIN_TAG, revision=revision)
         if automatic:
             self.prune(kind=BRAIN_TAG)
-        return self.status('Brain backup verified by reading back every saved file.')
+        return self.status('Commonplace backup verified by reading back every saved file.')
 
     def write_profile(self, target):
         """Grimoire's own files (regular files only, each at most 1 MiB) and the keyboard layout and
@@ -1260,17 +1260,18 @@ class Service:
             snapshot = next((row for row in self.snapshots(kind=BRAIN_TAG) if row['id'] == identifier), None)
         require(snapshot is not None, 'Snapshot no longer available; refresh the list.')
         if brain:
-            live = (Path.home()/'Documents/Brain').resolve()
-            require(not target.is_relative_to(live) and not live.is_relative_to(target),
-                    'Restore Brain to an isolated folder.')
-            require(not settings, 'A Brain backup has no project settings.')
+            for name in ('Commonplace', 'Brain'):
+                live = (Path.home()/'Documents'/name).resolve()
+                require(not target.is_relative_to(live) and not live.is_relative_to(target),
+                        'Restore Commonplace to an isolated folder.')
+            require(not settings, 'A Commonplace backup has no project settings.')
         stage = Path(tempfile.mkdtemp(prefix='.wros-restore-incomplete-', dir=target.parent))
         profile = None
         try:
             try:
                 actual, profile = self.restore_into(snapshot, stage, phase="Restoring the snapshot")
                 if brain:
-                    require(profile is None and brain_inventory(stage) == actual, 'Invalid Brain backup layout.')
+                    require(profile is None and brain_inventory(stage) == actual, 'Invalid Commonplace backup layout.')
                     device = secrets.randbelow((1 << 64) - 2) + 1
                     write_private(stage/'device-id', (str(device) + '\n').encode(), exclusive=True)
                 publish_directory(stage, target)

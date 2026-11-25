@@ -446,6 +446,26 @@ fn unified_settings_reuse_existing_preferences_and_modal_cancel_paths() {
 }
 
 #[test]
+fn pomodoro_chime_toggle_round_trips() {
+    if !music_test_home("pomodoro_chime_toggle_round_trips") {
+        return;
+    }
+    let mut desk = Desk::open(book("shell-pomodoro-chime", true), 100, 30);
+    assert!(desk.app.pomodoro_chime);
+    desk.app.open_settings();
+    desk.draw();
+    desk.choose("Writing");
+    desk.choose("Editor");
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::WritingEditor);
+    desk.choose("Pomodoro chime · on");
+    assert!(!desk.app.pomodoro_chime);
+    assert!(!Settings::load().pomodoro_chime);
+    desk.choose("Pomodoro chime · off");
+    assert!(desk.app.pomodoro_chime);
+    assert!(Settings::load().pomodoro_chime);
+}
+
+#[test]
 fn the_manuscript_page_turns_catalogue_search_off() {
     if !music_test_home("the_manuscript_page_turns_catalogue_search_off") {
         return;
@@ -573,6 +593,204 @@ fn wait_system(desk: &mut Desk) {
     }
     assert!(!desk.app.deck.busy);
     desk.draw();
+}
+
+fn record_widget_requests(
+    desk: &mut Desk,
+) -> std::sync::Arc<std::sync::Mutex<Vec<wros_sys::Request>>> {
+    use std::sync::{Arc, Mutex};
+    use wros_sys::{Backend, Reply, Request, Simulated};
+
+    struct Recorder {
+        calls: Arc<Mutex<Vec<Request>>>,
+        simulator: Simulated,
+    }
+    impl Backend for Recorder {
+        fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
+            self.calls.lock().unwrap().push(request.clone());
+            match request {
+                Request::Wifi(_) | Request::Brightness(_) => {
+                    Ok(Reply::Message("request completed".into()))
+                }
+                other => self.simulator.request(other),
+            }
+        }
+    }
+
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    desk.app.deck.use_test_backend(Box::new(Recorder {
+        calls: calls.clone(),
+        simulator: Simulated::laptop(),
+    }));
+    calls
+}
+
+#[test]
+fn brightness_popup_sends_request_and_floors_at_5() {
+    use crate::app::shell::Panel;
+    use crate::gauges::Widget;
+    use wros_sys::Request;
+
+    let mut desk = widget_desk("widget-brightness");
+    let calls = record_widget_requests(&mut desk);
+    desk.app.deck.gauges.light = Some(10);
+    desk.app.deck.snapshot = Some(wros_sys::Snapshot {
+        brightness_percent: Some(10),
+        ..Default::default()
+    });
+    let anchor = click_widget(&mut desk, Widget::Battery);
+    assert!(desk.shows("Battery 76%  /  2h 15m left"));
+    for (key, percent) in [
+        (KeyCode::Right, 15),
+        (KeyCode::Left, 10),
+        (KeyCode::Left, 5),
+        (KeyCode::Left, 5),
+    ] {
+        desk.key(key);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.gauges.light, Some(percent));
+        assert_eq!(
+            desk.app.deck.snapshot.as_ref().unwrap().brightness_percent,
+            Some(percent)
+        );
+    }
+    assert_eq!(
+        *calls.lock().unwrap(),
+        [
+            Request::Brightness(15),
+            Request::Brightness(10),
+            Request::Brightness(5),
+            Request::Brightness(5),
+        ]
+    );
+    desk.app.on_click(anchor.right() - 1, anchor.y - 1);
+    assert_eq!(
+        desk.app.deck.shell.nav.current(),
+        Route::Panel(Panel::Power)
+    );
+
+    desk.key(KeyCode::Esc);
+    desk.key(KeyCode::Esc);
+    desk.key(KeyCode::Esc);
+    click_widget(&mut desk, Widget::Battery);
+    desk.keys(&[KeyCode::Down, KeyCode::Enter]);
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::WarmScreen);
+    wait_system(&mut desk);
+    assert_eq!(calls.lock().unwrap().last(), Some(&Request::DisplayStatus));
+}
+
+#[test]
+fn volume_popup_steps_by_5() {
+    use crate::gauges::Widget;
+    use wros_sys::Request;
+
+    let mut desk = widget_desk("widget-volume");
+    let calls = record_widget_requests(&mut desk);
+    desk.app.music.state = music::State::Playing(music::Track {
+        title: "A quiet track".into(),
+        artist: "Local artist".into(),
+        progress: 0.0,
+        duration: 60.0,
+        playing: true,
+    });
+    click_widget(&mut desk, Widget::Sound);
+    assert!(desk.shows("Volume  70%"));
+    assert!(desk.shows("Output: Default sound card"));
+    assert!(desk.shows("A quiet track / Local artist"));
+    assert!(desk.shows("Pause"));
+    assert!(desk.shows("Next track"));
+    for (key, current, next) in [
+        (KeyCode::Right, 70, 75),
+        (KeyCode::Left, 75, 70),
+        (KeyCode::Right, 98, 100),
+        (KeyCode::Left, 2, 0),
+    ] {
+        assert_eq!(
+            desk.app.overlay,
+            Overlay::Widget {
+                kind: Widget::Sound,
+                sel: 0,
+            }
+        );
+        desk.app.deck.gauges.volume = Some(current);
+        desk.key(key);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.gauges.volume, Some(next));
+    }
+    desk.keys(&[KeyCode::Down, KeyCode::Enter]);
+    wait_system(&mut desk);
+    assert!(desk.shows("Unmute"));
+    desk.key(KeyCode::Enter);
+    wait_system(&mut desk);
+    desk.keys(&[KeyCode::End, KeyCode::Enter]);
+    wait_system(&mut desk);
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::SoundView);
+    assert_eq!(
+        *calls.lock().unwrap(),
+        [
+            Request::SetVolume(75),
+            Request::SetVolume(70),
+            Request::SetVolume(100),
+            Request::SetVolume(0),
+            Request::SetMute(true),
+            Request::SetMute(false),
+            Request::AudioStatus,
+        ]
+    );
+}
+
+#[test]
+fn wifi_popup_lists_networks_and_toggles() {
+    use crate::app::shell::Panel;
+    use crate::gauges::Widget;
+    use wros_sys::Request;
+
+    let mut desk = widget_desk("widget-wifi");
+    let calls = record_widget_requests(&mut desk);
+    click_widget(&mut desk, Widget::Wifi);
+    assert!(desk.shows("Looking for networks…"));
+    wait_system(&mut desk);
+    assert!(desk.shows("✓ WrOS-Studio  95%"));
+    assert!(desk.shows("WriterDeck-Cafe  78%"));
+    assert!(desk.shows("PublicLibrary  52%"));
+
+    desk.keys(&[KeyCode::Down, KeyCode::Enter]);
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::WifiConnect);
+    let form = desk.app.deck.shell.wifi_form.as_ref().unwrap();
+    assert_eq!(form.network.ssid, "WriterDeck-Cafe");
+    assert!(form.password.is_empty());
+    assert_eq!(*calls.lock().unwrap(), [Request::ScanWifi]);
+    desk.key(KeyCode::Esc);
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::WifiNetworks);
+    for _ in 0..4 {
+        desk.key(KeyCode::Esc);
+    }
+    assert_eq!(desk.app.overlay, Overlay::None);
+
+    click_widget(&mut desk, Widget::Wifi);
+    assert!(desk.shows("Turn Wi-Fi off"));
+    desk.keys(&[KeyCode::End, KeyCode::Up, KeyCode::Enter]);
+    wait_system(&mut desk);
+    assert!(desk.shows("Turn Wi-Fi on"));
+    desk.key(KeyCode::Enter);
+    wait_system(&mut desk);
+    assert!(desk.shows("Turn Wi-Fi off"));
+    assert!(desk.shows("✓ WrOS-Studio  95%"));
+    assert_eq!(
+        *calls.lock().unwrap(),
+        [
+            Request::ScanWifi,
+            Request::Wifi(false),
+            Request::Wifi(true),
+            Request::ScanWifi,
+        ]
+    );
+    desk.keys(&[KeyCode::End, KeyCode::Enter]);
+    wait_system(&mut desk);
+    assert_eq!(
+        desk.app.deck.shell.nav.current(),
+        Route::Panel(Panel::Network)
+    );
 }
 
 #[test]
@@ -1361,14 +1579,14 @@ fn live_media_asks_once_install_or_try() {
 }
 
 #[test]
-fn live_media_keeps_the_installer_in_the_wros_menu_with_confirmation() {
+fn live_media_keeps_the_installer_in_the_power_menu_with_confirmation() {
     for (width, height) in [(80, 24), (160, 50)] {
         let mut desk = Desk::open(
             book(&format!("live-install-row-{width}"), true),
             width,
             height,
         );
-        desk.menu(&["WrOS"]);
+        desk.menu(&["Power"]);
         assert!(!desk.shows("Install WrOS to disk"));
         desk.key(KeyCode::Esc);
 
@@ -1376,14 +1594,19 @@ fn live_media_keeps_the_installer_in_the_wros_menu_with_confirmation() {
         desk.app.deck.installer_available = true;
         desk.app.overlay = Overlay::None;
 
-        desk.menu(&["WrOS", "Install WrOS to disk"]);
+        desk.menu(&["Power"]);
+        assert!(desk.shows("▸ Install WrOS to disk"));
+        let rows = desk.app.bar_rows(crate::palette::Title::Power);
+        assert_eq!(rows[1].label, "Lock");
+        assert_eq!(rows[1].dim, Some("A live session has no personal lock."));
+        desk.choose("Install WrOS to disk");
         assert_eq!(desk.app.deck.shell.nav.current(), Route::InstallerConfirm);
         desk.key(KeyCode::Enter);
         assert!(!desk.app.deck.installer_requested);
 
         desk.app.deck.installer_available = false;
         desk.app.overlay = Overlay::None;
-        desk.menu(&["WrOS", "Install WrOS to disk"]);
+        desk.menu(&["Power", "Install WrOS to disk"]);
         assert!(
             desk.menu_open(),
             "the dimmed installer row stays in the menu"
@@ -1392,7 +1615,7 @@ fn live_media_keeps_the_installer_in_the_wros_menu_with_confirmation() {
 }
 
 #[test]
-fn the_wros_menus_install_asks_even_while_storage_is_still_loading() {
+fn the_power_menus_install_asks_even_while_storage_is_still_loading() {
     // Opening Storage starts a status refresh; the menu's Install used to be dropped while
     // that ran, leaving the writer on the Storage page with nothing asked.
     let mut desk = Desk::open(book("menu-install-busy", true), 100, 30);
@@ -1401,7 +1624,7 @@ fn the_wros_menus_install_asks_even_while_storage_is_still_loading() {
         .use_test_backend(Box::new(Simulated::laptop()));
     desk.app.deck.live_session = true;
     desk.app.deck.installer_available = true;
-    desk.menu(&["WrOS", "Install WrOS to disk"]);
+    desk.menu(&["Power", "Install WrOS to disk"]);
     assert!(desk.app.deck.busy, "opening Storage reads the status");
     wait_system(&mut desk);
     assert_eq!(desk.app.deck.shell.nav.current(), Route::InstallerConfirm);
@@ -1414,7 +1637,7 @@ fn the_wros_menus_install_asks_even_while_storage_is_still_loading() {
 }
 
 #[test]
-fn the_wros_menus_lock_waits_for_the_first_status_then_locks() {
+fn the_power_menus_lock_waits_for_the_first_status_then_locks() {
     // rc23 has no dashboard to read the system status at login, so the first Lock from the
     // menu opens a Settings page that is still reading it. Lock used to be refused then.
     let mut desk = Desk::open(book("menu-lock-busy", true), 100, 30);
@@ -1423,7 +1646,7 @@ fn the_wros_menus_lock_waits_for_the_first_status_then_locks() {
         .use_test_backend(Box::new(Simulated::laptop()));
     desk.app.deck.lock_available = true;
     assert!(desk.app.deck.snapshot.is_none());
-    desk.menu(&["WrOS", "Lock"]);
+    desk.menu(&["Power", "Lock"]);
     assert!(desk.app.deck.busy, "opening the page reads the status");
     assert!(!desk.app.deck.lock_requested);
     wait_system(&mut desk);
@@ -1449,7 +1672,7 @@ fn settings_descriptions_are_never_chosen_and_options_show_where_they_lead() {
     desk.app.deck.live_session = true;
     desk.app.deck.installer_available = true;
     desk.app.overlay = Overlay::None;
-    desk.menu(&["WrOS", "Install WrOS to disk"]);
+    desk.menu(&["Power", "Install WrOS to disk"]);
     assert!(desk.shows("▸ Cancel and remain in the live writing session"));
     desk.key(KeyCode::End);
     desk.key(KeyCode::Down);

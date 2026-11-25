@@ -51,20 +51,22 @@ fn first_scene(root: &Path) -> PathBuf {
 }
 
 #[test]
-fn brain_today_can_edit_nested_notes_and_reopen_them_without_touching_the_prose() {
+fn outline_today_can_edit_nested_notes_and_reopen_them_without_touching_the_prose() {
     let fixture = tempfile::tempdir().unwrap();
-    let library = fixture.path().join("Brain");
+    let library = fixture.path().join("Commonplace");
     let cache = fixture.path().join("cache");
     let mut desk = Desk::open(book("brain-today", true), 80, 24);
-    desk.app.brain.set_paths(library.clone(), cache.clone());
+    desk.app
+        .commonplace
+        .set_paths(library.clone(), cache.clone());
     let first_scene_body = desk.app.editor.text();
     desk.key(KeyCode::Tab);
     desk.typed("Write draft stays here.");
     let prose = desk.app.editor.text();
     assert!(!library.exists());
 
-    desk.menu(&["View", "Brain"]);
-    assert!(desk.shows("Today"));
+    desk.press(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::SUPER));
+    assert!(desk.info().contains("Outline · Today"));
     desk.key(KeyCode::Char('n'));
     desk.typed("Research");
     desk.app.run_action(palette::Action::Undo);
@@ -77,7 +79,7 @@ fn brain_today_can_edit_nested_notes_and_reopen_them_without_touching_the_prose(
     desk.press(KeyEvent::new(KeyCode::Char('2'), KeyModifiers::SUPER));
     assert!(desk.shows("No matching works"));
     desk.press(KeyEvent::new(KeyCode::Char('4'), KeyModifiers::SUPER));
-    assert!(desk.shows("Review cards"));
+    assert!(desk.info().contains("Study · All cards"));
     assert!(desk.shows("No cards due"));
     desk.press(KeyEvent::new(
         KeyCode::Modifier(ModifierKeyCode::LeftSuper),
@@ -127,7 +129,7 @@ fn brain_today_can_edit_nested_notes_and_reopen_them_without_touching_the_prose(
     drop(desk);
 
     let mut desk = Desk::open(book("brain-reopen", true), 80, 24);
-    desk.app.brain.set_paths(library, cache);
+    desk.app.commonplace.set_paths(library, cache);
     desk.press(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::SUPER));
     desk.key(KeyCode::Right);
     assert!(desk.shows("A note from the library"));
@@ -135,13 +137,13 @@ fn brain_today_can_edit_nested_notes_and_reopen_them_without_touching_the_prose(
 }
 
 #[test]
-fn review_cards_use_a_saved_search_and_never_type_into_the_manuscript() {
+fn study_cards_use_a_saved_search_and_never_type_into_the_manuscript() {
     use grimoire_brain::bounded_store::PagedBrain;
     use grimoire_brain::model::{Builtin, NodeId, Place};
     use grimoire_brain::schema::SavedQuery;
 
     let fixture = tempfile::tempdir().unwrap();
-    let library = fixture.path().join("Brain");
+    let library = fixture.path().join("Commonplace");
     let cache = fixture.path().join("cache");
     let mut store = PagedBrain::open_library(&library, &cache).unwrap();
     let tag = NodeId::Builtin(Builtin::Concept);
@@ -164,16 +166,19 @@ fn review_cards_use_a_saved_search_and_never_type_into_the_manuscript() {
     drop(store);
 
     let mut desk = Desk::open(book("review-cards", true), 80, 24);
-    desk.app.brain.set_paths(library.clone(), cache.clone());
+    desk.app
+        .commonplace
+        .set_paths(library.clone(), cache.clone());
     desk.key(KeyCode::Tab);
     desk.typed("Manuscript draft");
     let draft = desk.app.editor.text();
-    desk.menu(&["View", "Review cards"]);
-    assert!(desk.shows("Review 2"));
+    desk.press(KeyEvent::new(KeyCode::Char('4'), KeyModifiers::SUPER));
+    assert!(desk.info().contains("2 due · Card 1 of 2"));
     desk.key(KeyCode::Char('f'));
     desk.typed("Concept queue");
     desk.key(KeyCode::Enter);
-    assert!(desk.shows("Concept queue · 1 due"));
+    assert!(desk.info().contains("Concept queue · 1 due · Card 1 of 1"));
+    assert!(desk.info().contains("2 left today"));
     assert!(desk.shows("Prompt for Review"));
     assert!(!desk.shows("Answer for Review"));
     desk.key(KeyCode::Char('3'));
@@ -182,7 +187,7 @@ fn review_cards_use_a_saved_search_and_never_type_into_the_manuscript() {
     assert!(desk.shows("Answer for Review"));
     desk.key(KeyCode::Char('5'));
     assert!(desk.shows("No cards due"));
-    assert!(desk.shows("Review 1"));
+    assert!(desk.rows()[0].contains("[S] │"));
     desk.typed("Pasted over nothing");
     assert_eq!(desk.app.editor.text(), draft);
     drop(desk);
@@ -194,17 +199,20 @@ fn review_cards_use_a_saved_search_and_never_type_into_the_manuscript() {
 }
 
 #[test]
-fn library_adds_editions_and_edits_the_selected_record_without_rewriting_the_work() {
+fn read_adds_editions_and_edits_the_selected_record_without_rewriting_the_work() {
     let folder = tempfile::tempdir().unwrap();
-    let library = folder.path().join("Brain");
+    let library = folder.path().join("Commonplace");
     let cache = folder.path().join("cache");
     let mut desk = Desk::open(book("library-editions", true), 100, 28);
-    desk.app.brain.set_paths(library.clone(), cache.clone());
-    desk.menu(&["Tools", "Notes", "Library"]);
+    desk.app
+        .commonplace
+        .set_paths(library.clone(), cache.clone());
+    desk.menu(&["Tools", "Notes", "read"]);
     desk.key(KeyCode::Char('n'));
     desk.typed("The Garden Book");
     desk.key(KeyCode::Enter);
     assert!(desk.shows("The Garden Book"));
+    assert!(desk.info().contains("read · The Garden Book"));
     desk.key(KeyCode::Char('b'));
     desk.typed("Revised");
     desk.key(KeyCode::Enter);
@@ -216,6 +224,7 @@ fn library_adds_editions_and_edits_the_selected_record_without_rewriting_the_wor
     desk.key(KeyCode::Esc);
     assert!(desk.shows("The Garden Book"));
     assert!(!desk.shows("Gardens, revised"));
+    assert!(desk.info().contains("1 work · All sources · Title"));
     desk.key(KeyCode::Char('f'));
     desk.typed("revised");
     desk.key(KeyCode::Enter);
@@ -223,14 +232,14 @@ fn library_adds_editions_and_edits_the_selected_record_without_rewriting_the_wor
 }
 
 #[test]
-fn library_picker_links_a_brain_note_to_a_stable_work_and_edition() {
+fn edition_picker_links_an_outline_note_to_a_stable_work_and_edition() {
     use grimoire_brain::bounded_store::PagedBrain;
     use grimoire_brain::library::Edition;
     use grimoire_brain::model::{NodeId, Place};
     use serde_json::json;
 
     let fixture = tempfile::tempdir().unwrap();
-    let library = fixture.path().join("Brain");
+    let library = fixture.path().join("Commonplace");
     let cache = fixture.path().join("cache");
     let edition = {
         let mut store = PagedBrain::open_library(&library, &cache).unwrap();
@@ -243,11 +252,13 @@ fn library_picker_links_a_brain_note_to_a_stable_work_and_edition() {
             .unwrap()
     };
     let mut desk = Desk::open(book("library-brain-link", true), 100, 28);
-    desk.app.brain.set_paths(library.clone(), cache.clone());
+    desk.app
+        .commonplace
+        .set_paths(library.clone(), cache.clone());
     desk.press(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::SUPER));
     desk.key(KeyCode::Char('n'));
     desk.typed("@Gardens");
-    assert!(desk.shows("Link a Library edition"));
+    assert!(desk.shows("Link a Commonplace edition"));
     desk.key(KeyCode::Enter);
     desk.key(KeyCode::Enter);
     assert!(desk.shows("A History of Gardens"));
@@ -275,9 +286,10 @@ fn catalogue_writer(
 ) {
     let folder = tempfile::tempdir().unwrap();
     let mut desk = metric_writer(tag, 80, 24);
-    desk.app
-        .brain
-        .set_paths(folder.path().join("Brain"), folder.path().join("cache"));
+    desk.app.commonplace.set_paths(
+        folder.path().join("Commonplace"),
+        folder.path().join("cache"),
+    );
     let fetch = std::sync::Arc::new(fixture);
     desk.app.catalogue_fetch = fetch.clone();
     (desk, folder, fetch)
@@ -333,7 +345,7 @@ fn dispossessed_fixture() -> crate::catalogue::fetch::FixtureFetch {
 }
 
 #[test]
-fn brain_at_links_a_catalogue_book_with_no_page_step() {
+fn outline_at_links_a_catalogue_book_with_no_page_step() {
     use grimoire_brain::bounded_store::PagedBrain;
     use grimoire_brain::model::NodeId;
 
@@ -349,7 +361,7 @@ fn brain_at_links_a_catalogue_book_with_no_page_step() {
     desk.key(KeyCode::Enter);
     drop(desk);
 
-    let library = folder.path().join("Brain");
+    let library = folder.path().join("Commonplace");
     let cache = folder.path().join("cache");
     let mut store = PagedBrain::open_library(&library, &cache).unwrap();
     let (edition, _) = store
@@ -363,19 +375,19 @@ fn brain_at_links_a_catalogue_book_with_no_page_step() {
 }
 
 #[test]
-fn library_at_adds_a_catalogue_edition() {
+fn read_at_adds_a_catalogue_edition() {
     use grimoire_core::sources;
 
     let (mut desk, _folder, _) = catalogue_writer("library-at-catalogue", dispossessed_fixture());
     let draft = desk.app.editor.text();
-    desk.menu(&["Tools", "Notes", "Library"]);
+    desk.menu(&["Tools", "Notes", "read"]);
     desk.typed("@dispossessed");
     assert!(desk.shows("Search Open Library and Crossref · ISBN, DOI, title or author"));
     poll_catalogue(&mut desk, |desk| desk.shows("The Dispossessed"));
     desk.key(KeyCode::Enter);
-    poll_catalogue(&mut desk, |desk| desk.shows("Library · The Dispossessed"));
+    poll_catalogue(&mut desk, |desk| desk.shows("read · The Dispossessed"));
     assert!(desk.shows("› Edition · The Dispossessed"));
-    let store = desk.app.library_store_if_present().unwrap().unwrap();
+    let store = desk.app.commonplace_store_if_present().unwrap().unwrap();
     let (_, edition) = store
         .find_editions("The Dispossessed", 1)
         .unwrap()
@@ -387,7 +399,7 @@ fn library_at_adds_a_catalogue_edition() {
 }
 
 #[test]
-fn library_d_and_l_still_work_with_online_search_off() {
+fn read_d_and_l_still_work_with_online_search_off() {
     use crate::catalogue::{crossref, fetch::FixtureFetch, openlibrary};
 
     let isbn_url = openlibrary::isbn_url("9780140328721");
@@ -407,7 +419,7 @@ fn library_d_and_l_still_work_with_online_search_off() {
         );
     let (mut desk, _folder, fetch) = catalogue_writer("library-exact-off", fixture);
     desk.app.catalogue_on = false;
-    desk.menu(&["Tools", "Notes", "Library"]);
+    desk.menu(&["Tools", "Notes", "read"]);
     desk.key(KeyCode::Char('@'));
     assert!(desk.shows("Online search is off · Settings › Writing › Manuscript"));
     desk.typed("l978-0-14-032872-1");
@@ -417,7 +429,7 @@ fn library_d_and_l_still_work_with_online_search_off() {
     poll_catalogue(&mut desk, |desk| desk.shows("Fantastic Mr. Fox"));
     assert_eq!(fetch.requests().as_slice(), std::slice::from_ref(&isbn_url));
     desk.keys(&[KeyCode::Right, KeyCode::Enter]);
-    assert!(desk.shows("Library · Fantastic Mr. Fox"));
+    assert!(desk.shows("read · Fantastic Mr. Fox"));
     assert_eq!(fetch.requests().as_slice(), std::slice::from_ref(&isbn_url));
     desk.key(KeyCode::Esc);
 
@@ -499,7 +511,7 @@ fn picking_a_catalogue_book_shows_its_works_cited_line_then_cites_with_a_page() 
     use grimoire_core::sources;
 
     let (mut desk, folder, fetch) = catalogue_writer("catalogue-page", solitude_fixture());
-    let library = folder.path().join("Brain");
+    let library = folder.path().join("Commonplace");
     let cache = folder.path().join("cache");
     drop(PagedBrain::open_library(&library, &cache).unwrap());
     desk.typed("@one hundred years of solitude");
@@ -521,7 +533,7 @@ fn picking_a_catalogue_book_shows_its_works_cited_line_then_cites_with_a_page() 
     assert_eq!(record["title"], SOLITUDE_TITLE);
     assert_eq!(record["author"][0]["family"], "García Márquez");
     let link = sources::library_provenance(record).unwrap();
-    let store = desk.app.library_store_if_present().unwrap().unwrap();
+    let store = desk.app.commonplace_store_if_present().unwrap().unwrap();
     let (edition, metadata) = store.find_editions(SOLITUDE_TITLE, 1).unwrap().remove(0);
     assert_eq!(link.identity.work_id, edition.work.external_id());
     assert_eq!(metadata.bibliography["author"], record["author"]);
@@ -573,7 +585,7 @@ fn the_editions_list_scrolls_and_loads_more() {
 }
 
 #[test]
-fn a_catalogue_pick_without_a_library_still_cites() {
+fn a_catalogue_pick_without_commonplace_still_cites() {
     use grimoire_core::sources;
 
     let (mut desk, folder, _) = catalogue_writer("catalogue-no-library", solitude_fixture());
@@ -596,7 +608,7 @@ fn a_catalogue_pick_without_a_library_still_cites() {
     assert_eq!(record["title"], SOLITUDE_TITLE);
     assert_eq!(record["publisher"], "Harper Perennial Classics");
     assert_eq!(desk.app.editor.text(), format!("[@{key}]"));
-    assert!(!folder.path().join("Brain").exists());
+    assert!(!folder.path().join("Commonplace").exists());
 }
 
 #[test]
@@ -605,7 +617,7 @@ fn a_catalogue_pick_after_the_text_changed_is_refused() {
     use grimoire_core::sources;
 
     let (mut desk, folder, _) = catalogue_writer("catalogue-changed-text", solitude_fixture());
-    let library = folder.path().join("Brain");
+    let library = folder.path().join("Commonplace");
     let cache = folder.path().join("cache");
     drop(PagedBrain::open_library(&library, &cache).unwrap());
     desk.typed("@one hundred years of solitude");
@@ -618,7 +630,7 @@ fn a_catalogue_pick_after_the_text_changed_is_refused() {
     assert_eq!(desk.app.editor.text(), "The manuscript changed.");
     let project = sources::Snapshot::open(&desk.root).unwrap();
     assert!(project.sources.iter().next().is_none());
-    let store = desk.app.library_store_if_present().unwrap().unwrap();
+    let store = desk.app.commonplace_store_if_present().unwrap().unwrap();
     assert_eq!(store.find_editions(SOLITUDE_TITLE, 1).unwrap().len(), 1);
 }
 
@@ -666,7 +678,7 @@ fn add_a_source_fills_from_a_search_and_saves_the_corrected_version() {
     use grimoire_core::sources;
 
     let (mut desk, folder, _) = catalogue_writer("catalogue-corrected-source", solitude_fixture());
-    let library = folder.path().join("Brain");
+    let library = folder.path().join("Commonplace");
     let cache = folder.path().join("cache");
     drop(PagedBrain::open_library(&library, &cache).unwrap());
     desk.app.run_action(palette::Action::AddProjectSource);
@@ -677,7 +689,7 @@ fn add_a_source_fills_from_a_search_and_saves_the_corrected_version() {
     assert!(desk.shows("Authors (Family, Given; …) [García Márquez, Gabriel]"));
     assert!(
         desk.app
-            .library_store_if_present()
+            .commonplace_store_if_present()
             .unwrap()
             .unwrap()
             .find_editions(SOLITUDE_TITLE, 1)
@@ -693,7 +705,7 @@ fn add_a_source_fills_from_a_search_and_saves_the_corrected_version() {
     let (_, record) = project.sources.iter().next().unwrap();
     assert_eq!(record["publisher"], "Harper Perennial Classics");
     let link = sources::library_provenance(record).unwrap();
-    let store = desk.app.library_store_if_present().unwrap().unwrap();
+    let store = desk.app.commonplace_store_if_present().unwrap().unwrap();
     let (edition, metadata) = store.find_editions(SOLITUDE_TITLE, 1).unwrap().remove(0);
     assert_eq!(link.identity.work_id, edition.work.external_id());
     assert_eq!(
@@ -749,7 +761,7 @@ fn a_conference_paper_keeps_its_type() {
         project.sources.get("catalogueindexes").unwrap()["type"],
         "entry-encyclopedia"
     );
-    assert!(!folder.path().join("Brain").exists());
+    assert!(!folder.path().join("Commonplace").exists());
 }
 
 #[test]
@@ -803,8 +815,8 @@ fn the_form_shows_translator_isbn_place_and_accessed() {
 }
 
 #[test]
-fn rc28_view_menu_reaches_each_other_desk_in_shortcut_order() {
-    use crate::app::brain::DeskView;
+fn view_menu_no_longer_lists_views() {
+    use crate::app::outline::DeskView;
     use crate::palette::{Action, Title};
 
     for (width, height) in [(80, 24), (100, 30), (120, 40), (170, 48)] {
@@ -814,49 +826,149 @@ fn rc28_view_menu_reaches_each_other_desk_in_shortcut_order() {
             width,
             height,
         );
-        desk.app
-            .brain
-            .set_paths(fixture.path().join("Brain"), fixture.path().join("cache"));
+        desk.app.commonplace.set_paths(
+            fixture.path().join("Commonplace"),
+            fixture.path().join("cache"),
+        );
         for current in DeskView::ALL {
             desk.app.switch_desk_view(current);
-            let rows = desk.app.bar_rows(Title::View);
-            let destinations: Vec<_> = rows
-                .iter()
-                .filter_map(|row| match row.action {
-                    Action::SwitchDeskView(view) => Some((view, row.key.as_str())),
-                    _ => None,
-                })
-                .collect();
-            let expected: Vec<_> = [
-                (DeskView::Write, "Super+1"),
-                (DeskView::Library, "Super+2"),
-                (DeskView::Brain, "Super+3"),
-                (DeskView::Review, "Super+4"),
-            ]
-            .into_iter()
-            .filter(|(view, _)| *view != current)
-            .collect();
-            assert_eq!(destinations, expected, "{current:?}");
+            assert!(
+                desk.app
+                    .bar_rows(Title::View)
+                    .iter()
+                    .all(|row| !matches!(row.action, Action::SwitchDeskView(_)))
+            );
         }
-        desk.menu(&["View", "Write"]);
-        desk.menu(&["View", "Library"]);
-        assert_eq!(desk.app.desk_view, DeskView::Library);
+        let entries = palette::entries(&desk.app);
+        for (view, key) in [
+            (DeskView::Write, "Super+1"),
+            (DeskView::Read, "Super+2"),
+            (DeskView::Outline, "Super+3"),
+            (DeskView::Study, "Super+4"),
+        ] {
+            assert!(
+                entries
+                    .iter()
+                    .any(|entry| entry.action == Action::SwitchDeskView(view) && entry.key == key)
+            );
+        }
     }
 }
 
 #[test]
+fn clicking_a_tile_switches_view() {
+    use crate::app::outline::DeskView;
+    use crate::palette::Title;
+
+    let fixture = tempfile::tempdir().unwrap();
+    let mut desk = Desk::open(book("tile-click", true), 80, 24);
+    desk.app.commonplace.set_paths(
+        fixture.path().join("Commonplace"),
+        fixture.path().join("cache"),
+    );
+
+    desk.app.on_click(79, 0);
+    assert!(matches!(
+        desk.app.overlay,
+        Overlay::Bar {
+            title: Title::Power,
+            open: true,
+            ..
+        }
+    ));
+    desk.draw();
+    desk.app.on_click(8, 0);
+    assert_eq!(desk.app.desk_view, DeskView::Outline);
+    assert_eq!(desk.app.overlay, Overlay::None);
+    desk.draw();
+    assert!(desk.info().contains("Outline · Today"));
+}
+
+#[test]
+fn keyboard_reaches_tiles_and_power() {
+    use crate::app::outline::DeskView;
+    use crate::palette::{Action, Title};
+
+    let fixture = tempfile::tempdir().unwrap();
+    let mut desk = Desk::open(book("tile-keys", true), 170, 48);
+    desk.app.commonplace.set_paths(
+        fixture.path().join("Commonplace"),
+        fixture.path().join("cache"),
+    );
+    desk.keys(&[KeyCode::F(10), KeyCode::Left]);
+    assert!(matches!(
+        desk.app.overlay,
+        Overlay::Bar {
+            tile: Some(DeskView::Write),
+            open: false,
+            ..
+        }
+    ));
+    desk.keys(&[
+        KeyCode::Right,
+        KeyCode::Right,
+        KeyCode::Left,
+        KeyCode::Enter,
+    ]);
+    assert_eq!(desk.app.desk_view, DeskView::Read);
+    assert_eq!(desk.app.overlay, Overlay::None);
+
+    desk.key(KeyCode::F(10));
+    desk.keys(&[KeyCode::Right; 6]);
+    assert!(matches!(
+        desk.app.overlay,
+        Overlay::Bar {
+            title: Title::Help,
+            open: false,
+            ..
+        }
+    ));
+    desk.key(KeyCode::Right);
+    assert!(matches!(
+        desk.app.overlay,
+        Overlay::Bar {
+            title: Title::Power,
+            open: true,
+            ..
+        }
+    ));
+    assert!(desk.shows("Lock"));
+    assert_eq!(desk.app.bar_highlight().unwrap().action, Action::Lock);
+}
+
+#[test]
+fn about_is_in_help() {
+    use crate::palette::{Action, Title};
+
+    let mut desk = Desk::open(book("about-in-help", true), 170, 48);
+    let help = desk.app.bar_rows(Title::Help);
+    let about = help.last().unwrap();
+    assert_eq!(about.label, "About WrOS");
+    assert_eq!(about.action, Action::About);
+    assert!(
+        desk.app
+            .bar_rows(Title::Power)
+            .iter()
+            .all(|row| row.action != Action::About)
+    );
+    desk.menu(&["Help", "About WrOS"]);
+    assert_eq!(desk.app.overlay, Overlay::About);
+}
+
+#[test]
 fn rc28_outline_commands_explain_their_scope_and_cannot_move_hidden_scenes() {
-    use crate::app::brain::DeskView;
+    use crate::app::outline::DeskView;
     use crate::palette::{Action, Title};
 
     let fixture = tempfile::tempdir().unwrap();
     let mut desk = Desk::open(book("rc28-outline-command-scope", true), 80, 24);
-    desk.app
-        .brain
-        .set_paths(fixture.path().join("Brain"), fixture.path().join("cache"));
+    desk.app.commonplace.set_paths(
+        fixture.path().join("Commonplace"),
+        fixture.path().join("cache"),
+    );
     let scene = first_scene(&desk.root);
     let before = fs::read_to_string(&scene).unwrap();
-    for view in [DeskView::Library, DeskView::Brain, DeskView::Review] {
+    for view in [DeskView::Read, DeskView::Outline, DeskView::Study] {
         desk.app.switch_desk_view(view);
         desk.menu(&["Project", "Move down"]);
         assert!(
@@ -891,8 +1003,8 @@ fn rc28_outline_commands_explain_their_scope_and_cannot_move_hidden_scenes() {
 }
 
 #[test]
-fn rc28_project_search_from_library_opens_the_result_in_write() {
-    use crate::app::brain::DeskView;
+fn rc28_project_search_from_read_opens_the_result_in_write() {
+    use crate::app::outline::DeskView;
 
     let fixture = tempfile::tempdir().unwrap();
     let root = book("rc28-project-search-context", true);
@@ -902,10 +1014,11 @@ fn rc28_project_search_from_library_opens_the_result_in_write() {
     )
     .unwrap();
     let mut desk = Desk::open(root, 80, 24);
-    desk.app
-        .brain
-        .set_paths(fixture.path().join("Brain"), fixture.path().join("cache"));
-    desk.app.switch_desk_view(DeskView::Library);
+    desk.app.commonplace.set_paths(
+        fixture.path().join("Commonplace"),
+        fixture.path().join("cache"),
+    );
+    desk.app.switch_desk_view(DeskView::Read);
     desk.app.run_action(palette::Action::FindInBook);
     desk.typed("telescope");
     desk.key(KeyCode::Enter);
@@ -918,14 +1031,14 @@ fn rc28_project_search_from_library_opens_the_result_in_write() {
 }
 
 #[test]
-fn rc28_library_keeps_a_tag_filter_when_reopened_and_undoes_prompt_edits() {
+fn rc28_read_keeps_a_tag_filter_when_reopened_and_undoes_prompt_edits() {
     use grimoire_brain::bounded_store::PagedBrain;
     use grimoire_brain::library::Edition;
     use grimoire_brain::model::{Builtin, NodeId, Place};
     use serde_json::json;
 
     let fixture = tempfile::tempdir().unwrap();
-    let library = fixture.path().join("Brain");
+    let library = fixture.path().join("Commonplace");
     let cache = fixture.path().join("cache");
     let mut store = PagedBrain::open_library(&library, &cache).unwrap();
     for title in ["Saffron Gardens", "Bridge Atlas"] {
@@ -944,7 +1057,7 @@ fn rc28_library_keeps_a_tag_filter_when_reopened_and_undoes_prompt_edits() {
     }
     drop(store);
     let mut desk = Desk::open(book("rc28-library-filter", true), 80, 24);
-    desk.app.brain.set_paths(library, cache);
+    desk.app.commonplace.set_paths(library, cache);
     desk.press(KeyEvent::new(KeyCode::Char('2'), KeyModifiers::SUPER));
     desk.typed("f#concept");
     desk.key(KeyCode::Enter);
@@ -962,16 +1075,17 @@ fn rc28_library_keeps_a_tag_filter_when_reopened_and_undoes_prompt_edits() {
 }
 
 #[test]
-fn named_brain_pages_are_reachable_from_today_and_exclude_day_pages() {
+fn named_outline_pages_are_reachable_from_today_and_exclude_day_pages() {
     let fixture = tempfile::tempdir().unwrap();
     let mut desk = Desk::open(book("brain-pages", true), 80, 24);
-    desk.app
-        .brain
-        .set_paths(fixture.path().join("Brain"), fixture.path().join("cache"));
-    desk.menu(&["View", "Brain"]);
-    assert!(desk.shows("Write │ Library │ Brain │ Review"));
+    desk.app.commonplace.set_paths(
+        fixture.path().join("Commonplace"),
+        fixture.path().join("cache"),
+    );
+    desk.press(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::SUPER));
+    assert!(desk.rows()[0].starts_with(" [W][r][O][S] │"));
     desk.key(KeyCode::Char('p'));
-    assert!(desk.shows("Brain · Pages"));
+    assert!(desk.shows("Outline · Pages"));
     assert!(desk.shows("No pages yet"));
     desk.key(KeyCode::Char('n'));
     desk.typed("Reading list");
@@ -983,7 +1097,7 @@ fn named_brain_pages_are_reachable_from_today_and_exclude_day_pages() {
     desk.key(KeyCode::Enter);
     assert!(desk.shows("A history of maps"));
     desk.key(KeyCode::Char('t'));
-    assert!(desk.shows("Brain · Today"));
+    assert!(desk.shows("Outline · Today"));
     assert!(!desk.shows("Reading list"));
     desk.key(KeyCode::Char('p'));
     assert!(desk.shows("Reading list"));
@@ -992,41 +1106,43 @@ fn named_brain_pages_are_reachable_from_today_and_exclude_day_pages() {
 }
 
 #[test]
-fn brain_beside_write_saves_tagged_notes_and_keeps_the_manuscript_draft() {
+fn outline_beside_write_saves_tagged_notes_and_keeps_the_manuscript_draft() {
     let fixture = tempfile::tempdir().unwrap();
     let mut desk = Desk::open(book("brain-beside", true), 80, 24);
-    desk.app
-        .brain
-        .set_paths(fixture.path().join("Brain"), fixture.path().join("cache"));
+    desk.app.commonplace.set_paths(
+        fixture.path().join("Commonplace"),
+        fixture.path().join("cache"),
+    );
     desk.key(KeyCode::Tab);
     desk.typed("The manuscript retains its own draft.");
     let prose = desk.app.editor.text();
-    desk.menu(&["View", "Brain beside Write"]);
-    assert!(desk.shows("Brain · Project notes"));
+    desk.menu(&["View", "Outline beside Write"]);
+    assert!(desk.shows("Outline · Project notes"));
     desk.key(KeyCode::Char('n'));
     desk.typed("Research for this project");
     desk.press(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::SUPER));
-    assert!(desk.shows("Brain · Today"));
+    assert!(desk.shows("Outline · Today"));
     desk.press(KeyEvent::new(KeyCode::Char('1'), KeyModifiers::SUPER));
     assert!(desk.shows("Research for this project"));
-    let side = desk.app.brain.side_area;
+    let side = desk.app.commonplace.side_area;
     desk.app.on_click(side.x + 1, side.y);
     desk.key(KeyCode::Enter);
     assert!(desk.shows("Research for this project"));
     assert_eq!(desk.app.editor.text(), prose);
     let meta = Project::load(&desk.root).unwrap().meta;
-    let tag = meta.brain_tag.expect("Project tag stored on disk");
+    let tag = meta.outline_tag.expect("Project tag stored on disk");
     assert!(tag.parse::<grimoire_brain::model::NodeId>().is_ok());
 }
 
 #[test]
-fn brain_links_backlinks_tags_and_saved_lists_are_editable_from_the_keyboard() {
+fn outline_links_backlinks_tags_and_saved_lists_are_editable_from_the_keyboard() {
     let fixture = tempfile::tempdir().unwrap();
     let mut desk = Desk::open(book("brain-commands", true), 100, 30);
-    desk.app
-        .brain
-        .set_paths(fixture.path().join("Brain"), fixture.path().join("cache"));
-    desk.menu(&["View", "Brain"]);
+    desk.app.commonplace.set_paths(
+        fixture.path().join("Commonplace"),
+        fixture.path().join("cache"),
+    );
+    desk.press(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::SUPER));
     for title in ["City maps", "Reading list"] {
         desk.key(KeyCode::Char('n'));
         desk.typed(title);
@@ -1053,6 +1169,8 @@ fn brain_links_backlinks_tags_and_saved_lists_are_editable_from_the_keyboard() {
     desk.key(KeyCode::Char('b'));
     assert!(desk.shows("Backlinks"));
     assert!(desk.shows("Reading list"));
+    desk.keys(&[KeyCode::Left, KeyCode::Right]);
+    assert!(desk.info().contains("› City maps · 1 backlink"));
 }
 
 impl Desk {
@@ -1141,6 +1259,11 @@ impl Desk {
 
     fn status(&self) -> String {
         self.rows().last().cloned().unwrap_or_default()
+    }
+
+    fn info(&self) -> String {
+        let rows = self.rows();
+        rows[rows.len() - 2].clone()
     }
 
     fn menu_open(&self) -> bool {
@@ -1338,7 +1461,7 @@ fn quit_grimoire_saves_and_leaves() {
     let mut d = Desk::open(root, 120, 35);
     d.key(KeyCode::Tab);
     d.typed("Zyx marker");
-    d.menu(&["WrOS"]);
+    d.menu(&["Power"]);
     // Up from the first row wraps to the last: Quit.
     d.key(KeyCode::Up);
     assert!(d.shows("▸ Quit"));
@@ -1402,12 +1525,374 @@ fn typing_lock_in_the_palette_picks_lock() {
     assert!(d.shows("▸ Lock"), "{}", d.rows().join("\n"));
 }
 
-// ---- the status bar ------------------------------------------------------
+// ---- the bottom bars -----------------------------------------------------
+
+fn info_book(tag: &str, width: u16) -> Desk {
+    let mut d = Desk::open(book(tag, true), width, 24);
+    let scene = d.app.open.unwrap();
+    let chapter = d.app.parents[scene].unwrap();
+    d.app.project.meta.title = "Project".into();
+    d.app.project.nodes[chapter].title = "Chapter".into();
+    d.app.project.nodes[scene].title = "Scene".into();
+    let text = "One two three four five.";
+    d.app.project.nodes[scene].body = text.into();
+    d.app.editor.set_text(text);
+    d
+}
 
 #[test]
-fn wifi_volume_battery_and_clock_sit_at_the_right_of_the_status_bar() {
+fn write_info_with_tree_shows_scene_details_not_path() {
+    let mut d = info_book("info-with-tree", 100);
+    d.app.deck.state.current_mut().outline = true;
+    let scene = &mut d.app.project.nodes[d.app.open.unwrap()];
+    scene.set_meta("status", "draft");
+    scene.set_meta("target", "2500");
+    scene.stat = Some(grimoire_core::sync::Stat {
+        len: 0,
+        modified: Some(std::time::SystemTime::now() - Duration::from_secs(14 * 60)),
+    });
+    d.draw();
+    assert!(!d.app.rect_tree.is_empty());
+    let info = d.info();
+    // The goal is in the editor's title (words / goal), so it isn't repeated here.
+    assert_eq!(info.trim(), "draft · edited 14 min ago");
+    for repeated in ["Project", "Chapter", "Scene", "· 5", "goal", "2,500"] {
+        assert!(!info.contains(repeated), "{info}");
+    }
+    d.app.editor.select_all();
+    d.draw();
+    assert_eq!(d.info().trim(), "5 words selected");
+}
+
+#[test]
+fn write_info_without_tree_names_only_the_project() {
+    // The editor's title shows the chapter, scene and words; with the outline hidden, only the
+    // project's name is shown nowhere else.
+    let mut d = info_book("info-without-tree", 100);
+    d.app.deck.state.current_mut().outline = false;
+    d.draw();
+    let info = d.info();
+    assert!(info.trim().starts_with("Project"), "{info}");
+    for repeated in ["Chapter", "Scene", "· 5"] {
+        assert!(!info.contains(repeated), "{info}");
+    }
+}
+
+#[test]
+fn read_outline_study_info_replaces_their_header_row() {
+    use crate::app::outline::DeskView;
+
+    let fixture = tempfile::tempdir().unwrap();
+    let mut d = info_book("desk-info-rows", 100);
+    d.app.commonplace.set_paths(
+        fixture.path().join("Commonplace"),
+        fixture.path().join("cache"),
+    );
+    for (view, row, content, heading, keys) in [
+        (
+            DeskView::Read,
+            2,
+            "No matching works",
+            "0 works",
+            "Enter Editions",
+        ),
+        (
+            DeskView::Outline,
+            1,
+            "No notes here yet",
+            "Outline · Today",
+            "N New note",
+        ),
+        (DeskView::Study, 2, "No cards due", "All cards", "F Filter"),
+    ] {
+        d.app.switch_desk_view(view);
+        d.draw();
+        let rows = d.rows();
+        let info_row = rows.len() - 2;
+        assert!(rows[row].contains(content), "{:?}", rows[row]);
+        assert!(rows[info_row].contains(heading), "{:?}", rows[info_row]);
+        assert!(!rows[..=row].iter().any(|line| line.contains(heading)));
+        assert!(
+            rows[row + 1..info_row]
+                .iter()
+                .any(|line| line.contains(keys))
+        );
+    }
+}
+
+#[test]
+fn progress_bar_fills_free_width() {
+    let mut d = info_book("progress-free-width", 120);
+    let total = d.app.project.total_words();
+    assert!(total > 0);
+    d.app.project.meta.target_words = 2 * total;
+    d.draw();
+    let row = d.status();
+    let bar: Vec<_> = row.match_indices(['━', '─']).collect();
+    assert_eq!(bar.len(), 60);
+    let buf = d.term.backend().buffer();
+    for (i, (byte, symbol)) in bar.into_iter().enumerate() {
+        let x = row[..byte].chars().count() as u16;
+        let cell = &buf[(x, buf.area.height - 1)];
+        let (want, color) = if i < 30 {
+            ("━", d.app.theme.accent)
+        } else {
+            ("─", d.app.theme.dim)
+        };
+        assert_eq!((symbol, cell.fg), (want, color));
+    }
+}
+
+const MARQUEE_TITLE: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789";
+
+fn playing_desk(tag: &str) -> Desk {
+    let mut d = info_book(tag, 80);
+    d.app.deck.state.low_power = false;
+    d.app.music.state = crate::music::State::Playing(crate::music::Track {
+        title: MARQUEE_TITLE.into(),
+        artist: String::new(),
+        progress: 0.0,
+        duration: 180.0,
+        playing: true,
+    });
+    d.app.msg.clear();
+    d
+}
+
+#[test]
+fn message_wins_over_now_playing() {
+    let mut d = playing_desk("marquee-message");
+    d.draw();
+    assert!(d.status().contains("♪ ABC"));
+    d.app.msg = "Export complete".into();
+    d.draw();
+    assert!(d.status().trim_end().ends_with("Export complete"));
+    assert!(!d.status().contains('♪'));
+    assert!(d.app.marquee.is_none());
+    d.app.msg.clear();
+    d.draw();
+    assert!(d.status().contains("♪ ABC"));
+}
+
+#[test]
+fn now_playing_scrolls_when_idle() {
+    let mut d = playing_desk("marquee-scroll");
+    d.draw();
+    assert!(d.status().contains("♪ ABC"));
+    let marquee = d.app.marquee.as_mut().unwrap();
+    let first_step = marquee.next_frame();
+    marquee.advance(first_step - Duration::from_millis(1));
+    assert_eq!(marquee.next_frame(), first_step);
+    marquee.advance(first_step);
+    assert_eq!(
+        marquee.next_frame(),
+        first_step + Duration::from_millis(300)
+    );
+    d.draw();
+    assert!(d.status().contains("♪ BCD"));
+
+    let marquee = d.app.marquee.as_mut().unwrap();
+    for _ in 0..MARQUEE_TITLE.chars().count() {
+        let step = marquee.next_frame();
+        marquee.advance(step);
+        if marquee.next_frame() - step == Duration::from_secs(2) {
+            break;
+        }
+    }
+    d.draw();
+    assert!(d.status().trim_end().ends_with("0123456789"));
+    let marquee = d.app.marquee.as_mut().unwrap();
+    marquee.advance(marquee.next_frame());
+    d.draw();
+    assert!(d.status().contains("♪ ABC"));
+}
+
+#[test]
+fn marquee_still_without_motion() {
+    let mut d = playing_desk("marquee-still");
+    d.draw();
+    let marquee = d.app.marquee.as_mut().unwrap();
+    marquee.advance(marquee.next_frame());
+    d.app.deck.state.low_power = true;
+    d.draw();
+    let row = d.status();
+    assert!(
+        row.contains("♪ ABC") && row.trim_end().ends_with('…'),
+        "{row}"
+    );
+    assert!(d.app.marquee.is_none());
+    d.draw();
+    assert_eq!(d.status(), row);
+}
+
+#[test]
+fn widget_click_targets() {
+    use crate::gauges::Widget;
+
+    let mut d = info_book("widget-targets", 80);
+    d.app.deck.gauges = crate::gauges::Gauges {
+        battery: Some(76),
+        volume: Some(70),
+        wifi: Some(crate::gauges::Wifi::Bars(2)),
+        ..Default::default()
+    };
+    d.app.deck.clock = "14:07".into();
+    d.draw();
+    let info = d.info();
+    let expected = [
+        ("▂▄▆", Widget::Wifi),
+        ("♪70%", Widget::Sound),
+        ("▮76%", Widget::Battery),
+        ("14:07", Widget::Clock),
+    ];
+    let hits: Vec<_> = expected
+        .into_iter()
+        .map(|(text, widget)| {
+            let x = info[..info.find(text).unwrap()].chars().count() as u16;
+            (
+                ratatui::layout::Rect::new(x, 22, text.chars().count() as u16, 1),
+                widget,
+            )
+        })
+        .collect();
+    assert_eq!(d.app.widget_hits(), hits.as_slice());
+    d.app.focus_mode = true;
+    d.draw();
+    assert!(d.app.widget_hits().is_empty());
+}
+
+fn widget_desk(tag: &str) -> Desk {
+    let mut d = Desk::open(book(tag, true), 100, 30);
+    d.app.deck.gauges = crate::gauges::Gauges {
+        battery: Some(76),
+        battery_minutes: Some(135),
+        light: Some(50),
+        volume: Some(70),
+        wifi: Some(crate::gauges::Wifi::Bars(2)),
+        wifi_radio: Some(true),
+        ..Default::default()
+    };
+    d.app.deck.clock = "14:07".into();
+    d.draw();
+    d
+}
+
+fn click_widget(d: &mut Desk, kind: crate::gauges::Widget) -> ratatui::layout::Rect {
+    let &(rect, _) = d
+        .app
+        .widget_hits()
+        .iter()
+        .find(|(_, widget)| *widget == kind)
+        .unwrap();
+    d.app.on_click(rect.x, rect.y);
+    d.draw();
+    rect
+}
+
+#[test]
+fn each_widget_opens_its_popup_above_it() {
+    use crate::gauges::Widget;
+
+    let mut d = widget_desk("widgets-above");
+    d.app.deck.shell.wifi_networks = Some(Vec::new());
+    let before = d.term.backend().buffer().clone();
+    for (kind, link) in [
+        (Widget::Wifi, "Network settings…"),
+        (Widget::Sound, "Sound settings…"),
+        (Widget::Battery, "Battery settings…"),
+        (Widget::Clock, "Date and time settings…"),
+    ] {
+        let rect = click_widget(&mut d, kind);
+        assert!(matches!(d.app.overlay, Overlay::Widget { kind: k, .. } if k == kind));
+        let y = rect.y - 1;
+        assert!(d.rows()[usize::from(y)].contains(link));
+        let t = &d.app.theme;
+        let buf = d.term.backend().buffer();
+        assert_eq!(
+            buf[(rect.right() - 1, y)].bg,
+            ui::bar_band(t, false).unwrap_or(t.sel)
+        );
+        assert_eq!(buf[(rect.right(), y)].fg, t.dim);
+        assert_eq!(
+            buf[(rect.right(), y)].symbol(),
+            before[(rect.right(), y)].symbol()
+        );
+        assert_eq!(
+            buf[(rect.x, rect.y)].symbol(),
+            before[(rect.x, rect.y)].symbol()
+        );
+        d.key(KeyCode::Esc);
+    }
+}
+
+#[test]
+fn clock_popup_shows_month() {
+    use crate::app::shell::{Panel, Route};
+    use crate::gauges::Widget;
+
+    let mut d = widget_desk("widget-month");
+    metric_clock(&mut d);
+    click_widget(&mut d, Widget::Clock);
+    assert!(d.shows("Sunday, October 25, 2026"));
+    assert!(d.shows("October 2026"));
+    assert!(d.shows("Mon  Tue  Wed  Thu  Fri  Sat  Sun"));
+    assert!(d.shows("25*"));
+    assert!(d.shows("31"));
+    d.keys(&[KeyCode::End, KeyCode::Enter]);
+    assert_eq!(
+        d.app.deck.shell.nav.current(),
+        Route::Panel(Panel::DateTime)
+    );
+}
+
+#[test]
+fn popup_closes_on_esc_and_outside_click() {
+    use crate::gauges::Widget;
+
+    let mut d = widget_desk("widgets-dismiss");
+    let rect = click_widget(&mut d, Widget::Battery);
+    d.key(KeyCode::Esc);
+    assert_eq!(d.app.overlay, Overlay::None);
+    click_widget(&mut d, Widget::Battery);
+    d.app.on_click(0, 0);
+    assert_eq!(d.app.overlay, Overlay::None);
+    click_widget(&mut d, Widget::Battery);
+    d.app.on_click(rect.x, rect.y);
+    assert_eq!(d.app.overlay, Overlay::None);
+    click_widget(&mut d, Widget::Battery);
+    d.app.on_right_click(0, 0);
+    assert_eq!(d.app.overlay, Overlay::None);
+}
+
+#[test]
+fn find_anything_opens_widget_by_name() {
+    use crate::gauges::Widget;
+
+    let mut d = widget_desk("widgets-find-anything");
+    d.app.focus_mode = true;
+    d.app.deck.shell.wifi_networks = Some(Vec::new());
+    d.draw();
+    assert!(d.app.widget_hits().is_empty());
+    d.press(KeyEvent::new(
+        KeyCode::Modifier(ModifierKeyCode::LeftSuper),
+        KeyModifiers::NONE,
+    ));
+    d.typed("Wi-Fi");
+    d.key(KeyCode::Enter);
+    assert!(matches!(
+        d.app.overlay,
+        Overlay::Widget {
+            kind: Widget::Wifi,
+            ..
+        }
+    ));
+    assert!(d.shows("Network settings…"));
+}
+
+#[test]
+fn wifi_volume_battery_and_clock_sit_at_the_right_of_the_info_bar() {
     let mut d = Desk::open(book("status-gauges", true), 100, 30);
-    assert!(!d.status().contains('▮'), "nothing read, nothing shown");
+    assert!(!d.info().contains('▮'), "nothing read, nothing shown");
     d.app.deck.gauges = crate::gauges::Gauges {
         battery: Some(76),
         charging: false,
@@ -1415,17 +1900,18 @@ fn wifi_volume_battery_and_clock_sit_at_the_right_of_the_status_bar() {
         volume: Some(70),
         muted: false,
         wifi: Some(crate::gauges::Wifi::Bars(2)),
+        ..crate::gauges::Gauges::default()
     };
     d.app.deck.clock = "14:07".into();
     d.draw();
-    let status = d.status();
+    let status = d.info();
     assert!(
         status.trim_end().ends_with("▂▄▆  ♪70%  ▮76%  14:07"),
         "{status}"
     );
     assert!(!status.contains('☀'), "the light only after its key");
     // Two of three bars lit.
-    let row = d.term.backend().buffer().area.height - 1;
+    let row = d.term.backend().buffer().area.height - 2;
     let x = status
         .find('▂')
         .map(|b| status[..b].chars().count() as u16)
@@ -1441,28 +1927,106 @@ fn wifi_volume_battery_and_clock_sit_at_the_right_of_the_status_bar() {
     brighter.light = Some(60);
     d.app.set_gauges(brighter, std::time::Instant::now());
     d.draw();
-    assert!(d.status().contains("☀60%"), "{}", d.status());
+    assert!(d.info().contains("☀60%"), "{}", d.info());
     // The console spells them out.
     d.app.linux_console = true;
     d.draw();
     assert!(
-        d.status()
+        d.info()
             .contains("Wi-Fi 2/3  Vol 70%  Light 60%  Bat 76%  14:07"),
         "{}",
-        d.status()
+        d.info()
     );
     d.app.linux_console = false;
-    // Focus mode keeps to the scene, unless the battery runs low.
+    // A battery reading by itself does not add chrome in focus mode.
     d.app.focus_mode = true;
     d.draw();
     assert!(!d.status().contains('▮'), "{}", d.status());
     d.app.deck.gauges.battery = Some(9);
     d.draw();
-    assert!(d.status().trim_end().ends_with("▮9%"), "{}", d.status());
+    assert!(!d.status().contains('▮'), "{}", d.status());
 }
 
 #[test]
-fn the_menu_bar_and_status_line_sit_on_a_band_of_the_themes_border_colour() {
+fn dropdown_is_lifted_with_a_shadow() {
+    use crate::app::overlays::BarHit;
+    use crate::palette::Title;
+    use ratatui::style::Color;
+
+    let mut d = Desk::open(book("dropdown-shadow", true), 120, 35);
+    d.app
+        .editor
+        .set_text(&("Visible writing fills this line. ".repeat(8) + "\n").repeat(25));
+    d.draw();
+    let before = d.term.backend().buffer().clone();
+    d.menu(&["File"]);
+    let hits = d.app.bar_hits.borrow();
+    let hit = |want| hits.iter().find(|(_, h)| *h == want).unwrap().0;
+    let title = hit(BarHit::Title(Title::File));
+    let first = hit(BarHit::Row(0));
+    let second = hit(BarHit::Row(1));
+    let last = hits
+        .iter()
+        .filter_map(|(r, h)| matches!(h, BarHit::Row(_)).then_some(*r))
+        .next_back()
+        .unwrap();
+    let t = &d.app.theme;
+    let buf = d.term.backend().buffer();
+    assert_eq!(first.y, title.y + 1);
+    assert_eq!(buf[(first.x, first.y)].bg, t.accent);
+    assert_eq!(buf[(first.x, first.y)].fg, Color::Black);
+    assert_eq!(
+        buf[(second.x, second.y)].bg,
+        ui::bar_band(t, false).unwrap_or(t.sel)
+    );
+    let right = first.right() + 1;
+    let bottom = last.bottom();
+    let shadow = (first.y + 1..bottom)
+        .map(|y| (right, y))
+        .chain((first.x..=right).map(|x| (x, bottom)));
+    let mut text_kept = false;
+    for (x, y) in shadow {
+        let old = &before[(x, y)];
+        let cell = &buf[(x, y)];
+        assert_eq!(cell.symbol(), old.symbol());
+        assert_eq!(cell.fg, t.dim);
+        let bg = match old.bg {
+            Color::Rgb(r, g, b) => Color::Rgb(r / 2, g / 2, b / 2),
+            other => other,
+        };
+        assert_eq!(cell.bg, bg);
+        text_kept |= old.symbol() != " ";
+    }
+    assert!(text_kept, "the shadow leaves underlying text visible");
+}
+
+#[test]
+fn console_dropdown_keeps_its_edges_and_status_line() {
+    use crate::app::overlays::BarHit;
+    use ratatui::style::Color;
+
+    let mut d = Desk::open(book("console-dropdown", true), 80, 16);
+    d.app.linux_console = true;
+    d.draw();
+    d.menu(&["File"]);
+    let hits = d.app.bar_hits.borrow();
+    let first = hits.iter().find(|(_, h)| *h == BarHit::Row(0)).unwrap().0;
+    let second = hits.iter().find(|(_, h)| *h == BarHit::Row(1)).unwrap().0;
+    let buf = d.term.backend().buffer();
+    let t = d.app.theme.for_console();
+    assert_eq!(buf[(first.x - 1, first.y)].symbol(), "│");
+    assert_eq!(buf[(first.right(), first.y)].symbol(), "│");
+    assert_eq!(buf[(first.x, first.y)].bg, t.accent);
+    assert_eq!(buf[(first.x, first.y)].fg, Color::Black);
+    assert_eq!(buf[(second.x, second.y)].bg, Color::Blue);
+    assert!(
+        hits.iter()
+            .all(|(r, h)| !matches!(h, BarHit::Row(_)) || r.bottom() < buf.area.bottom())
+    );
+}
+
+#[test]
+fn the_top_and_bottom_bars_sit_on_a_band_of_the_themes_border_colour() {
     // rc14: the bars were bare black under the bordered panes. They frame the screen now, in the
     // theme's own line colour, and the word-count meter is a line like the music player's
     // instead of full-height shaded blocks that read as a second row.
@@ -1472,7 +2036,8 @@ fn the_menu_bar_and_status_line_sit_on_a_band_of_the_themes_border_colour() {
     let last = buf.area.height - 1;
     for x in [0, 60, 119] {
         assert_eq!(buf[(x, 0)].bg, border, "menu bar at column {x}");
-        assert_eq!(buf[(x, last)].bg, border, "status line at column {x}");
+        assert_eq!(buf[(x, last - 1)].bg, border, "info bar at column {x}");
+        assert_eq!(buf[(x, last)].bg, border, "progress bar at column {x}");
     }
     assert_eq!(
         buf[(60, 10)].bg,
@@ -1498,6 +2063,7 @@ fn the_menu_bar_and_status_line_sit_on_a_band_of_the_themes_border_colour() {
     d.draw();
     let buf = d.term.backend().buffer();
     assert_eq!(buf[(60, 0)].bg, ratatui::style::Color::Reset);
+    assert_eq!(buf[(60, last - 1)].bg, ratatui::style::Color::Reset);
     assert_eq!(buf[(60, last)].bg, ratatui::style::Color::Reset);
 }
 
@@ -1535,7 +2101,9 @@ fn a_long_grey_notice_wraps_inside_the_settings_box_instead_of_widening_it() {
 
 #[test]
 fn narrow_screens_keep_the_message_whole_and_drop_the_clock_first() {
-    let mut d = Desk::open(book("status-narrow", true), 80, 24);
+    let mut d = info_book("status-narrow-gauges", 52);
+    d.app.linux_console = true;
+    d.app.deck.state.current_mut().outline = false;
     d.app.deck.gauges = crate::gauges::Gauges {
         battery: Some(76),
         volume: Some(70),
@@ -1543,34 +2111,170 @@ fn narrow_screens_keep_the_message_whole_and_drop_the_clock_first() {
         ..Default::default()
     };
     d.app.deck.clock = "14:07".into();
-    d.app.msg = "the whole message stays put".into();
+    d.app.msg = "Message intact".into();
     d.draw();
     let status = d.status();
-    assert!(status.contains("the whole message stays put"), "{status}");
-    assert!(status.contains('▮'), "the battery stays longest: {status}");
-    assert!(!status.contains("14:07"), "the clock goes first: {status}");
+    assert!(status.contains("Message intact"), "{status}");
+    let info = d.info();
+    assert!(
+        info.contains("Bat 76%"),
+        "the battery stays longest: {info}"
+    );
+    assert!(!info.contains("14:07"), "the clock goes first: {info}");
+}
+
+#[test]
+fn top_bar_shows_tiles_menus_marks_and_power() {
+    let (root, _, _) = conflicted("top-bar");
+    let mut d = Desk::open(root, 170, 48);
+    d.app.deck.backup_mark = Some(app::BackupMark::Done);
+    let menus = " │ File  Edit  View  Project  Tools  Settings  Help";
+    assert!(!d.app.tile_glyphs);
+
+    d.app.linux_console = true;
+    d.draw();
+    let top = &d.rows()[0];
+    assert!(top.starts_with(&format!(" [W][r][O][S]{menus}")), "{top}");
+    assert!(top.ends_with("1 conflict  saved  backed up [Power]"), "{top}");
+    let buf = d.term.backend().buffer();
+    assert!(buf[(166, 0)].modifier.contains(Modifier::UNDERLINED));
+
+    d.app.linux_console = false;
+    d.app.tile_glyphs = true;
+    d.draw();
+    let top = &d.rows()[0];
+    let tiles = concat!(
+        " \u{E100}\u{E110}\u{E101}",
+        "\u{E100}\u{E111}\u{E101}",
+        "\u{E100}\u{E112}\u{E101}",
+        "\u{E100}\u{E113}\u{E101}",
+    );
+    assert!(top.starts_with(&format!("{tiles}{menus}")), "{top}");
+    assert!(
+        top.ends_with("⚠ 1  ✓  ⇅ \u{E100}\u{E114}\u{E101}"),
+        "{top}"
+    );
+}
+
+#[test]
+fn current_tile_is_filled_and_due_letter_is_red() {
+    use crate::app::outline::DeskView;
+    use crate::app::overlays::BarHit;
+    use grimoire_brain::bounded_store::PagedBrain;
+    use grimoire_brain::model::Place;
+    use ratatui::layout::Rect;
+    use ratatui::style::Color;
+
+    let fixture = tempfile::tempdir().unwrap();
+    let library = fixture.path().join("Commonplace");
+    let cache = fixture.path().join("cache");
+    let mut store = PagedBrain::open_library(&library, &cache).unwrap();
+    store
+        .create_note_with_text(Place::default(), "One prompt :: One answer")
+        .unwrap();
+    drop(store);
+
+    let mut d = Desk::open(book("tile-due", true), 170, 48);
+    d.app.commonplace.set_paths(library, cache);
+    d.app.switch_desk_view(DeskView::Study);
+    for glyphs in [false, true] {
+        d.app.switch_desk_view(DeskView::Write);
+        d.app.tile_glyphs = glyphs;
+        d.app.linux_console = !glyphs;
+        d.draw();
+        let buf = d.term.backend().buffer();
+        let theme = if glyphs {
+            d.app.theme.clone()
+        } else {
+            d.app.theme.for_console()
+        };
+        for x in 1..4 {
+            assert_eq!(buf[(x, 0)].bg, theme.accent);
+        }
+        // Cards due: the whole S tile, frame and letter, in the warning colour.
+        assert_eq!(buf[(10, 0)].fg, theme.warn);
+        assert_eq!(buf[(11, 0)].fg, theme.warn);
+        assert_eq!(buf[(12, 0)].fg, theme.warn);
+        assert_eq!(buf[(5, 0)].fg, theme.dim);
+        assert!(d.rows()[0].contains(if glyphs {
+            "\u{E100}\u{E113}\u{E101} │"
+        } else {
+            "[S] │"
+        }));
+        assert!(
+            d.app
+                .bar_hits
+                .borrow()
+                .contains(&(Rect::new(10, 0, 3, 1), BarHit::Tile(DeskView::Study)))
+        );
+
+        d.app.switch_desk_view(DeskView::Study);
+        d.draw();
+        let buf = d.term.backend().buffer();
+        for x in 10..13 {
+            assert_eq!(buf[(x, 0)].bg, theme.accent);
+        }
+        assert_eq!(buf[(11, 0)].fg, Color::Black);
+    }
+}
+
+#[test]
+fn narrow_bar_drops_titles_before_power() {
+    let (root, _, _) = conflicted("narrow-top-bar");
+    let mut d = Desk::open(root, 80, 24);
+    d.app
+        .project
+        .nodes
+        .iter_mut()
+        .find(|n| n.kind != grimoire_core::project::Kind::Category)
+        .unwrap()
+        .dirty = true;
+    d.app.save_state = app::SaveState::Failed("disk full".into());
+    d.app.deck.backup_mark = Some(app::BackupMark::Done);
+    for (glyphs, console, marks, power) in [
+        (true, false, "⚠ 1  ● 1  ⇅", "\u{E100}\u{E114}\u{E101}"),
+        (false, false, "⚠ 1  ● 1  ⇅", "[Power]"),
+        (false, true, "1 conflict  1 not saved  backed up", "[Power]"),
+    ] {
+        d.app.tile_glyphs = glyphs;
+        d.app.linux_console = console;
+        d.draw();
+        let top = &d.rows()[0];
+        let tiles = if glyphs {
+            concat!(
+                " \u{E100}\u{E110}\u{E101}",
+                "\u{E100}\u{E111}\u{E101}",
+                "\u{E100}\u{E112}\u{E101}",
+                "\u{E100}\u{E113}\u{E101}",
+            )
+        } else {
+            " [W][r][O][S]"
+        };
+        assert!(top.starts_with(tiles), "{top}");
+        assert!(top.contains("File"), "{top}");
+        assert!(!top.contains("Help"), "{top}");
+        assert!(top.ends_with(&format!("{marks} {power}")), "{top}");
+    }
 }
 
 #[test]
 fn status_top_right_shows_conflicts_then_save_then_backup() {
     let (root, _, _) = conflicted("status-top");
     let mut d = Desk::open(root, 120, 35);
-    d.app.deck.backup_mark = Some(crate::app::BackupMark::Done("14:02".into()));
+    d.app.deck.backup_mark = Some(crate::app::BackupMark::Done);
     d.draw();
     let top = d.rows()[0].clone();
-    assert!(top.trim_end().ends_with("⚠ 1  ✓  ⇅ 14:02"), "{top}");
+    assert!(top.ends_with("⚠ 1  ✓  ⇅ [Power]"), "{top}");
     // A failed backup stays in the warning colour until one works.
     d.app.deck.backup_mark = Some(crate::app::BackupMark::Failed);
     d.draw();
     let top = d.rows()[0].clone();
-    assert!(top.trim_end().ends_with("⇅!"), "{top}");
-    let x = top.chars().count() as u16 - 2;
+    assert!(top.ends_with("⇅! [Power]"), "{top}");
     let buf = d.term.backend().buffer();
     let mark = (0..120)
         .rev()
         .find(|&x| buf[(x, 0)].symbol() == "!")
         .unwrap();
-    let _ = x;
     assert_eq!(buf[(mark, 0)].fg, d.app.theme.warn);
     // The console says it in words.
     d.app.linux_console = true;
@@ -1602,7 +2306,7 @@ fn a_narrow_console_keeps_the_unsaved_warning_longest() {
 }
 
 #[test]
-fn focus_mode_says_when_words_are_waiting_to_be_written() {
+fn focus_mode_hides_the_waiting_save_mark() {
     let mut d = Desk::open(book("status-focus-waiting", true), 120, 35);
     d.key(KeyCode::Tab);
     d.ctrl('d');
@@ -1616,27 +2320,69 @@ fn focus_mode_says_when_words_are_waiting_to_be_written() {
         .dirty = true;
     d.app.save_state = app::SaveState::Waiting("placeholder".into());
     d.draw();
-    assert!(d.status().contains("◌ 1"), "{}", d.status());
+    assert!(d.status().trim().is_empty(), "{}", d.status());
 }
 
 #[test]
-fn focus_mode_still_shows_a_failed_save_and_conflicts() {
+fn focus_mode_one_line_keeps_warnings() {
+    use crate::battery::{Reading, Step};
+
     let (root, _, _) = conflicted("status-focus");
     let mut d = Desk::open(root, 120, 35);
     d.key(KeyCode::Tab);
     d.ctrl('d');
     assert!(d.app.focus_mode);
-    d.app.deck.backup_mark = Some(crate::app::BackupMark::Done("14:02".into()));
-    d.draw();
-    let status = d.status();
-    assert!(status.contains("⚠ 1"), "{status}");
-    assert!(
-        !status.contains('✓') && !status.contains('⇅'),
-        "only warnings: {status}"
-    );
+    d.app.project.nodes[d.app.open.unwrap()].dirty = true;
+    d.app.save_state = app::SaveState::Failed("disk full".into());
+    d.app.deck.gauges.battery = Some(9);
     d.app.deck.backup_mark = Some(crate::app::BackupMark::Failed);
     d.draw();
-    assert!(d.status().contains("⇅!"), "{}", d.status());
+    assert_eq!(d.status().trim(), "⚠ 1  ● 1");
+    assert_eq!(d.app.edit_height, 34);
+    assert!(!d.rows()[0].contains("File  Edit"));
+
+    let scene = d.app.open.unwrap();
+    d.app.project.nodes[scene].dirty = false;
+    d.app.save_state = app::SaveState::Clean;
+    d.draw();
+    assert_eq!(d.status().trim(), "⚠ 1");
+    let copy = d.app.conflicts()[0];
+    d.app.project.nodes[copy].copy_of = None;
+
+    let now = Instant::now();
+    let reserve = Reading {
+        percent: Some(8),
+        discharging: true,
+        critical: true,
+    };
+    assert_eq!(d.app.deck.battery.read(reserve, true, now), Step::Save);
+    d.draw();
+    assert_eq!(
+        d.status().trim(),
+        "Battery 8%. WrOS saves, locks and sleeps in 30 seconds. Plug in to stay awake."
+    );
+    assert_eq!(
+        d.app.deck.battery.read(Reading::default(), true, now),
+        Step::Nothing
+    );
+    d.draw();
+    assert!(d.status().trim().is_empty(), "{}", d.status());
+    assert_eq!(d.app.edit_height, 35);
+}
+
+#[test]
+fn focus_mode_shows_only_the_page() {
+    let mut d = Desk::open(book("focus-page", true), 120, 35);
+    let prose = "The ferry left at dawn.";
+    d.app.editor.set_text(prose);
+    d.ctrl('d');
+    assert!(d.app.focus_mode);
+    assert_eq!(d.app.rect_prose, d.term.backend().buffer().area);
+    assert_eq!(d.app.rect_editor.y, 0);
+    assert_eq!(d.app.edit_height, 35);
+    let rows = d.rows();
+    assert_eq!(rows[0].trim(), prose);
+    assert!(rows[1..].iter().all(|row| row.trim().is_empty()));
 }
 
 // ---- notes beside the scene ------------------------------------------------
@@ -3703,29 +4449,29 @@ const EVERY_KEY: &[(&str, &str, &[&str])] = &[
     ("Everywhere", "F9", &[]),
     ("Everywhere", "F10", &[]),
     ("Everywhere", "F11", &[]),
-    ("Brain", "n", &[]),
-    ("Brain", "Enter", &[]),
-    ("Brain", "Ctrl-S", &["n", "c"]),
-    ("Brain", "Esc", &["n"]),
-    ("Brain", "↑", &[]),
-    ("Brain", "↓", &["↑"]),
-    ("Brain", "→", &[]),
-    ("Brain", "←", &["→"]),
-    ("Brain", "p", &[]),
-    ("Brain", "t", &["p"]),
-    ("Review cards", "Enter", &[]),
-    ("Review cards", "Space", &[]),
-    ("Review cards", "0", &["Enter"]),
-    ("Review cards", "1", &["Enter"]),
-    ("Review cards", "2", &["Enter"]),
-    ("Review cards", "3", &["Enter"]),
-    ("Review cards", "4", &["Enter"]),
-    ("Review cards", "5", &["Enter"]),
-    ("Review cards", "f", &[]),
-    ("Review cards", "↑", &["Enter", "↓"]),
-    ("Review cards", "↓", &["Enter"]),
-    ("Review cards", "r", &[]),
-    ("Review cards", "Esc", &["f"]),
+    ("Outline", "n", &[]),
+    ("Outline", "Enter", &[]),
+    ("Outline", "Ctrl-S", &["n", "c"]),
+    ("Outline", "Esc", &["n"]),
+    ("Outline", "↑", &[]),
+    ("Outline", "↓", &["↑"]),
+    ("Outline", "→", &[]),
+    ("Outline", "←", &["→"]),
+    ("Outline", "p", &[]),
+    ("Outline", "t", &["p"]),
+    ("Study", "Enter", &[]),
+    ("Study", "Space", &[]),
+    ("Study", "0", &["Enter"]),
+    ("Study", "1", &["Enter"]),
+    ("Study", "2", &["Enter"]),
+    ("Study", "3", &["Enter"]),
+    ("Study", "4", &["Enter"]),
+    ("Study", "5", &["Enter"]),
+    ("Study", "f", &[]),
+    ("Study", "↑", &["Enter", "↓"]),
+    ("Study", "↓", &["Enter"]),
+    ("Study", "r", &[]),
+    ("Study", "Esc", &["f"]),
     ("The outline", "↑", &[]),
     ("The outline", "↓", &["↑"]),
     ("The outline", "j", &["↑"]),
@@ -3832,14 +4578,14 @@ fn desk_for(section: &str) -> (Desk, std::sync::mpsc::Receiver<music::Cmd>) {
     }
     let (mut d, rx) = music_desk_at(root);
     d.app
-        .brain
-        .set_paths(d.root.join("Brain"), d.root.join("brain-cache"));
+        .commonplace
+        .set_paths(d.root.join("Commonplace"), d.root.join("commonplace-cache"));
     let long: String = (1..=80)
         .map(|n| format!("Wren walked on, line {n}.\n\n"))
         .collect();
     match section {
         "Everywhere" | "The outline" => {}
-        "Brain" => {
+        "Outline" => {
             d.press(key_named("Super+3"));
             for note in ["First note", "Second note"] {
                 d.key(KeyCode::Char('n'));
@@ -3847,11 +4593,11 @@ fn desk_for(section: &str) -> (Desk, std::sync::mpsc::Receiver<music::Cmd>) {
                 d.key(KeyCode::Enter);
             }
         }
-        "Review cards" => {
+        "Study" => {
             use grimoire_brain::bounded_store::PagedBrain;
             use grimoire_brain::model::Place;
-            let library = d.root.join("Brain");
-            let cache = d.root.join("brain-cache");
+            let library = d.root.join("Commonplace");
+            let cache = d.root.join("commonplace-cache");
             {
                 let mut store = PagedBrain::open_library(&library, &cache).unwrap();
                 store
@@ -3936,7 +4682,7 @@ fn every_key_in_every_key_does_something() {
 #[test]
 fn about_says_the_version_and_who_made_it_and_links_to_the_studio() {
     let mut d = Desk::open(book("about", true), 120, 40);
-    d.menu(&["WrOS", "About WrOS"]);
+    d.menu(&["Help", "About WrOS"]);
     assert!(matches!(d.app.overlay, Overlay::About));
     assert!(d.shows(&format!(
         "built on GrimoireTUI {}",
@@ -5563,6 +6309,8 @@ fn progress_shows_the_weeks_and_the_pace_and_a_click_on_the_count_opens_it() {
     d.key(KeyCode::Esc);
     d.key(KeyCode::Esc);
     let bottom = d.app.screen.1 - 1;
+    d.app.on_click(3, bottom - 1);
+    assert_eq!(d.app.overlay, Overlay::None);
     d.app.on_click(3, bottom);
     assert_eq!(d.app.overlay, Overlay::Progress);
 }
@@ -10486,7 +11234,8 @@ fn the_bottom_bar_says_rest_day_on_a_rest_day() {
 
     d.ctrl('d');
     assert!(d.app.focus_mode);
-    assert!(d.status().contains("rest day"));
+    // Focus mode shows only the page (the owner, rc30): no rest day, no counts.
+    assert!(!d.status().contains("rest day"), "{}", d.status());
     d.ctrl('d');
     d.menu(&["Tools", "Progress", "Calendar…"]);
     d.keys(&[KeyCode::Enter, KeyCode::Esc]);

@@ -415,6 +415,7 @@ impl App {
                 icons: self.icons_on,
                 line_width: self.line_width,
                 typewriter: self.typewriter,
+                pomodoro_chime: self.pomodoro_chime,
                 spelling: self.spell_lang.key().into(),
                 catalogue_search: self.catalogue_on,
                 ..Settings::default()
@@ -422,8 +423,8 @@ impl App {
             background: self.background,
         };
         let mut next = App::with(project, setup).map_err(cant)?;
-        next.brain = std::mem::take(&mut self.brain);
-        next.brain.close_project_pane();
+        next.commonplace = std::mem::take(&mut self.commonplace);
+        next.commonplace.close_project_pane();
         if let (Some(next), Some(previous)) = (&mut next.timeline, &self.timeline) {
             next.carry_notice(previous);
         }

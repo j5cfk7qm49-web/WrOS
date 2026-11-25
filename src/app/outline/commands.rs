@@ -139,7 +139,7 @@ impl Command {
     }
 }
 
-pub(super) fn find_tag(store: &mut PagedBrain, text: &str) -> anyhow::Result<NodeId> {
+pub(in crate::app) fn find_tag(store: &mut PagedBrain, text: &str) -> anyhow::Result<NodeId> {
     let text = text.trim().trim_start_matches('#');
     if let Some(tag) = Builtin::ALL
         .into_iter()
@@ -150,7 +150,7 @@ pub(super) fn find_tag(store: &mut PagedBrain, text: &str) -> anyhow::Result<Nod
     find_note(store, text)
 }
 
-pub(super) fn find_note(store: &mut PagedBrain, text: &str) -> anyhow::Result<NodeId> {
+pub(in crate::app) fn find_note(store: &mut PagedBrain, text: &str) -> anyhow::Result<NodeId> {
     let text = text.trim();
     if let Ok(id) = text.parse() {
         return Ok(id);
@@ -165,7 +165,7 @@ pub(super) fn find_note(store: &mut PagedBrain, text: &str) -> anyhow::Result<No
     match (exact.as_slice(), rows.as_slice()) {
         ([row], _) => Ok(row.id),
         ([], [row]) => Ok(row.id),
-        (_, []) => anyhow::bail!("No Brain notes match"),
+        (_, []) => anyhow::bail!("No Outline notes match"),
         _ => anyhow::bail!("More than one note matches. Enter an exact title or ID"),
     }
 }

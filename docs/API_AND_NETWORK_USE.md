@@ -107,9 +107,9 @@ the project. A full bundle can be read by any Git client using
 `WrOS-History/<project>/<date>/` copies. It still makes a dated copy before replacing
 or removing a local file if the timeline checkpoint fails.
 
-## Library lookups
+## Catalogue lookups
 
-Catalogue search is available from `@` in Write, Brain and Library, and from
+Catalogue search is available from `@` in Write, Outline and read, and from
 the search line in **Add a source**. While typing, WrOS waits for at least
 three non-space characters and a 500 ms pause. Pasting the search line or
 pressing Enter with no result selected submits it without the typing pause.

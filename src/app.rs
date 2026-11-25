@@ -36,21 +36,23 @@ use grimoire_core::timeline::Entry;
 
 mod aids;
 pub(crate) mod backup;
-pub(crate) mod brain;
 pub(crate) mod checks;
 pub(crate) mod continuity;
 pub(crate) mod documents;
 pub(crate) mod journal;
 pub(crate) mod lexicon;
 pub(crate) mod milestones;
+pub(crate) mod outline;
 pub(crate) mod overlays;
 pub(crate) mod pins;
 pub(crate) mod productivity;
 pub(crate) mod project_names;
 pub(crate) mod prose_dashboard;
+pub(crate) mod read;
 pub(crate) mod review_notes;
 pub(crate) mod shell;
 pub(crate) mod spark;
+pub(crate) mod study;
 mod timeline;
 pub(crate) mod workflow;
 pub(crate) mod wros;
@@ -209,8 +211,8 @@ pub struct App {
     pub journal: journal::Journal,
     pub workflow: workflow::Workflow,
     pub views: documents::Views,
-    pub desk_view: brain::DeskView,
-    pub brain: brain::BrainDesk,
+    pub desk_view: outline::DeskView,
+    pub commonplace: outline::CommonplaceDesk,
     pub project: Project,
     pub visible: Vec<usize>,
     pub parents: Vec<Option<usize>>,
@@ -232,6 +234,8 @@ pub struct App {
     /// What the small pane under the tree is showing. ←/→ cycles it.
     pub pane_mode: Mode,
     pub music: Music,
+    /// Present while a playing title needs to scroll in the message area.
+    pub(crate) marquee: Option<crate::motion::Marquee>,
     /// Listens to system audio, but only while the spectrum view is showing.
     pub viz: Visualizer,
     /// When the player last asked for the queue, so it stays current while open.
@@ -260,6 +264,11 @@ pub struct App {
     /// Where the view switcher on the scene pane's bottom edge was drawn:
     /// each view's name, and the arrows either side.
     pub view_hits: Vec<(Rect, Mode)>,
+    /// The info bar's visible gauges and the progress bar's clickable meter.
+    pub(crate) widget_hits: Vec<(Rect, crate::gauges::Widget)>,
+    /// The widget panel as drawn and the index of its first visible row.
+    widget_panel: std::cell::Cell<(Rect, usize)>,
+    pub(crate) progress_hit: Rect,
     /// In a graphical session (native or under Cage), where Alt and a menu's
     /// letter opens that menu; a terminal keeps Alt-b and Alt-f for words.
     pub alt_menus: bool,
@@ -305,6 +314,8 @@ pub struct App {
     /// (`ESC[58;…m`) and reads them as faint, blink and font switches, and it
     /// turns dark backgrounds black.
     pub linux_console: bool,
+    /// The native renderer has the private-use glyphs for the top bar.
+    pub tile_glyphs: bool,
     /// Which English it knows.
     pub spell_lang: spell::Language,
     /// The tree shows a symbol beside each row.
@@ -328,12 +339,13 @@ pub struct App {
     /// place as a note, so only one of them shows at a time.
     pub beside: Option<BesidePane>,
     pub rect_beside: Rect,
-    /// Focus mode: only the prose, centred, and a quiet status line.
+    /// Focus mode: only the prose and any urgent warnings.
     pub focus_mode: bool,
     /// The widest a line of prose runs (0: the whole pane), and whether focus
     /// mode keeps the line being written mid-screen. From settings.toml.
     pub line_width: usize,
     pub typewriter: bool,
+    pub pomodoro_chime: bool,
     /// The editor's whole pane, for clicks: `rect_editor` is only the column
     /// the prose is set in.
     pub rect_prose: Rect,
@@ -519,10 +531,10 @@ pub struct ExportReview {
 }
 
 /// The book's backup, as the bar's line shows it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BackupMark {
-    /// Backed up, at this time ("14:02", or "12 Nov" before today).
-    Done(String),
+    /// Backed up. Settings shows the snapshot time.
+    Done,
     Running,
     /// Queued until the backup place can be reached.
     Waiting,
@@ -574,6 +586,10 @@ impl PartialEq for HistoryTimeline {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Overlay {
     None,
+    Widget {
+        kind: crate::gauges::Widget,
+        sel: usize,
+    },
     ProjectSources(Box<overlays::SourceDialog>),
     PaperDetails {
         details: project::MlaDetails,
@@ -614,10 +630,11 @@ pub enum Overlay {
         id: u64,
         buf: String,
     },
-    /// The menu bar across the top: lit on `title`, with its dropdown `open`
-    /// on row `sel`, and a side group of Tools open beside it on its own row.
+    /// The menu bar across the top, lit on a view tile or a title. An open
+    /// dropdown highlights row `sel` and can open a Tools side group beside it.
     Bar {
         title: Title,
+        tile: Option<outline::DeskView>,
         open: bool,
         sel: usize,
         side: Option<(Side, usize)>,
@@ -1028,8 +1045,8 @@ impl App {
             journal,
             workflow,
             views,
-            desk_view: brain::DeskView::default(),
-            brain: brain::BrainDesk::default(),
+            desk_view: outline::DeskView::default(),
+            commonplace: outline::CommonplaceDesk::default(),
             project,
             visible,
             parents,
@@ -1048,6 +1065,7 @@ impl App {
             pomo: Pomodoro::default(),
             pane_mode: Mode::Pomodoro,
             music: Music::dormant(setup.music),
+            marquee: None,
             // A real launch asks whether this is WrOS; a test (background off) says no
             // unless it sets the field itself.
             wros_music: setup.background && music::on_wros(),
@@ -1063,6 +1081,9 @@ impl App {
             music_row: 0,
             create_hits: Vec::new(),
             view_hits: Vec::new(),
+            widget_hits: Vec::new(),
+            widget_panel: std::cell::Cell::default(),
+            progress_hit: Rect::default(),
             alt_menus: false,
             settings_area: std::cell::Cell::default(),
             settings_hits: std::cell::RefCell::default(),
@@ -1086,6 +1107,7 @@ impl App {
             catalogue_on: setup.settings.catalogue_search,
             catalogue_fetch: catalogue::default_fetch(),
             linux_console: false,
+            tile_glyphs: false,
             spell_lang: spell::Language::parse(&setup.settings.spelling),
             icons_on: setup.settings.icons,
             speller: None,
@@ -1101,6 +1123,7 @@ impl App {
             focus_mode: false,
             line_width: setup.settings.line_width,
             typewriter: setup.settings.typewriter,
+            pomodoro_chime: setup.settings.pomodoro_chime,
             rect_prose: Rect::default(),
             side_room: true,
             last_caret: None,
@@ -1953,7 +1976,7 @@ impl App {
     }
 
     fn save_before_leaving(&mut self) -> bool {
-        if !self.commit_saves() || self.project.dirty_count() != 0 || !self.save_brain_panes() {
+        if !self.commit_saves() || self.project.dirty_count() != 0 || !self.save_outline_panes() {
             return false;
         }
         if !self.checkpoint_productivity(true) {
@@ -2471,7 +2494,7 @@ impl App {
     }
 
     pub(crate) fn unavailable_action(&self, action: &Action) -> Option<&'static str> {
-        if self.desk_view != brain::DeskView::Write
+        if self.desk_view != outline::DeskView::Write
             && matches!(
                 action,
                 Action::Rename
@@ -2496,14 +2519,16 @@ impl App {
         {
             return Some("Switch to Write to use this project command.");
         }
-        if !self.brain_accepts_input() {
+        if !self.desk_accepts_input() {
             return None;
         }
         match action {
-            Action::Undo | Action::Redo | Action::Paste if !self.has_active_brain_editor() => {
+            Action::Undo | Action::Redo | Action::Paste if !self.has_active_desk_editor() => {
                 Some("Open a note or text field first.")
             }
-            Action::Save if !self.has_active_brain_draft() => Some("Open a Brain note to save it."),
+            Action::Save if !self.has_active_outline_draft() => {
+                Some("Open an Outline note to save it.")
+            }
             Action::Cut
             | Action::Copy
             | Action::SelectAll
@@ -2528,10 +2553,11 @@ impl App {
         }
         self.overlay = Overlay::None;
         match action {
-            Action::BrainBeside => self.toggle_brain_beside(),
+            Action::OutlineBeside => self.toggle_outline_beside(),
             Action::SwitchDeskView(view) => self.switch_desk_view(view),
+            Action::OpenWidget(kind) => self.open_widget(kind),
             Action::NewScene | Action::NewChapter | Action::NewPart | Action::NewFolder => {
-                self.switch_desk_view(brain::DeskView::Write);
+                self.switch_desk_view(outline::DeskView::Write);
                 self.select_open_scene();
                 self.start_create(match action {
                     Action::NewScene => New::Scene,
@@ -2549,15 +2575,15 @@ impl App {
                 self.start_delete();
             }
             Action::History => self.open_history(),
-            Action::Save if self.brain_accepts_input() => {
-                self.save_brain();
+            Action::Save if self.desk_accepts_input() => {
+                self.save_outline_note();
             }
             Action::Save => self.save(),
-            Action::Undo | Action::Redo if self.brain_accepts_input() => {
-                self.undo_brain_input(action == Action::Redo);
+            Action::Undo | Action::Redo if self.desk_accepts_input() => {
+                self.undo_desk_input(action == Action::Redo);
             }
-            Action::Paste if self.brain_accepts_input() => {
-                self.paste_brain(&self.clipboard_text());
+            Action::Paste if self.desk_accepts_input() => {
+                self.paste_desk(&self.clipboard_text());
             }
             Action::Undo | Action::Redo => {
                 // The tree's own actions are undone from anywhere but the
@@ -2655,7 +2681,7 @@ impl App {
                 let _ = self.open_book(&root);
             }
             Action::Open(path) => {
-                self.switch_desk_view(brain::DeskView::Write);
+                self.switch_desk_view(outline::DeskView::Write);
                 if let Some(i) = self.source_node_at(&path) {
                     self.reveal(i);
                     self.open_scene(i);
@@ -2712,6 +2738,10 @@ impl App {
             }
             Action::LineWidth => self.cycle_line_width(),
             Action::Typewriter => self.toggle_typewriter(),
+            Action::PomodoroChime => {
+                self.pomodoro_chime = !self.pomodoro_chime;
+                Self::save_setting(|s| s.pomodoro_chime = self.pomodoro_chime);
+            }
             Action::Help => self.open_help(None),
             Action::About => self.open_about(),
             Action::Donate => self.overlay = Overlay::Donate,
@@ -2971,7 +3001,7 @@ impl App {
         let Some(i) = self.project.nodes.iter().position(|n| n.path == path) else {
             return;
         };
-        self.switch_desk_view(brain::DeskView::Write);
+        self.switch_desk_view(outline::DeskView::Write);
         self.reveal(i);
         if self.open != Some(i) {
             self.open_scene(i);
@@ -2981,7 +3011,7 @@ impl App {
     }
 
     fn replace_in_book(&mut self, query: &str, with: &str) {
-        self.switch_desk_view(brain::DeskView::Write);
+        self.switch_desk_view(outline::DeskView::Write);
         let opts = self.find_opts;
         let (total, scenes) = self.replace_book_sources(
             format!("replace “{query}” with “{with}”"),
@@ -3972,7 +4002,7 @@ impl App {
         self.catalogue_on = !self.catalogue_on;
         let on = self.catalogue_on;
         if !on {
-            self.cancel_library_catalogue();
+            self.cancel_read_catalogue();
         }
         Self::save_setting(|s| s.catalogue_search = on);
         self.msg = if on {
@@ -5505,35 +5535,42 @@ impl App {
         true
     }
 
+    pub fn widget_hits(&self) -> &[(Rect, crate::gauges::Widget)] {
+        &self.widget_hits
+    }
+
     /// A left click focuses the pane under the pointer and acts on it.
     pub fn on_click(&mut self, x: u16, y: u16) {
+        if self.widget_click(x, y) {
+            return;
+        }
         // The menu bar first: its titles, an open menu's rows, or a click away
         // that closes the menu.
         if self.bar_click(x, y) || self.settings_click(x, y) {
             return;
         }
-        if self.overlay == Overlay::None
-            && let Some(&(_, view)) = self
-                .brain
-                .view_hits
-                .iter()
-                .find(|(rect, _)| hit(*rect, x, y))
-        {
-            self.switch_desk_view(view);
+        if self.overlay == Overlay::None {
+            if hit(self.progress_hit, x, y) {
+                self.run_action(Action::Progress);
+                return;
+            }
+            if let Some(&(_, kind)) = self.widget_hits().iter().find(|&&(r, _)| hit(r, x, y)) {
+                self.open_widget(kind);
+                return;
+            }
+        }
+        if self.desk_view == outline::DeskView::Outline && self.overlay == Overlay::None {
+            self.commonplace.click(x, y);
             return;
         }
-        if self.desk_view == brain::DeskView::Brain && self.overlay == Overlay::None {
-            self.brain.click(x, y);
-            return;
-        }
-        if self.desk_view != brain::DeskView::Write && self.overlay == Overlay::None {
+        if self.desk_view != outline::DeskView::Write && self.overlay == Overlay::None {
             return;
         }
         if self.overlay == Overlay::None {
-            let beside = hit(self.brain.side_area, x, y);
-            self.brain.select_side(beside);
+            let beside = hit(self.commonplace.side_area, x, y);
+            self.commonplace.select_side(beside);
             if beside {
-                self.brain.click(x, y);
+                self.commonplace.click(x, y);
                 return;
             }
         }
@@ -5556,12 +5593,6 @@ impl App {
                     self.open_kofi();
                 }
             }
-            return;
-        }
-        // The words and the bar at the left of the status bar: the Progress
-        // page.
-        if self.overlay == Overlay::None && !self.focus_mode && y + 1 == self.screen.1 && x < 32 {
-            self.run_action(Action::Progress);
             return;
         }
         // The spelling popup takes clicks on itself; any other click closes
@@ -5687,6 +5718,12 @@ impl App {
     /// A right click in the prose: the same as a left click there, which
     /// offers spelling fixes when it lands on a misspelt word.
     pub fn on_right_click(&mut self, x: u16, y: u16) {
+        if matches!(self.overlay, Overlay::Widget { .. }) {
+            if !hit(self.widget_panel.get().0, x, y) {
+                self.overlay = Overlay::None;
+            }
+            return;
+        }
         if matches!(self.overlay, Overlay::Spelling { .. }) {
             self.overlay = Overlay::None;
         }
@@ -5698,12 +5735,13 @@ impl App {
     /// Extend the editor selection while the left button is held — or, in the
     /// tree, track where a dragged row would land.
     pub fn on_drag(&mut self, x: u16, y: u16) {
-        if self.brain_accepts_input() && self.overlay == Overlay::None {
+        if self.desk_accepts_input() && self.overlay == Overlay::None {
             return;
         }
         if matches!(
             self.overlay,
-            Overlay::Pins
+            Overlay::Widget { .. }
+                | Overlay::Pins
                 | Overlay::PinCategory { .. }
                 | Overlay::Journal
                 | Overlay::Scratchpad
@@ -5778,12 +5816,12 @@ impl App {
             return;
         }
         if self.overlay == Overlay::None
-            && (self.desk_view != brain::DeskView::Write || hit(self.brain.side_area, x, y))
+            && (self.desk_view != outline::DeskView::Write || hit(self.commonplace.side_area, x, y))
         {
-            if self.desk_view == brain::DeskView::Write {
-                self.brain.select_side(true);
+            if self.desk_view == outline::DeskView::Write {
+                self.commonplace.select_side(true);
             }
-            self.scroll_brain(down);
+            self.scroll_desk(down);
             return;
         }
         if self.pin_wheel(x, y, down) {
@@ -5900,6 +5938,13 @@ impl App {
                 on_off(self.typewriter, "typewriter scrolling"),
                 Action::Typewriter,
             ),
+            (
+                format!(
+                    "Pomodoro chime · {}",
+                    if self.pomodoro_chime { "on" } else { "off" }
+                ),
+                Action::PomodoroChime,
+            ),
             ("Reading voice…".into(), Action::Voices),
             ("Manuscript look…".into(), Action::ManuscriptLook),
             ("Author details…".into(), Action::AuthorDetails),
@@ -5915,13 +5960,10 @@ impl App {
 
     /// The book's backup from what is already known (nothing is read here).
     pub fn backup_mark(&self) -> Option<BackupMark> {
-        self.deck.backup_mark.clone()
+        self.deck.backup_mark
     }
 
-    pub(crate) fn read_backup_mark(
-        &self,
-        now: chrono::DateTime<chrono::Local>,
-    ) -> Option<BackupMark> {
+    pub(crate) fn read_backup_mark(&self) -> Option<BackupMark> {
         let backups = &self.deck.shell.backup;
         if backups.auto.failing() {
             return Some(BackupMark::Failed);
@@ -5948,19 +5990,12 @@ impl App {
         {
             return Some(BackupMark::Waiting);
         }
-        let last = backups
+        backups
             .status
             .snapshots
             .iter()
-            .filter(|s| ours(&s._path))
-            .filter_map(|s| chrono::DateTime::parse_from_rfc3339(&s.time).ok())
-            .max()?
-            .with_timezone(&chrono::Local);
-        Some(BackupMark::Done(if last.date_naive() == now.date_naive() {
-            last.format("%H:%M").to_string()
-        } else {
-            last.format("%-d %b").to_string()
-        }))
+            .any(|s| ours(&s._path) && chrono::DateTime::parse_from_rfc3339(&s.time).is_ok())
+            .then_some(BackupMark::Done)
     }
 
     /// The screens Ctrl-K (and a Super tap) may leave for Find anything:
@@ -6033,7 +6068,7 @@ impl App {
 
     // ---- focus mode, and a scene beside --------------------------------
 
-    /// Ctrl-D: just the prose, centred, and a quiet status line — or back.
+    /// Ctrl-D: show just the prose and any urgent warnings, or return to the desk.
     pub fn toggle_focus_mode(&mut self) {
         if self.focus_mode {
             self.focus_mode = false;

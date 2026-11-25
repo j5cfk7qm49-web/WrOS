@@ -14,7 +14,7 @@ pub enum FormKind {
     Connect,
     Restore,
     RestoreWithSettings,
-    RestoreBrain,
+    RestoreCommonplace,
     ExportKey,
     Google,
     GoogleFile,
@@ -43,7 +43,7 @@ impl Form {
             FormKind::Connect => "Connect an existing encrypted repository",
             FormKind::Restore => "Restore snapshot into a NEW folder",
             FormKind::RestoreWithSettings => "Restore snapshot and your settings into a NEW folder",
-            FormKind::RestoreBrain => "Restore Brain into a new isolated folder",
+            FormKind::RestoreCommonplace => "Restore Commonplace into a new isolated folder",
             FormKind::ExportKey => "Export recovery key to a safe separate place",
             FormKind::Google => "Connect Google Drive from a trusted computer",
             FormKind::GoogleFile => "Connect Google Drive from a file on a USB stick",
@@ -62,12 +62,12 @@ impl Form {
                 repository: self.fields[0].to_string(),
                 key: self.fields[1].to_string(),
             },
-            FormKind::Restore | FormKind::RestoreWithSettings | FormKind::RestoreBrain => {
+            FormKind::Restore | FormKind::RestoreWithSettings | FormKind::RestoreCommonplace => {
                 Request::Restore {
                     settings: self.kind == FormKind::RestoreWithSettings,
                     snapshot: self.snapshot,
                     destination: self.fields[0].to_string(),
-                    project: if self.kind == FormKind::RestoreBrain {
+                    project: if self.kind == FormKind::RestoreCommonplace {
                         None
                     } else {
                         project()
@@ -101,7 +101,7 @@ impl Form {
                 "Repository (absolute path or drive:Folder)",
                 "Recovery key file",
             ],
-            FormKind::Restore | FormKind::RestoreWithSettings | FormKind::RestoreBrain => {
+            FormKind::Restore | FormKind::RestoreWithSettings | FormKind::RestoreCommonplace => {
                 &["New folder (absolute path)"]
             }
             FormKind::ExportKey => &["New recovery key file (absolute path)"],
@@ -144,7 +144,7 @@ impl Form {
         } else if matches!(self.kind, FormKind::NewLocal | FormKind::NewDrive) {
             rows.push("Creates an encrypted repository and a private recovery key.".into());
             rows.push("Export the key separately; losing it makes backups unreadable.".into());
-        } else if self.kind == FormKind::RestoreBrain {
+        } else if self.kind == FormKind::RestoreCommonplace {
             rows.push(
                 "Open the isolated copy to review its notes before bringing them back.".into(),
             );
@@ -629,11 +629,11 @@ impl App {
             return;
         }
         let first = match kind {
-            FormKind::RestoreBrain => self
-                .brain
-                .library_path()
+            FormKind::RestoreCommonplace => self
+                .commonplace
+                .commonplace_path()
                 .with_file_name(format!(
-                    "Brain-restored-{}",
+                    "Commonplace-restored-{}",
                     snapshot.get(..8).unwrap_or("copy")
                 ))
                 .to_string_lossy()
@@ -1057,17 +1057,17 @@ impl App {
         }
     }
 
-    pub(crate) fn tick_brain_backup(&mut self) {
-        if let Some(error) = self.brain.next_copy_error() {
-            self.msg = format!("Could not refresh readable Brain copies · {error}");
+    pub(crate) fn tick_commonplace_backup(&mut self) {
+        if let Some(error) = self.commonplace.next_copy_error() {
+            self.msg = format!("Could not refresh readable Commonplace copies · {error}");
         }
-        let Some(revision) = self.brain.backed_up_version() else {
+        let Some(revision) = self.commonplace.backed_up_version() else {
             return;
         };
         let now = std::time::Instant::now();
-        let library = self.brain_backup_path();
+        let library = self.commonplace_backup_path();
         let observed = self
-            .brain
+            .commonplace
             .backup_observed
             .get_or_insert_with(|| (revision.clone(), now));
         if observed.0 != revision {
@@ -1079,13 +1079,13 @@ impl App {
             || backup.status.brain_revisions.get(&library) == Some(&revision)
             || now.duration_since(observed.1) < AUTO_PAUSE
             || self
-                .brain
+                .commonplace
                 .backup_attempted
                 .is_some_and(|last| now.duration_since(last) < AUTO_PAUSE)
         {
             return;
         }
-        self.brain.backup_attempted = Some(now);
+        self.commonplace.backup_attempted = Some(now);
         backup.request(Request::BrainBackup {
             library,
             automatic: true,
@@ -1093,12 +1093,16 @@ impl App {
         });
     }
 
-    pub(crate) fn request_brain_backup(&mut self) {
-        if self.deck.shell.backup.job.is_some() || !self.save_brain_panes() {
+    pub(crate) fn request_commonplace_backup(&mut self) {
+        if self.deck.shell.backup.job.is_some() || !self.save_outline_panes() {
             return;
         }
-        let library = self.brain_backup_path();
-        let revision = self.brain.backed_up_version().unwrap_or_default();
+        if let Err(error) = outline::migrate_commonplace(&self.commonplace.commonplace_path()) {
+            self.deck.shell.backup.notice = format!("Could not open Commonplace · {error}");
+            return;
+        }
+        let library = self.commonplace_backup_path();
+        let revision = self.commonplace.backed_up_version().unwrap_or_default();
         self.deck.shell.backup.request(Request::BrainBackup {
             library,
             automatic: false,
@@ -1106,8 +1110,8 @@ impl App {
         });
     }
 
-    fn brain_backup_path(&self) -> String {
-        let path = self.brain.library_path();
+    fn commonplace_backup_path(&self) -> String {
+        let path = self.commonplace.commonplace_path();
         path.canonicalize()
             .unwrap_or(path)
             .to_string_lossy()

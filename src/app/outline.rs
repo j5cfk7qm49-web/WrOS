@@ -1,6 +1,8 @@
 //! The Today outline on the writing desk.
 
-use std::path::PathBuf;
+use std::fs;
+use std::io::ErrorKind;
+use std::path::{Path, PathBuf};
 
 use chrono::{Local, NaiveDate};
 use grimoire_brain::bounded_store::{OutlineRow, PagedBrain};
@@ -14,15 +16,13 @@ use ratatui::Frame;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
-use ratatui::text::{Line, Span};
+use ratatui::text::Line;
 use ratatui::widgets::{Block, Paragraph};
 
-use super::{App, Overlay};
+use super::{App, Overlay, read::ReadDesk, study::StudyDesk};
 use crate::theme::Theme;
 
-mod commands;
-pub(crate) mod library;
-pub(crate) mod review;
+pub(super) mod commands;
 use commands::Command;
 
 const PAGE_SIZE: u16 = 32;
@@ -31,20 +31,20 @@ const PAGE_SIZE: u16 = 32;
 pub enum DeskView {
     #[default]
     Write,
-    Library,
-    Brain,
-    Review,
+    Read,
+    Outline,
+    Study,
 }
 
 impl DeskView {
-    pub const ALL: [Self; 4] = [Self::Write, Self::Library, Self::Brain, Self::Review];
+    pub const ALL: [Self; 4] = [Self::Write, Self::Read, Self::Outline, Self::Study];
 
     pub(super) fn label(self) -> &'static str {
         match self {
             Self::Write => "Write",
-            Self::Library => "Library",
-            Self::Brain => "Brain",
-            Self::Review => "Review",
+            Self::Read => "read",
+            Self::Outline => "Outline",
+            Self::Study => "Study",
         }
     }
 
@@ -55,10 +55,10 @@ impl DeskView {
 }
 
 #[derive(Default)]
-pub struct BrainDesk {
-    store: Option<PagedBrain>,
-    library: library::LibraryDesk,
-    review: review::ReviewDesk,
+pub struct CommonplaceDesk {
+    pub(super) store: Option<PagedBrain>,
+    pub(super) read: ReadDesk,
+    pub(super) study: StudyDesk,
     outline: Option<Outline>,
     other_outline: Option<Outline>,
     active_side: bool,
@@ -68,7 +68,6 @@ pub struct BrainDesk {
     pub(super) backup_attempted: Option<std::time::Instant>,
     paths: Option<(PathBuf, PathBuf)>,
     note_hits: Vec<(Rect, usize)>,
-    pub(crate) view_hits: Vec<(Rect, DeskView)>,
 }
 
 struct Outline {
@@ -77,6 +76,7 @@ struct Outline {
     ancestors: Vec<Location>,
     rows: Vec<OutlineRow>,
     has_more: bool,
+    backlinks: Option<u64>,
     draft: Option<Draft>,
     prompt: Option<Prompt>,
     details: Option<Vec<String>>,
@@ -104,7 +104,7 @@ struct Draft {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct BrainReferenceTarget {
+pub(crate) struct OutlineReferenceTarget {
     node: Option<NodeId>,
     side: bool,
     position: (usize, usize),
@@ -124,12 +124,54 @@ impl Location {
     }
 }
 
-impl BrainDesk {
-    pub(super) fn library_path(&self) -> PathBuf {
+pub(crate) fn default_commonplace_path() -> PathBuf {
+    crate::home().join("Documents/Commonplace")
+}
+
+pub(crate) fn migrate_commonplace(path: &Path) -> anyhow::Result<()> {
+    move_legacy_folder(&path.with_file_name("Brain"), path)
+}
+
+fn path_is_missing(path: &Path) -> std::io::Result<bool> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => Ok(false),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(true),
+        Err(error) => Err(error),
+    }
+}
+
+fn move_legacy_folder(old: &Path, new: &Path) -> anyhow::Result<()> {
+    if !path_is_missing(new)? {
+        return Ok(());
+    }
+    match fs::metadata(old) {
+        Ok(info) if info.is_dir() => {}
+        Ok(_) => return Ok(()),
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    }
+    // If another opener already moved the folder, use its destination.
+    if let Err(error) = grimoire_core::book_copy::rename_new(old, new)
+        && path_is_missing(new)?
+    {
+        return Err(error);
+    }
+    Ok(())
+}
+
+impl CommonplaceDesk {
+    pub(super) fn commonplace_path(&self) -> PathBuf {
         self.paths
             .as_ref()
-            .map(|(library, _)| library.clone())
-            .unwrap_or_else(|| crate::home().join("Documents/Brain"))
+            .map(|(store, _)| store.clone())
+            .unwrap_or_else(default_commonplace_path)
+    }
+
+    pub(super) fn store_exists(&self) -> bool {
+        let path = self.commonplace_path();
+        path.join("store").is_dir()
+            || (path_is_missing(&path).unwrap_or(false)
+                && path.with_file_name("Brain").join("store").is_dir())
     }
 
     pub(super) fn backed_up_version(&self) -> Option<String> {
@@ -155,57 +197,65 @@ impl BrainDesk {
     }
 
     #[cfg(test)]
-    pub(crate) fn set_paths(&mut self, library: PathBuf, cache: PathBuf) {
-        self.paths = Some((library, cache));
+    pub(crate) fn set_paths(&mut self, store: PathBuf, cache: PathBuf) {
+        self.paths = Some((store, cache));
     }
 
     fn open_store(&mut self) -> anyhow::Result<&mut PagedBrain> {
         if self.store.is_none() {
-            let (library, cache) = self.paths.clone().unwrap_or_else(|| {
-                let home = crate::home();
-                let cache = std::env::var_os("XDG_CACHE_HOME")
-                    .filter(|path| !path.is_empty())
-                    .map(PathBuf::from)
-                    .filter(|path| path.is_absolute())
-                    .unwrap_or_else(|| home.join(".cache"));
-                (home.join("Documents/Brain"), cache.join("grimoire/brain"))
-            });
-            self.store =
-                Some(PagedBrain::open_library(&library, &cache).map_err(anyhow::Error::msg)?);
+            let path = self.commonplace_path();
+            let cache = self
+                .paths
+                .as_ref()
+                .map(|(_, cache)| cache.clone())
+                .unwrap_or_else(|| {
+                    std::env::var_os("XDG_CACHE_HOME")
+                        .filter(|path| !path.is_empty())
+                        .map(PathBuf::from)
+                        .filter(|path| path.is_absolute())
+                        .unwrap_or_else(|| crate::home().join(".cache"))
+                        .join("grimoire/commonplace")
+                });
+            migrate_commonplace(&path)?;
+            move_legacy_folder(&cache.with_file_name("brain"), &cache)?;
+            self.store = Some(PagedBrain::open_library(&path, &cache).map_err(anyhow::Error::msg)?);
         }
-        Ok(self.store.as_mut().expect("Brain store was opened"))
+        Ok(self.store.as_mut().expect("Commonplace store was opened"))
     }
 
-    fn refresh_review(&mut self) -> anyhow::Result<()> {
+    fn refresh_study(&mut self) -> anyhow::Result<()> {
         self.open_store()?;
-        self.review
-            .refresh(self.store.as_mut().expect("Brain store was opened"))
+        self.study
+            .refresh(self.store.as_mut().expect("Commonplace store was opened"))
     }
 
-    fn refresh_library(&mut self) -> anyhow::Result<()> {
+    fn refresh_read(&mut self) -> anyhow::Result<()> {
         self.open_store()?;
-        self.library
-            .refresh(self.store.as_mut().expect("Brain store was opened"))
+        self.read
+            .refresh(self.store.as_mut().expect("Commonplace store was opened"))
     }
 
     fn open_today(&mut self, date: NaiveDate) -> anyhow::Result<()> {
-        if self
-            .outline
-            .as_ref()
-            .is_some_and(|outline| outline.date == date || outline.draft.is_some())
+        if let Some(outline) = &mut self.outline
+            && (outline.date == date || outline.draft.is_some())
         {
+            if let Some(store) = &mut self.store {
+                outline.refresh_backlinks(store);
+            }
             return Ok(());
         }
         let store = self.open_store()?;
         let today = store.ensure_today(date).map_err(anyhow::Error::msg)?;
         let location = Location::new(Some(today), "Today".into());
         let (rows, has_more) = page(store, &location)?;
+        let backlinks = store.backlink_count(today).ok();
         self.outline = Some(Outline {
             date,
             location,
             ancestors: Vec::new(),
             rows,
             has_more,
+            backlinks,
             draft: None,
             prompt: None,
             details: None,
@@ -266,7 +316,7 @@ impl BrainDesk {
             .iter()
             .filter_map(|(destination, work)| body.contains(destination).then_some(*work))
             .collect();
-        let affects_review = looks_like_card(&body)
+        let affects_study = looks_like_card(&body)
             || looks_like_card(&outline.location.title)
             || draft.node.is_some_and(|node| {
                 outline
@@ -305,9 +355,9 @@ impl BrainDesk {
         } else if outline.has_more {
             outline.step(store, true)?;
         }
-        if affects_review {
+        if affects_study {
             // A busy cache can retry the count on the next view change.
-            let _ = self.review.refresh(store);
+            let _ = self.study.refresh(store);
         }
         Ok(true)
     }
@@ -455,6 +505,7 @@ impl BrainDesk {
                 {
                     outline.details = Some(commands::describe(store, node)?);
                 }
+                outline.refresh_backlinks(store);
                 outline.prompt = None;
             }
             KeyCode::Left => prompt.editor.left(),
@@ -502,12 +553,37 @@ impl Outline {
         self.rows.get(self.location.selected)
     }
 
+    fn refresh_backlinks(&mut self, store: &mut PagedBrain) {
+        self.backlinks = self
+            .location
+            .parent
+            .and_then(|node| store.backlink_count(node).ok());
+    }
+
+    fn heading(&self, console: bool) -> String {
+        let dot = crate::ui::info_separator(console);
+        let mut path = self.ancestors.iter().chain(std::iter::once(&self.location));
+        let first = path.next().expect("current location");
+        let mut title = if first.title == "Today" && first.query.is_none() {
+            format!("Outline{dot}Today{dot}{}", self.date.format("%Y-%m-%d"))
+        } else {
+            format!("Outline{dot}{}", first.title)
+        };
+        let arrow = crate::ui::breadcrumb_separator(console);
+        for location in path {
+            title.push_str(arrow);
+            title.push_str(&location.title);
+        }
+        title
+    }
+
     fn load(&mut self, store: &mut PagedBrain, mut location: Location) -> anyhow::Result<()> {
         let (rows, has_more) = page(store, &location)?;
         location.selected = location.selected.min(rows.len().saturating_sub(1));
         self.location = location;
         self.rows = rows;
         self.has_more = has_more;
+        self.refresh_backlinks(store);
         self.details = None;
         Ok(())
     }
@@ -665,48 +741,52 @@ fn note_title(body: &str) -> &str {
 }
 
 impl App {
-    pub fn brain_accepts_input(&self) -> bool {
-        self.desk_view != DeskView::Write || self.brain.active_side
+    pub fn desk_accepts_input(&self) -> bool {
+        self.desk_view != DeskView::Write || self.commonplace.active_side
     }
 
-    pub(super) fn has_active_brain_editor(&self) -> bool {
+    pub(super) fn has_active_desk_editor(&self) -> bool {
         match self.desk_view {
-            DeskView::Library => self.brain.library.has_input(),
-            DeskView::Review => self.brain.review.has_input(),
+            DeskView::Read => self.commonplace.read.has_input(),
+            DeskView::Study => self.commonplace.study.has_input(),
             _ => self
-                .brain
+                .commonplace
                 .outline
                 .as_ref()
                 .is_some_and(|outline| outline.prompt.is_some() || outline.draft.is_some()),
         }
     }
 
-    pub(super) fn has_active_brain_draft(&self) -> bool {
-        matches!(self.desk_view, DeskView::Brain | DeskView::Write)
+    pub(super) fn has_active_outline_draft(&self) -> bool {
+        matches!(self.desk_view, DeskView::Outline | DeskView::Write)
             && self
-                .brain
+                .commonplace
                 .outline
                 .as_ref()
                 .is_some_and(|outline| outline.draft.is_some())
     }
 
-    pub fn toggle_brain_beside(&mut self) {
-        if self.desk_view == DeskView::Write && self.brain.side_visible {
-            self.brain.select_side(false);
-            self.brain.side_visible = false;
+    pub fn toggle_outline_beside(&mut self) {
+        if self.desk_view == DeskView::Write && self.commonplace.side_visible {
+            self.commonplace.select_side(false);
+            self.commonplace.side_visible = false;
             return;
         }
-        if let Err(error) = self.open_brain_beside() {
+        if let Err(error) = self.open_outline_beside() {
             self.msg = format!("Could not open project notes · {error}");
         }
     }
 
-    fn open_brain_beside(&mut self) -> anyhow::Result<()> {
-        self.brain.select_side(false);
+    fn open_outline_beside(&mut self) -> anyhow::Result<()> {
+        self.commonplace.select_side(false);
         let date = Local::now().date_naive();
-        self.brain.open_today(date)?;
-        let store = self.brain.store.as_mut().expect("Open Brain store");
-        let tag = if let Some(tag) = &self.project.meta.brain_tag {
+        self.commonplace.open_today(date)?;
+        let store = self
+            .commonplace
+            .store
+            .as_mut()
+            .expect("Open Commonplace store");
+        let tag = if let Some(tag) = &self.project.meta.outline_tag {
             tag.parse::<NodeId>().map_err(anyhow::Error::msg)?
         } else {
             let title = format!("Project — {}", self.project.meta.title);
@@ -714,11 +794,11 @@ impl App {
                 .create_note_with_text(Place::default(), &title)
                 .map_err(anyhow::Error::msg)?;
             let key = tag.external_id();
-            grimoire_core::submission::save_brain_tag(&self.project.root, &key)?;
-            self.project.meta.brain_tag = Some(key);
+            grimoire_core::submission::save_outline_tag(&self.project.root, &key)?;
+            self.project.meta.outline_tag = Some(key);
             tag
         };
-        if self.brain.other_outline.is_none() {
+        if self.commonplace.other_outline.is_none() {
             let parent = if store.note(tag).map_err(anyhow::Error::msg)?.is_some() {
                 tag
             } else {
@@ -728,11 +808,12 @@ impl App {
             location.query = Some(SavedQuery::Tagged(tag));
             location.create_tag = Some(tag);
             let (rows, has_more) = page(store, &location)?;
-            self.brain.other_outline = Some(Outline {
+            self.commonplace.other_outline = Some(Outline {
                 date,
                 location,
                 rows,
                 has_more,
+                backlinks: None,
                 ancestors: Vec::new(),
                 draft: None,
                 prompt: None,
@@ -741,35 +822,35 @@ impl App {
             });
         }
         self.desk_view = DeskView::Write;
-        self.brain.side_visible = true;
-        self.brain.select_side(true);
+        self.commonplace.side_visible = true;
+        self.commonplace.select_side(true);
         self.focus_mode = false;
         self.msg.clear();
         Ok(())
     }
 
     pub fn switch_desk_view(&mut self, view: DeskView) {
-        self.brain.select_side(false);
+        self.commonplace.select_side(false);
         if view == self.desk_view {
             return;
         }
-        if view == DeskView::Brain
-            && let Err(error) = self.brain.open_today(Local::now().date_naive())
+        if view == DeskView::Outline
+            && let Err(error) = self.commonplace.open_today(Local::now().date_naive())
         {
-            self.msg = format!("Could not open Brain · {error}");
+            self.msg = format!("Could not open Outline · {error}");
             return;
         }
-        if view == DeskView::Library
-            && let Err(error) = self.brain.refresh_library()
+        if view == DeskView::Read
+            && let Err(error) = self.commonplace.refresh_read()
         {
-            self.msg = format!("Could not open Library · {error}");
+            self.msg = format!("Could not open read · {error}");
             return;
         }
         if view != DeskView::Write
-            && let Err(error) = self.brain.refresh_review()
+            && let Err(error) = self.commonplace.refresh_study()
         {
-            self.msg = format!("Could not open Review cards · {error}");
-            if view == DeskView::Review {
+            self.msg = format!("Could not open Study · {error}");
+            if view == DeskView::Study {
                 return;
             }
         }
@@ -778,15 +859,17 @@ impl App {
         self.msg.clear();
     }
 
-    pub(crate) fn library_store_if_present(&mut self) -> anyhow::Result<Option<&mut PagedBrain>> {
-        if self.brain.store.is_some() || self.brain.library_path().join("store").is_dir() {
-            return self.brain.open_store().map(Some);
+    pub(crate) fn commonplace_store_if_present(
+        &mut self,
+    ) -> anyhow::Result<Option<&mut PagedBrain>> {
+        if self.commonplace.store.is_some() || self.commonplace.store_exists() {
+            return self.commonplace.open_store().map(Some);
         }
         Ok(None)
     }
 
-    pub(crate) fn brain_reference_target(&self) -> Option<BrainReferenceTarget> {
-        let draft = self.brain.outline.as_ref()?.draft.as_ref()?;
+    pub(crate) fn outline_reference_target(&self) -> Option<OutlineReferenceTarget> {
+        let draft = self.commonplace.outline.as_ref()?.draft.as_ref()?;
         let editor = &draft.editor;
         if editor.has_selection() {
             return None;
@@ -799,25 +882,25 @@ impl App {
         {
             return None;
         }
-        Some(BrainReferenceTarget {
+        Some(OutlineReferenceTarget {
             node: draft.node,
-            side: self.brain.active_side,
+            side: self.commonplace.active_side,
             position: (editor.cy, editor.cx),
             revision: Fingerprint::of(&editor.text()),
         })
     }
 
-    pub(crate) fn write_brain_reference(
+    pub(crate) fn write_outline_reference(
         &mut self,
-        target: &BrainReferenceTarget,
+        target: &OutlineReferenceTarget,
         picked: Option<(EditionKey, String)>,
     ) -> anyhow::Result<()> {
         anyhow::ensure!(
-            self.brain_reference_target().as_ref() == Some(target),
-            "The note changed. Open the Library picker again."
+            self.outline_reference_target().as_ref() == Some(target),
+            "The note changed. Open the edition picker again."
         );
         let draft = self
-            .brain
+            .commonplace
             .outline
             .as_mut()
             .and_then(|outline| outline.draft.as_mut())
@@ -845,98 +928,98 @@ impl App {
         Ok(())
     }
 
-    pub(super) fn tick_library(&mut self) {
-        let show_preview = self.desk_view == DeskView::Library && self.overlay == Overlay::None;
-        if let Some(store) = &mut self.brain.store
-            && let Some(result) = self.brain.library.poll(store, show_preview)
+    pub(super) fn tick_read(&mut self) {
+        let show_preview = self.desk_view == DeskView::Read && self.overlay == Overlay::None;
+        if let Some(store) = &mut self.commonplace.store
+            && let Some(result) = self.commonplace.read.poll(store, show_preview)
         {
-            self.msg = result.unwrap_or_else(|error| format!("Library · {error}"));
+            self.msg = result.unwrap_or_else(|error| format!("read · {error}"));
         }
     }
 
-    pub fn paste_brain(&mut self, text: &str) {
+    pub fn paste_desk(&mut self, text: &str) {
         match self.desk_view {
-            DeskView::Library => self.brain.library.paste(text),
-            DeskView::Review => self.brain.review.paste(text),
-            _ => self.brain.paste(text),
+            DeskView::Read => self.commonplace.read.paste(text),
+            DeskView::Study => self.commonplace.study.paste(text),
+            _ => self.commonplace.paste(text),
         }
     }
 
-    pub(super) fn undo_brain_input(&mut self, redo: bool) {
+    pub(super) fn undo_desk_input(&mut self, redo: bool) {
         match self.desk_view {
-            DeskView::Library => self.brain.library.edit_history(redo),
-            DeskView::Review => self.brain.review.edit_history(redo),
-            _ => self.brain.edit_history(redo),
+            DeskView::Read => self.commonplace.read.edit_history(redo),
+            DeskView::Study => self.commonplace.study.edit_history(redo),
+            _ => self.commonplace.edit_history(redo),
         }
     }
 
-    pub(super) fn scroll_brain(&mut self, down: bool) {
+    pub(super) fn scroll_desk(&mut self, down: bool) {
         match self.desk_view {
-            DeskView::Library => self.brain.library.scroll(down),
-            DeskView::Review => self.brain.review.scroll(down),
+            DeskView::Read => self.commonplace.read.scroll(down),
+            DeskView::Study => self.commonplace.study.scroll(down),
             _ => {
-                if let Err(error) = self.brain.scroll(down) {
-                    self.msg = format!("Could not open Brain notes · {error}");
+                if let Err(error) = self.commonplace.scroll(down) {
+                    self.msg = format!("Could not open Outline notes · {error}");
                 }
             }
         }
     }
 
-    pub fn save_brain(&mut self) -> bool {
-        match self.brain.save() {
+    pub fn save_outline_note(&mut self) -> bool {
+        match self.commonplace.save() {
             Ok(saved) => {
                 if saved {
-                    self.msg = "Brain note saved".into();
+                    self.msg = "Outline note saved".into();
                 }
                 true
             }
             Err(error) => {
-                self.msg = format!("Could not save Brain note · {error}");
+                self.msg = format!("Could not save Outline note · {error}");
                 false
             }
         }
     }
 
-    pub(super) fn save_brain_panes(&mut self) -> bool {
-        if !self.save_brain() {
+    pub(super) fn save_outline_panes(&mut self) -> bool {
+        if !self.save_outline_note() {
             return false;
         }
-        let side = self.brain.active_side;
-        self.brain.select_side(!side);
-        let saved = self.save_brain();
-        self.brain.select_side(side);
+        let side = self.commonplace.active_side;
+        self.commonplace.select_side(!side);
+        let saved = self.save_outline_note();
+        self.commonplace.select_side(side);
         saved
     }
 
-    pub fn on_brain_key(&mut self, key: KeyEvent) {
+    pub fn on_desk_key(&mut self, key: KeyEvent) {
         if key.modifiers == KeyModifiers::CONTROL {
             match key.code {
                 KeyCode::Char('v') => {
-                    self.paste_brain(&self.clipboard_text());
+                    self.paste_desk(&self.clipboard_text());
                     return;
                 }
                 KeyCode::Char('z' | 'y') => {
-                    self.undo_brain_input(key.code == KeyCode::Char('y'));
+                    self.undo_desk_input(key.code == KeyCode::Char('y'));
                     return;
                 }
                 _ => {}
             }
         }
-        if self.desk_view == DeskView::Library {
-            self.on_library_key(key);
+        if self.desk_view == DeskView::Read {
+            self.on_read_key(key);
             return;
         }
-        if self.desk_view == DeskView::Review {
-            self.on_review_card_key(key);
+        if self.desk_view == DeskView::Study {
+            self.on_study_key(key);
             return;
         }
         if self
-            .brain
+            .commonplace
             .outline
             .as_ref()
             .is_some_and(|outline| outline.prompt.is_some())
         {
-            if let Err(error) = self.brain.prompt_key(key) {
+            if let Err(error) = self.commonplace.prompt_key(key) {
                 self.msg = error.to_string();
             } else {
                 self.msg.clear();
@@ -945,19 +1028,19 @@ impl App {
         }
         if key.code == KeyCode::Char('@')
             && key.modifiers.difference(KeyModifiers::SHIFT).is_empty()
-            && let Some(target) = self.brain_reference_target()
+            && let Some(target) = self.outline_reference_target()
         {
-            self.open_brain_library_picker(target);
+            self.open_outline_edition_picker(target);
             return;
         }
         let draft = self
-            .brain
+            .commonplace
             .outline
             .as_mut()
             .and_then(|outline| outline.draft.as_mut());
         if key.modifiers == KeyModifiers::CONTROL {
             if key.code == KeyCode::Char('s') {
-                self.save_brain();
+                self.save_outline_note();
             }
             return;
         }
@@ -968,13 +1051,13 @@ impl App {
             let editor = &mut draft.editor;
             match key.code {
                 KeyCode::Enter => {
-                    self.save_brain();
+                    self.save_outline_note();
                 }
                 KeyCode::Esc => {
-                    self.brain
+                    self.commonplace
                         .outline
                         .as_mut()
-                        .expect("Open Brain outline")
+                        .expect("Open Outline")
                         .draft = None;
                     self.msg.clear();
                 }
@@ -997,78 +1080,56 @@ impl App {
             }
         } else if key.code == KeyCode::Esc {
             if self
-                .brain
+                .commonplace
                 .outline
                 .as_mut()
                 .is_none_or(|outline| outline.details.take().is_none())
             {
-                if self.brain.active_side {
-                    self.brain.select_side(false);
+                if self.commonplace.active_side {
+                    self.commonplace.select_side(false);
                 } else {
                     self.open_menu();
                 }
             }
         } else if let Err(error) = self
-            .brain
+            .commonplace
             .browse(key.code, key.modifiers.contains(KeyModifiers::SHIFT))
         {
-            self.msg = format!("Could not open Brain notes · {error}");
+            self.msg = format!("Could not open Outline notes · {error}");
         }
     }
 }
 
-pub(crate) fn draw_view_bar(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
-    use ratatui::style::Modifier;
-    app.brain.view_hits.clear();
-    if area.is_empty() {
-        return;
-    }
-    let mut x = area.x;
-    for view in DeskView::ALL {
-        let label = if view == DeskView::Review {
-            format!("Review {}", app.brain.review.all_due)
-        } else {
-            view.label().into()
-        };
-        let width = label.len() as u16 + 2;
-        if x + width > area.right() {
-            break;
-        }
-        let rect = Rect::new(x, area.y, width, 1);
-        let style = if view == app.desk_view {
-            Style::default()
-                .fg(theme.accent)
-                .bg(theme.sel)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(theme.text)
-        };
-        f.render_widget(Line::styled(format!(" {label} "), style), rect);
-        app.brain.view_hits.push((rect, view));
-        x += width;
-        if x < area.right() && view != DeskView::Review {
-            f.render_widget(
-                Line::styled("│", Style::default().fg(theme.border)),
-                Rect::new(x, area.y, 1, 1),
-            );
-            x += 1;
-        }
-    }
+pub(crate) fn info(app: &App) -> Option<String> {
+    let desk = &app.commonplace;
+    let outline = if desk.active_side {
+        &desk.other_outline
+    } else {
+        &desk.outline
+    };
+    let outline = outline.as_ref()?;
+    let title = outline.heading(app.linux_console);
+    let dot = crate::ui::info_separator(app.linux_console);
+    Some(match outline.backlinks {
+        Some(1) => format!("{title}{dot}1 backlink"),
+        Some(count) => format!("{title}{dot}{count} backlinks"),
+        None => title,
+    })
 }
 
 pub(crate) fn draw(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme, side: bool) {
-    app.brain.note_hits.clear();
-    let focused = side == app.brain.active_side;
+    app.commonplace.note_hits.clear();
+    let focused = side == app.commonplace.active_side;
     let outline = if focused {
-        &mut app.brain.outline
+        &mut app.commonplace.outline
     } else {
-        &mut app.brain.other_outline
+        &mut app.commonplace.other_outline
     };
     let Some(outline) = outline else {
         return;
     };
     let [title, body, keys] = Layout::vertical([
-        Constraint::Length(1),
+        Constraint::Length(u16::from(side)),
         Constraint::Min(0),
         Constraint::Length(2),
     ])
@@ -1076,26 +1137,12 @@ pub(crate) fn draw(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme, side
     let text = Style::default().fg(theme.text);
     let dim = Style::default().fg(theme.dim);
     let accent = Style::default().fg(theme.accent);
-    let root = outline.ancestors.first().unwrap_or(&outline.location);
-    let heading = if outline.location.query.is_some() {
-        format!(" Brain · {}", outline.location.title)
-    } else if root.parent.is_none() {
-        " Brain · Pages".into()
-    } else {
-        format!(" Brain · Today · {}", outline.date.format("%Y-%m-%d"))
-    };
-    let path = if outline.ancestors.is_empty() || outline.location.query.is_some() {
-        String::new()
-    } else {
-        format!("  ›  {}", outline.location.title)
-    };
-    f.render_widget(
-        Line::from(vec![
-            Span::styled(heading, accent),
-            Span::styled(path, text),
-        ]),
-        title,
-    );
+    if side {
+        f.render_widget(
+            Line::styled(format!(" {}", outline.heading(app.linux_console)), accent),
+            title,
+        );
+    }
     if let Some(prompt) = &mut outline.prompt {
         let [hint, input] =
             Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(body);
@@ -1158,7 +1205,7 @@ pub(crate) fn draw(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme, side
             for (index, row) in outline.rows.iter().enumerate().skip(first).take(height) {
                 let y = inner.y + (index - first) as u16;
                 let line = Rect::new(inner.x, y, inner.width, 1);
-                app.brain.note_hits.push((line, index));
+                app.commonplace.note_hits.push((line, index));
                 let (marker, style) = if index == outline.location.selected {
                     ("› ", accent.bg(theme.sel))
                 } else {
@@ -1192,7 +1239,13 @@ pub(crate) fn draw(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme, side
     }
 }
 
-fn draw_draft(f: &mut Frame, editor: &mut Editor, area: Rect, style: Style, focused: bool) {
+pub(super) fn draw_draft(
+    f: &mut Frame,
+    editor: &mut Editor,
+    area: Rect,
+    style: Style,
+    focused: bool,
+) {
     let area = Block::new()
         .padding(ratatui::widgets::Padding::horizontal(1))
         .inner(area);
@@ -1226,5 +1279,67 @@ fn draw_draft(f: &mut Frame, editor: &mut Editor, area: Rect, style: Style, focu
             area.x + (col.min(usize::from(area.width - 1))) as u16,
             area.y + (row - editor.scroll) as u16,
         ));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn old_brain_folder_moves_to_commonplace_once() {
+        let home = tempfile::tempdir().unwrap();
+        let old_store = home.path().join("Documents/Brain");
+        let store = home.path().join("Documents/Commonplace");
+        let old_cache = home.path().join(".cache/grimoire/brain");
+        let cache = home.path().join(".cache/grimoire/commonplace");
+        fs::create_dir_all(&old_store).unwrap();
+        fs::create_dir_all(&old_cache).unwrap();
+        fs::write(old_store.join("x.loro"), "original").unwrap();
+        fs::write(old_cache.join("marker"), "original cache").unwrap();
+
+        for second_open in [false, true] {
+            if second_open {
+                fs::create_dir(&old_store).unwrap();
+                fs::create_dir(&old_cache).unwrap();
+                fs::write(old_store.join("x.loro"), "other notes").unwrap();
+                fs::write(old_cache.join("marker"), "other cache").unwrap();
+            }
+            let mut desk = CommonplaceDesk::default();
+            desk.set_paths(store.clone(), cache.clone());
+            assert_eq!(
+                desk.open_store().unwrap().library_root().unwrap(),
+                store.as_path()
+            );
+            assert_eq!(
+                fs::read_to_string(store.join("x.loro")).unwrap(),
+                "original"
+            );
+            assert_eq!(
+                fs::read_to_string(cache.join("marker")).unwrap(),
+                "original cache"
+            );
+            if second_open {
+                assert_eq!(
+                    fs::read_to_string(old_store.join("x.loro")).unwrap(),
+                    "other notes"
+                );
+                assert_eq!(
+                    fs::read_to_string(old_cache.join("marker")).unwrap(),
+                    "other cache"
+                );
+            } else {
+                assert!(!old_store.exists());
+                assert!(!old_cache.exists());
+            }
+        }
+    }
+
+    #[test]
+    fn desk_view_labels_follow_the_logo() {
+        assert_eq!(
+            DeskView::ALL.map(DeskView::label),
+            ["Write", "read", "Outline", "Study"]
+        );
     }
 }

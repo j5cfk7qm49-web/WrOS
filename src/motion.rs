@@ -1,12 +1,79 @@
-//! Short, colour-only transitions for the writing session.
+//! Timed transitions and the now-playing marquee for the writing session.
 
 use crate::theme::Theme;
-use ratatui::{buffer::Buffer, style::Color};
+use ratatui::{buffer::Buffer, style::Color, text::Span};
 use std::time::{Duration, Instant};
 use tachyonfx::{CellFilter, Effect, Interpolation, fx};
 
 const WELCOME: Duration = Duration::from_millis(210);
 const HIGHLIGHT: Duration = Duration::from_millis(150);
+const MARQUEE_STEP: Duration = Duration::from_millis(300);
+const MARQUEE_PAUSE: Duration = Duration::from_secs(2);
+
+pub(crate) struct Marquee {
+    offset: usize,
+    paused_until: Instant,
+    title: String,
+    width: usize,
+    end: usize,
+}
+
+impl Marquee {
+    pub fn new(title: &str, width: usize, now: Instant) -> Self {
+        // Stop when the end of the title first fits on screen.
+        let end = title
+            .char_indices()
+            .map(|(i, _)| i)
+            .rev()
+            .take_while(|&i| Span::raw(&title[i..]).width() <= width)
+            .last()
+            .unwrap_or(title.len());
+        Self {
+            offset: 0,
+            paused_until: now + MARQUEE_PAUSE,
+            title: title.into(),
+            width,
+            end,
+        }
+    }
+
+    pub fn matches(&self, title: &str, width: usize) -> bool {
+        self.title == title && self.width == width
+    }
+
+    pub fn next_frame(&self) -> Instant {
+        self.paused_until
+    }
+
+    pub fn advance(&mut self, now: Instant) {
+        if now < self.paused_until {
+            return;
+        }
+        self.offset = if self.offset == self.end {
+            0
+        } else {
+            let next = self.title[self.offset..]
+                .chars()
+                .next()
+                .expect("before end");
+            self.offset + next.len_utf8()
+        };
+        let at_end = self.offset == 0 || self.offset == self.end;
+        self.paused_until = now + if at_end { MARQUEE_PAUSE } else { MARQUEE_STEP };
+    }
+
+    pub fn visible(&self) -> &str {
+        let rest = &self.title[self.offset..];
+        let end = rest
+            .char_indices()
+            .map(|(i, _)| i)
+            .chain(std::iter::once(rest.len()))
+            .take_while(|&i| Span::raw(&rest[..i]).width() <= self.width)
+            .last()
+            .unwrap_or_default();
+        &rest[..end]
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Highlight {

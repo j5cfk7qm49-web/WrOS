@@ -13,7 +13,7 @@
       "license": "MIT",
       "edition": "0.1.0-dev",
       "file": "crates/grimoire-core/assets/wros/tutorial.json",
-      "sha256": "924488bd9e289994dc48d142869beb715352ed6cdbc7cd1f38c452bbb6576b00",
+      "sha256": "65f0e4fc949abe3056fc75e0130164cee146f6e364f1fe8f30acec90f6475034",
       "item_count": 50,
       "license_notice": "LICENSE",
       "modifications": "Original 39 lessons, supplemental grammar lesson 40 and ten further WrOS lessons. Completion follows an action in the app or an observed system event. The merge practice uses original sample paragraphs."

@@ -104,7 +104,7 @@ impl Request {
             Request::Connect { .. } => "Connecting to the backups",
             Request::Backup { .. } => "Backing up this project",
             Request::AutoBackup { .. } => "Backing up this project automatically",
-            Request::BrainBackup { .. } => "Backing up Brain notes and media",
+            Request::BrainBackup { .. } => "Backing up Commonplace notes and media",
             Request::Queue { .. } => "Queuing a backup for later",
             Request::RunQueue => "Running the queued backups",
             Request::ClearQueue => "Clearing the backup queue",

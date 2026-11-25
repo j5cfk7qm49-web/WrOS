@@ -24,6 +24,8 @@ If a very small viewport cannot show both, the secondary is retained but not dra
 
 F10 opens the menu bar by default. Use View › Show the outline / Hide the outline, Find anything › Toggle outline, or a custom alias to show or hide the outline. Ctrl-D strict focus always shows **Primary only**, hiding outline, scenery/music controls, Secondary and legacy reference panes. Leave focus with Ctrl-D before using F11. Tab never enters a hidden pane. Escape clears a real selection first, otherwise opens the existing menu; it does not close an invisible reference.
 
+The W r O S tiles switch views; Super+1–4 follow the same order. Focus hides the top bar and leaves one bottom line for location, today's words and warnings. Outside focus, the upper bottom bar shows view information and system widgets; the lower bar shows project progress and messages.
+
 The legacy `v` beside and Ctrl-O Codex panes remain **read-only references**, not aliases for the new secondary editor. They are retained but not drawn simultaneously with Secondary. Explicitly opening a legacy reference hides the secondary without discarding it. No third editable pane is implemented.
 
 ## Persistence and migration

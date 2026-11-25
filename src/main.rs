@@ -5,6 +5,7 @@ mod backup_service;
 mod battery;
 mod books;
 mod catalogue;
+mod chime;
 #[cfg(all(target_os = "linux", feature = "compositor-warmth"))]
 mod compositor_warmth;
 #[cfg(target_os = "linux")]
@@ -274,6 +275,7 @@ fn main() -> Result<()> {
     // once so login/splash text cannot survive in cells absent from frame one.
     terminal.clear().context("clearing the writing console")?;
     app.linux_console &= !display::graphical(&terminal);
+    app.tile_glyphs = display::graphical(&terminal) && !display::windowed(&terminal);
     if session::native() && !display::graphical(&terminal) {
         app.deck.graphical_session = false;
         app.msg = "Graphical display unavailable. WrOS opened in plain text.".into();
@@ -810,6 +812,7 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
         }
         app.tick_player();
         if app.pomo.tick() {
+            chime::on_phase_end(app.pomo.phase, app.pomodoro_chime, crate::chime::ring);
             app.msg = match app.pomo.phase {
                 scene::Phase::Break => "break — go and look at something far away".into(),
                 _ => "back to it".into(),
@@ -879,6 +882,13 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
         } else {
             TICK
         };
+        let tick = app.marquee.as_ref().map_or(tick, |marquee| {
+            tick.min(
+                marquee
+                    .next_frame()
+                    .saturating_duration_since(Instant::now()),
+            )
+        });
         #[cfg(target_os = "linux")]
         let received = display::receive(terminal, &events, tick);
         #[cfg(not(target_os = "linux"))]
@@ -1014,8 +1024,8 @@ fn dispatch_event(app: &mut App, ev: Event, confirm_quit: &mut bool) -> bool {
             return false;
         }
         if matches!(app.overlay, Overlay::None) {
-            if app.brain_accepts_input() {
-                app.paste_brain(text);
+            if app.desk_accepts_input() {
+                app.paste_desk(text);
             } else {
                 app.paste(text);
             }
@@ -1096,7 +1106,7 @@ fn route_key(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
     }
     if k.modifiers == KeyModifiers::SUPER
         && let KeyCode::Char(digit) = k.code
-        && let Some(view) = app::brain::DeskView::from_shortcut(digit)
+        && let Some(view) = app::outline::DeskView::from_shortcut(digit)
     {
         if k.kind == KeyEventKind::Press && app.overlay == Overlay::None {
             app.switch_desk_view(view);
@@ -1231,8 +1241,8 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
         }
         _ => k,
     };
-    let brain_open = app.brain_accepts_input();
-    if app.overlay == Overlay::None && brain_open {
+    let desk_open = app.desk_accepts_input();
+    if app.overlay == Overlay::None && desk_open {
         let command = k.modifiers == KeyModifiers::CONTROL
             || cfg!(target_os = "macos") && k.modifiers == KeyModifiers::SUPER;
         if command && k.code == KeyCode::Char('q') {
@@ -1248,7 +1258,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
             KeyCode::F(1) => app.open_help(None),
             KeyCode::F(9) => app.open_theme_picker(),
             KeyCode::F(n) => app.on_function_key(n),
-            _ => app.on_brain_key(if command {
+            _ => app.on_desk_key(if command {
                 KeyEvent::new_with_kind(k.code, KeyModifiers::CONTROL, k.kind)
             } else {
                 k
@@ -1351,7 +1361,8 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
     if ctrl
         && (matches!(
             app.overlay,
-            Overlay::Pins
+            Overlay::Widget { .. }
+                | Overlay::Pins
                 | Overlay::PinCategory { .. }
                 | Overlay::Journal
                 | Overlay::Scratchpad
@@ -1407,7 +1418,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
         return false;
     }
     if ctrl {
-        if brain_open && matches!(k.code, KeyCode::Char('s' | 'c' | 'x' | 'z' | 'Z' | 'y')) {
+        if desk_open && matches!(k.code, KeyCode::Char('s' | 'c' | 'x' | 'z' | 'Z' | 'y')) {
             return false;
         }
         let shift = k.modifiers.contains(KeyModifiers::SHIFT);

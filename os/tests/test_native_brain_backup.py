@@ -1,10 +1,11 @@
-"""Exercise real encrypted Brain backups without any network or local library."""
+"""Exercise encrypted Commonplace backups with a local test repository."""
 import hashlib
 import importlib.machinery
 import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 SCRIPT = Path(__file__).parents[1] / "scripts/wros-backup"
@@ -20,7 +21,7 @@ class BrainBackup(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(prefix="wros-brain-backup-test-")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
-        self.library = self.root / "Brain"
+        self.library = self.root / "Documents" / "Commonplace"
         self.journal = self.library / "store/journal"
         self.journal.mkdir(parents=True)
         checked(self.journal / "00000000000000000001.update", b"first durable edit")
@@ -42,8 +43,14 @@ class BrainBackup(unittest.TestCase):
         checked(self.journal / "00000000000000000002.update", b"second durable edit")
         result = self.service.backup_brain(str(self.library), automatic=True, revision="b" * 64)
         self.assertEqual(result["brain_revisions"][str(self.library)], "b" * 64)
-        target = self.root / "Brain restored"
-        self.service.restore(older, str(target))
+        target = self.root / "Documents" / "Commonplace-restored-fixture"
+        legacy = self.library.with_name("Brain")
+        legacy.mkdir()
+        with patch.object(Path, "home", return_value=self.root):
+            for live in (self.library, legacy):
+                with self.assertRaisesRegex(ValueError, "Restore Commonplace to an isolated folder"):
+                    self.service.restore(older, str(live / "restore"))
+            self.service.restore(older, str(target))
         self.assertNotEqual((target / "device-id").read_text(), "10\n")
         self.assertEqual((target / "files" / self.media).read_bytes(), b"Immutable media fixture")
         self.assertFalse((target / "readable").exists())

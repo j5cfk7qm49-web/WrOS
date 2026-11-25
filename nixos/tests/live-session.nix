@@ -49,12 +49,13 @@ pkgs.testers.runNixOSTest {
     live.send_key("ret")
     live.wait_until_fails("grep -aq 'Try it first' /dev/vcs1", timeout=30)
     live.fail("pgrep -u _wros-installer wros-installer")
-    # Esc then W opens the WrOS menu. Esc and a key sent together read as Alt and that key.
+    # Esc then W opens the Power menu (the ⏻ tile keeps the WrOS menu's letter, rc30). Esc and a key
+    # sent together read as Alt and that key.
     time.sleep(1)
     live.send_key("esc")
     time.sleep(1)
     live.send_key("w")
-    live.wait_until_tty_matches("1", "About WrOS")
+    live.wait_until_tty_matches("1", "Shut down")
     choose(live, r"Install WrOS to disk")
     live.send_key("ret")
     live.wait_until_tty_matches("1", "Cancel and remain in the live writing session", timeout=60)

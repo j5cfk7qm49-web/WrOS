@@ -45,7 +45,7 @@ let
   # depends on, the vendored crossterm, its two font files, and the other workspace members'
   # manifests (Cargo reads every member's), with empty stand-ins for their sources. Grimoire's
   # code changing, or the release number, no longer rebuilds it.
-  otherMembers = [ "grimoire-core" "grimoire-app" "grimoire-brain" "wros-sys" "wros-greeter" "wros-input" "wros-installer" ];
+  otherMembers = [ "grimoire-core" "grimoire-app" "grimoire-brain" "wros-sys" "wros-greeter" "wros-input" "wros-installer" "wros-media-key" ];
   bootSrc = lib.fileset.toSource {
     root = src;
     fileset = lib.fileset.unions ([

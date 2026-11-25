@@ -1,4 +1,4 @@
-//! Validation for the Library's explicit DOI and ISBN shortcuts.
+//! Validation for the read view’s explicit DOI and ISBN shortcuts.
 
 use anyhow::{Context, Result};
 
@@ -30,7 +30,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn library_lookups_send_only_the_identifier_to_the_expected_host() {
+    fn read_lookups_send_only_the_identifier_to_the_expected_host() {
         let doi = Kind::Doi
             .identifier("https://doi.org/10.1000/a?b#c")
             .unwrap();

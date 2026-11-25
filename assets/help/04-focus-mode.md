@@ -2,7 +2,9 @@
 
 ## Focus mode
 
-`Ctrl-D` hides everything but the prose: the outline and the clearing (Pomodoro, Visualizer and Music) go away, and the scene sits centred on the screen with a quiet status line. `Ctrl-D` again (*Leave focus mode*) brings it all back. Both are on the *View* menu and in `Ctrl-K` too.
+`Ctrl-D` gives the scene the whole screen. A line at the bottom appears only for a failed save, a conflict or an imminent low-battery sleep. `Ctrl-D` again (*Leave focus mode*) brings the bars and panes back. Both are on the *View* menu and in `Ctrl-K` too.
+
+A soft chime sounds when the Pomodoro starts a break or returns to writing. Turn it off under *Settings › Writing › Editor › Pomodoro chime*.
 
 `Esc` still opens the menu in focus mode, and closing the menu brings you straight back to the page.
 
