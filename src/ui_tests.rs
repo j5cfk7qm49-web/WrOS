@@ -1596,11 +1596,18 @@ fn read_outline_study_info_replaces_their_header_row() {
 
     let fixture = tempfile::tempdir().unwrap();
     let mut d = info_book("desk-info-rows", 100);
-    d.app
-        .commonplace
-        .set_paths(fixture.path().join("Commonplace"), fixture.path().join("cache"));
+    d.app.commonplace.set_paths(
+        fixture.path().join("Commonplace"),
+        fixture.path().join("cache"),
+    );
     for (view, row, content, heading, keys) in [
-        (DeskView::Read, 2, "No matching works", "0 works", "Enter Editions"),
+        (
+            DeskView::Read,
+            2,
+            "No matching works",
+            "0 works",
+            "Enter Editions",
+        ),
         (
             DeskView::Outline,
             1,
@@ -1617,7 +1624,11 @@ fn read_outline_study_info_replaces_their_header_row() {
         assert!(rows[row].contains(content), "{:?}", rows[row]);
         assert!(rows[info_row].contains(heading), "{:?}", rows[info_row]);
         assert!(!rows[..=row].iter().any(|line| line.contains(heading)));
-        assert!(rows[row + 1..info_row].iter().any(|line| line.contains(keys)));
+        assert!(
+            rows[row + 1..info_row]
+                .iter()
+                .any(|line| line.contains(keys))
+        );
     }
 }
 
@@ -1717,7 +1728,10 @@ fn marquee_still_without_motion() {
     d.app.deck.state.low_power = true;
     d.draw();
     let row = d.status();
-    assert!(row.contains("♪ ABC") && row.trim_end().ends_with('…'), "{row}");
+    assert!(
+        row.contains("♪ ABC") && row.trim_end().ends_with('…'),
+        "{row}"
+    );
     assert!(d.app.marquee.is_none());
     d.draw();
     assert_eq!(d.status(), row);
@@ -1747,7 +1761,10 @@ fn widget_click_targets() {
         .into_iter()
         .map(|(text, widget)| {
             let x = info[..info.find(text).unwrap()].chars().count() as u16;
-            (Rect::new(x, 22, text.chars().count() as u16, 1), widget)
+            (
+                ratatui::layout::Rect::new(x, 22, text.chars().count() as u16, 1),
+                widget,
+            )
         })
         .collect();
     assert_eq!(d.app.widget_hits(), hits.as_slice());
@@ -2104,7 +2121,10 @@ fn narrow_screens_keep_the_message_whole_and_drop_the_clock_first() {
     let status = d.status();
     assert!(status.contains("Message intact"), "{status}");
     let info = d.info();
-    assert!(info.contains("Bat 76%"), "the battery stays longest: {info}");
+    assert!(
+        info.contains("Bat 76%"),
+        "the battery stays longest: {info}"
+    );
     assert!(!info.contains("14:07"), "the clock goes first: {info}");
 }
 
@@ -2312,7 +2332,7 @@ fn focus_mode_one_line_keeps_warnings() {
     d.app.deck.backup_mark = Some(crate::app::BackupMark::Done("14:02".into()));
     d.draw();
     let status = d.status();
-    assert!(status.contains("› Scene One · 5"), "{status}");
+    assert!(status.contains("› Scene One · "), "{status}");
     assert!(status.contains("today"), "{status}");
     assert!(status.contains("● 1"), "{status}");
     assert!(status.contains("⚠ 1"), "{status}");

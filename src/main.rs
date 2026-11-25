@@ -881,7 +881,11 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
             TICK
         };
         let tick = app.marquee.as_ref().map_or(tick, |marquee| {
-            tick.min(marquee.next_frame().saturating_duration_since(Instant::now()))
+            tick.min(
+                marquee
+                    .next_frame()
+                    .saturating_duration_since(Instant::now()),
+            )
         });
         #[cfg(target_os = "linux")]
         let received = display::receive(terminal, &events, tick);

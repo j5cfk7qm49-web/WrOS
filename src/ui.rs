@@ -7,8 +7,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Padding, Paragraph};
 use std::time::{Instant, SystemTime};
 
-use crate::app::{App, Focus, Overlay};
 use crate::app::outline::DeskView;
+use crate::app::{App, Focus, Overlay};
 use crate::gauges::{self, Item};
 use crate::motion::Marquee;
 use crate::scene::{self, Ink, Mode, Phase};
@@ -1196,7 +1196,10 @@ fn draw_codex(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
 pub(crate) fn info_section(app: &App) -> Vec<Span<'static>> {
     match app.desk_view {
         DeskView::Read => vec![Span::raw(crate::app::read::info(app))],
-        DeskView::Outline => crate::app::outline::info(app).map(Span::raw).into_iter().collect(),
+        DeskView::Outline => crate::app::outline::info(app)
+            .map(Span::raw)
+            .into_iter()
+            .collect(),
         DeskView::Study => vec![Span::raw(crate::app::study::info(app))],
         DeskView::Write if shows_scene_path(app) => scene_path(app),
         DeskView::Write => {
@@ -1208,12 +1211,20 @@ pub(crate) fn info_section(app: &App) -> Vec<Span<'static>> {
                 return Vec::new();
             };
             let mut details = Vec::new();
-            details.extend(scene.status.iter().filter(|s| !s.trim().is_empty()).cloned());
+            details.extend(
+                scene
+                    .status
+                    .iter()
+                    .filter(|s| !s.trim().is_empty())
+                    .cloned(),
+            );
             if let Some(goal) = scene.meta("target").and_then(|value| value.parse().ok()) {
                 details.push(format!("goal {}", thousands(goal)));
             }
             if let Some(modified) = scene.stat.and_then(|stat| stat.modified) {
-                let age = SystemTime::now().duration_since(modified).unwrap_or_default();
+                let age = SystemTime::now()
+                    .duration_since(modified)
+                    .unwrap_or_default();
                 details.push(format!("edited {} min ago", age.as_secs() / 60));
             }
             if details.is_empty() {
@@ -1316,7 +1327,9 @@ fn draw_info_bar(f: &mut Frame, app: &mut App, area: Rect, t: &Theme, now: Insta
         .light_flash
         .is_some_and(|at| now.saturating_duration_since(at) < gauges::LIGHT_SHOWN);
     let items = gauges::fit(
-        app.deck.gauges.items(false, console, light, &app.deck.clock),
+        app.deck
+            .gauges
+            .items(false, console, light, &app.deck.clock),
         width.saturating_sub(reserved + 1),
     );
     let gauge_width: usize = items.iter().map(|(_, s)| gauges::item_width(s)).sum();
@@ -1389,7 +1402,10 @@ fn draw_progress_bar(f: &mut Frame, app: &mut App, area: Rect, t: &Theme, now: I
     let target = app.project.meta.target_words.max(1);
     let dim = Style::default().fg(t.dim);
     let accent = Style::default().fg(t.accent);
-    let count = Span::styled(format!(" {}", thousands(total)), Style::default().fg(t.text));
+    let count = Span::styled(
+        format!(" {}", thousands(total)),
+        Style::default().fg(t.text),
+    );
     let goal = Span::styled(format!(" / {} ", thousands(target)), dim);
     let daily = daily_words(app, t);
     let sprint = app.sprint_label().map(|(label, reached)| {
@@ -1416,9 +1432,42 @@ fn draw_progress_bar(f: &mut Frame, app: &mut App, area: Rect, t: &Theme, now: I
     };
 
     let width = usize::from(area.width);
+    // A message is something to read now, so it wins room: the bar shrinks away first, then the
+    // total and target give way (today's count stays), and only a message too long even for that
+    // takes the whole line, until it clears.
+    if let Some(shown) = &message {
+        let today = daily.width() + sprint.as_ref().map_or(0, Span::width);
+        let beside_all = width.saturating_sub(count.width() + goal.width() + today + 3);
+        let beside_today = width.saturating_sub(today + 3);
+        if shown.width() > beside_all {
+            app.marquee = None;
+            app.progress_hit = Rect::default();
+            if shown.width() <= beside_today {
+                let mut left = vec![daily.clone()];
+                left.extend(sprint.clone());
+                f.render_widget(Line::from(left), area);
+                let right = Rect::new(
+                    area.right() - 1 - shown.width() as u16,
+                    area.y,
+                    shown.width() as u16,
+                    1,
+                );
+                f.render_widget(Line::styled(shown.content.clone(), shown.style), right);
+            } else {
+                let text = fit_text(
+                    &shown.content,
+                    width.saturating_sub(2),
+                    false,
+                    app.linux_console,
+                );
+                f.render_widget(Line::styled(format!(" {text}"), shown.style), area);
+            }
+            return;
+        }
+    }
     let counts_width = count.width() + goal.width();
-    let room = width
-        .saturating_sub(counts_width + daily.width() + sprint.as_ref().map_or(0, Span::width));
+    let room =
+        width.saturating_sub(counts_width + daily.width() + sprint.as_ref().map_or(0, Span::width));
     let music_prefix = if app.linux_console { "Music " } else { "♪ " };
     let prefix_width = Span::raw(music_prefix).width();
     let right_width = if let Some(message) = &message {
@@ -1429,7 +1478,11 @@ fn draw_progress_bar(f: &mut Frame, app: &mut App, area: Rect, t: &Theme, now: I
             (prefix_width + Span::raw(title).width()).min(music_room)
         })
     };
-    let min_bar = (width / 2).min(10).min(room);
+    let min_bar = if message.is_some() {
+        0
+    } else {
+        (width / 2).min(10).min(room)
+    };
     let right_room = room.saturating_sub(min_bar + 3).min(right_width);
     let bar_width = room
         .saturating_sub(if right_room == 0 { 0 } else { right_room + 3 })
@@ -1440,7 +1493,12 @@ fn draw_progress_bar(f: &mut Frame, app: &mut App, area: Rect, t: &Theme, now: I
     } else {
         ("━", "─")
     };
-    app.progress_hit = Rect::new(area.x, area.y, (counts_width + bar_width).min(width) as u16, 1);
+    app.progress_hit = Rect::new(
+        area.x,
+        area.y,
+        (counts_width + bar_width).min(width) as u16,
+        1,
+    );
     let mut progress = vec![
         count,
         goal,
@@ -1454,7 +1512,11 @@ fn draw_progress_bar(f: &mut Frame, app: &mut App, area: Rect, t: &Theme, now: I
     let title_room = right_room.saturating_sub(prefix_width);
     if let Some(title) = track.filter(|_| title_room > 0) {
         let shown = if !app.deck.state.low_power && Span::raw(title).width() > title_room {
-            if app.marquee.as_ref().is_some_and(|m| !m.matches(title, title_room)) {
+            if app
+                .marquee
+                .as_ref()
+                .is_some_and(|m| !m.matches(title, title_room))
+            {
                 app.marquee = None;
             }
             let marquee = app
@@ -1496,8 +1558,8 @@ fn draw_focus_line(f: &mut Frame, app: &App, area: Rect, t: &Theme, now: Instant
         .into_iter()
         .next()
         .map(|(_, text)| Span::styled(format!("  {text}"), warn));
-    let tail_width = tail.iter().map(Span::width).sum::<usize>()
-        + battery.as_ref().map_or(0, Span::width);
+    let tail_width =
+        tail.iter().map(Span::width).sum::<usize>() + battery.as_ref().map_or(0, Span::width);
     let room = usize::from(area.width).saturating_sub(1 + tail_width);
     let path_tail = info.last().map_or(0, Span::width);
     let notice = app.deck.battery.showing(now).and_then(|text| {
@@ -1513,13 +1575,15 @@ fn draw_focus_line(f: &mut Frame, app: &App, area: Rect, t: &Theme, now: Instant
         true,
         app.linux_console,
     );
-    let mut spans = vec![Span::styled(format!(" {path}"), Style::default().fg(t.accent))];
+    let mut spans = vec![Span::styled(
+        format!(" {path}"),
+        Style::default().fg(t.accent),
+    )];
     spans.extend(tail);
     spans.extend(notice);
     spans.extend(battery);
     f.render_widget(Line::from(spans), area);
 }
-
 
 /// The marks at the right of the menu bar's line: conflicts waiting to be
 /// settled, whether the words are saved, and the book's backup. With
