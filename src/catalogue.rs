@@ -22,6 +22,10 @@ pub mod fetch;
 #[cfg_attr(not(test), allow(dead_code))]
 pub mod query;
 
+// Web page records get their first app caller with the search state machine.
+#[cfg_attr(not(test), allow(dead_code))]
+pub mod webpage;
+
 #[allow(unused_imports)]
 pub use fetch::{Fetch, OFFLINE, default_fetch};
 #[allow(unused_imports)]
