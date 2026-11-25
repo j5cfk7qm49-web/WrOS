@@ -16,7 +16,7 @@ let
     inherit sha256;
   };
   fast = english "fast" "tessdata_fast" "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2";
-  standard = english "standard" "tessdata" "daa0c97d651c19fba3b25e81317cd697e9908c8208090c9c3d3a882e56772065";
+  standard = english "standard" "tessdata" "daa0c97d651c19fba3b25e81317cd697e9908c8208090c94c3905381c23fc047";
   best = english "best" "tessdata_best" "8280aed0782fe27257a68ea10fe7ef324ca0f8d85bd2fd145d1c2b560bcb66ba";
 in
 pkgs.runCommand "wros-hp-measure" {
