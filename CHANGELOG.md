@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.1.0~rc30 · New top and bottom bars, the views renamed, fixes from the laptop
+
+- The views are now **Write, read, Outline and Study**, after the letters of
+  the WrOS logo. Four tiles at the left of the top bar switch between them
+  (or Super+1 to 4); the S tile turns red when cards are due. Your notes,
+  reading and cards live in `Documents/Commonplace` (a `Documents/Brain`
+  folder is moved there once).
+- The WrOS menu is now the ⏻ tile at the right of the top bar: Lock, Sleep,
+  Restart, Shut down (Esc, then W, still opens it). About WrOS is in Help.
+- Menus drop down in the bar's colour with a shadow.
+- Two bars under the page. The upper one says only what the screen doesn't
+  already show (the project, the scene's status, a selection's word count),
+  and its Wi-Fi, sound, battery and clock open small panels: networks,
+  volume and the playing track, brightness and night light, the date and a
+  month calendar. The lower one shows the project's progress and today's
+  words, with messages at the right; the playing track scrolls there when
+  nothing else is.
+- Focus mode shows only the page. A line appears only if a save fails, a
+  conflict waits or the battery is about to suspend. A soft chime marks the
+  end of each Pomodoro phase (Settings › Writing › Editor).
+- A wrong password at the login screen asks again, with the name kept,
+  instead of restarting the login screen (#175).
+- The brightness and volume keys respond faster: a small native program
+  handles each press instead of starting Python (#174).
+- Updates are smaller: releases are built from the exact committed files,
+  so packages that didn't change are no longer sent again.
+
 ## 0.1.0~rc29 · Catalogue search and waiting for the previous project's sync
 
 - Type `@` in an essay to search Open Library and Crossref as well as your
