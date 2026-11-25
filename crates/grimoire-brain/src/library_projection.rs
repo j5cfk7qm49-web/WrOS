@@ -121,7 +121,7 @@ pub(crate) fn works(
     filter: &Filter,
     offset: u32,
     count: u16,
-) -> Result<Vec<Work>> {
+) -> Result<(Vec<Work>, u64)> {
     let order = match filter.sort {
         Sort::Title => "title COLLATE NOCASE",
         Sort::Author => "author COLLATE NOCASE,title COLLATE NOCASE",
@@ -141,7 +141,7 @@ pub(crate) fn works(
                 COALESCE(e.year,CAST(metadata_year.value AS INTEGER)) AS year,
                 w.kind, e.added AS added,
                 (SELECT count(*) FROM library_editions WHERE work=n.node) AS editions,
-                COALESCE(metadata_status.value,'') AS status
+                COALESCE(metadata_status.value,'') AS status, count(*) OVER ()
          FROM works AS w JOIN live_notes AS n ON n.node=w.node
          LEFT JOIN library_editions AS e ON e.id=(
              SELECT id FROM library_editions WHERE work=n.node ORDER BY creation LIMIT 1)
@@ -176,6 +176,7 @@ pub(crate) fn works(
         offset
     ])?;
     let mut works = Vec::new();
+    let mut total = 0;
     while let Some(row) = rows.next()? {
         let kind = row.get::<_, String>(4)?;
         let source_type: Builtin = serde_json::from_value(serde_json::Value::String(kind))?;
@@ -188,6 +189,7 @@ pub(crate) fn works(
             editions: row.get(6)?,
             status: row.get(7)?,
         });
+        total = u64::try_from(row.get::<_, i64>(8)?)?;
     }
-    Ok(works)
+    Ok((works, total))
 }

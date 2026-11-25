@@ -296,6 +296,15 @@ pub(crate) fn search(
     }
 }
 
+pub(crate) fn backlink_count(db: &Connection, target: NodeId) -> Result<u64> {
+    let mut query = db.prepare_cached(
+        "SELECT count(*) FROM note_links AS hit JOIN live_notes AS notes ON notes.node=hit.node
+         WHERE hit.target=?1",
+    )?;
+    let count: i64 = query.query_row([serde_json::to_string(&target)?], |row| row.get(0))?;
+    Ok(u64::try_from(count)?)
+}
+
 pub(crate) fn literal_phrase(value: &str) -> Result<Option<String>> {
     let value = value.trim();
     if value.len() > 1024 {

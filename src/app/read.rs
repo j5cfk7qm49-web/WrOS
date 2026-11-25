@@ -19,7 +19,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
 use ratatui::text::Line;
-use ratatui::widgets::{Block, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use serde_json::Value;
 
 use super::outline::{commands, draw_draft};
@@ -129,6 +129,7 @@ pub(super) struct ReadDesk {
     sort: usize,
     kind: usize,
     works: Vec<Work>,
+    total_works: u64,
     offset: u32,
     more: bool,
     selected: usize,
@@ -148,9 +149,16 @@ impl ReadDesk {
     }
 
     pub(super) fn refresh(&mut self, store: &mut PagedBrain) -> anyhow::Result<()> {
-        let mut works = store
-            .library_works(&self.filter, self.offset, PAGE + 1)
+        let (mut works, mut total) = store
+            .library_works_with_count(&self.filter, self.offset, PAGE + 1)
             .map_err(anyhow::Error::msg)?;
+        if works.is_empty() && self.offset > 0 {
+            (works, total) = store
+                .library_works_with_count(&self.filter, 0, PAGE + 1)
+                .map_err(anyhow::Error::msg)?;
+            self.offset = 0;
+        }
+        self.total_works = total;
         self.more = works.len() > usize::from(PAGE);
         works.truncate(usize::from(PAGE));
         self.selected = self.selected.min(works.len().saturating_sub(1));
@@ -900,21 +908,37 @@ impl App {
     }
 }
 
+pub(crate) fn info(app: &App) -> String {
+    let desk = &app.commonplace.read;
+    let dot = crate::ui::info_separator(app.linux_console);
+    if let Some((_, title)) = &desk.open {
+        return if desk.editions.is_empty() {
+            format!("read{dot}{title}")
+        } else {
+            format!(
+                "read{dot}{title}{dot}edition {} of {}",
+                desk.edition + 1,
+                desk.editions.len()
+            )
+        };
+    }
+    let scope = desk.filter.source_type.map_or("All sources", Builtin::name);
+    let count = desk.total_works;
+    let works = if count == 1 { "work" } else { "works" };
+    let sort = SORTS[desk.sort].1;
+    let filter = if desk.filter_input.is_empty() {
+        String::new()
+    } else {
+        format!("{dot}Filter: {}", desk.filter_input)
+    };
+    format!("read{dot}{count} {works}{dot}{scope}{filter}{dot}{sort}")
+}
+
 pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
     let desk = &mut app.commonplace.read;
-    let heading = match &desk.open {
-        Some((_, title)) => format!(" read · {title} "),
-        None => format!(
-            " read · {} · {} ",
-            desk
-                .filter
-                .source_type
-                .map_or("All sources", Builtin::name),
-            SORTS[desk.sort].1
-        ),
-    };
-    let panel = Block::bordered()
-        .title(heading)
+    // The key hints use the bottom edge, leaving the shelf the same height.
+    let panel = Block::new()
+        .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
         .border_style(Style::default().fg(theme.border));
     let inner = panel.inner(area);
     frame.render_widget(panel, area);
@@ -931,30 +955,25 @@ pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) 
         ),
     };
     let mut controls = vec![Line::raw(hint)];
-    if desk.can_open_menu() {
-        if !desk.filter_input.is_empty() {
-            controls.push(Line::raw(format!("Filter: {}", desk.filter_input)));
-        }
-        if desk.more || desk.offset > 0 {
-            let page = desk.offset / u32::from(PAGE) + 1;
-            controls.push(Line::raw(format!("Page {page} · PgUp / PgDn")));
-        }
+    if desk.can_open_menu() && (desk.more || desk.offset > 0) {
+        let page = desk.offset / u32::from(PAGE) + 1;
+        controls.push(Line::raw(format!("Page {page} · PgUp / PgDn")));
     }
     let controls = Paragraph::new(controls)
         .style(Style::default().fg(theme.dim))
         .wrap(Wrap { trim: true });
     let editing = u16::from(desk.prompt.is_some());
-    let max_header = inner.height.saturating_sub(editing + 1);
-    let header_height = controls
+    let max_footer = inner.height.saturating_sub(editing + 1);
+    let footer_height = controls
         .line_count(inner.width)
-        .min(usize::from(max_header)) as u16;
-    let [header, entry, body] = Layout::vertical([
-        Constraint::Length(header_height),
+        .min(usize::from(max_footer)) as u16;
+    let [entry, body, footer] = Layout::vertical([
         Constraint::Length(editing),
         Constraint::Min(1),
+        Constraint::Length(footer_height),
     ])
     .areas(inner);
-    frame.render_widget(controls, header);
+    frame.render_widget(controls, footer);
     if let Some((_, editor)) = &mut desk.prompt {
         draw_draft(frame, editor, entry, Style::default().fg(theme.text), true);
     }

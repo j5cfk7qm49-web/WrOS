@@ -6,7 +6,7 @@ use ratatui::Frame;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
-use ratatui::widgets::{Block, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
 use super::outline::{commands, draw_draft};
 use super::{App, Theme};
@@ -16,6 +16,7 @@ pub(super) struct StudyDesk {
     filter: Option<(String, SavedQuery)>,
     due: DueCards,
     pub(super) all_due: u64,
+    reviewed: u64,
     revealed: bool,
     input: Option<Editor>,
     scroll: u16,
@@ -97,6 +98,7 @@ impl StudyDesk {
             return Err(error);
         }
         self.input = None;
+        self.reviewed = 0;
         self.revealed = false;
         self.scroll = 0;
         Ok(())
@@ -143,6 +145,7 @@ impl StudyDesk {
                     store
                         .grade_card(card.key, grade, Local::now().fixed_offset())
                         .map_err(anyhow::Error::msg)?;
+                    self.reviewed = self.reviewed.saturating_add(1);
                     self.revealed = false;
                     self.scroll = 0;
                     self.refresh(store)?;
@@ -170,24 +173,37 @@ impl App {
     }
 }
 
+pub(crate) fn info(app: &App) -> String {
+    let desk = &app.commonplace.study;
+    let dot = crate::ui::info_separator(app.linux_console);
+    let filter = desk.filter.as_ref().map_or("All cards", |(label, _)| label);
+    let remaining = desk.due.count;
+    let mut info = format!("Study{dot}{filter}{dot}{remaining} due");
+    if desk.due.next.is_some() {
+        let current = desk.reviewed.saturating_add(1);
+        let total = desk.reviewed.saturating_add(remaining);
+        info.push_str(&format!("{dot}Card {current} of {total}"));
+    }
+    if remaining != desk.all_due {
+        info.push_str(&format!("{dot}{} left today", desk.all_due));
+    }
+    info
+}
+
 pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
     let desk = &mut app.commonplace.study;
-    let filter = desk.filter.as_ref().map_or("All cards", |(label, _)| label);
-    let panel = Block::bordered()
-        .title(format!(
-            " Study · {filter} · {} due ",
-            desk.due.count
-        ))
+    let panel = Block::new()
+        .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
         .border_style(Style::default().fg(theme.border));
     let inner = panel.inner(area);
     frame.render_widget(panel, area);
     if inner.is_empty() {
         return;
     }
-    let [controls, entry, body] = Layout::vertical([
-        Constraint::Length(1),
+    let [entry, body, controls] = Layout::vertical([
         Constraint::Length(u16::from(desk.input.is_some())),
         Constraint::Min(1),
+        Constraint::Length(1),
     ])
     .areas(inner);
     let message = if desk.input.is_some() {

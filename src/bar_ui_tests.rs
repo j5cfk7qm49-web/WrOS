@@ -605,7 +605,7 @@ fn every_menu_shows_each_row_and_its_explanation_at_every_supported_size() {
 }
 
 #[test]
-fn dropdowns_fit_or_scroll_at_80x24_and_keep_the_status_line() {
+fn dropdowns_fit_or_scroll_at_80x24_and_keep_both_bottom_bars() {
     for (width, height) in [(80, 24), (80, 16)] {
         let mut d = everything_offered_at(&format!("bar-fit-{height}"), width, height);
         for title in Title::ALL {
@@ -619,7 +619,7 @@ fn dropdowns_fit_or_scroll_at_80x24_and_keep_the_status_line() {
             );
             for (r, _) in d.app.bar_hits.borrow().iter() {
                 assert!(
-                    r.right() <= width && r.bottom() < height,
+                    r.right() <= width && r.bottom() <= height - 2,
                     "{r:?} at {width}x{height}"
                 );
             }
@@ -788,9 +788,9 @@ fn clicking_a_title_opens_it_hovering_switches_and_clicking_away_closes() {
     assert!(matches!(d.app.overlay, Overlay::Bar { sel: 2, .. }));
     d.app.on_scroll(third.x + 2, third.y, true);
     assert!(matches!(d.app.overlay, Overlay::Bar { sel: 3, .. }));
-    // A click anywhere else closes the menu and reaches nothing under it.
+    // A click on the meter closes the menu without opening Progress.
     let sel = d.app.sel;
-    d.app.on_click(5, 20);
+    d.app.on_click(5, d.app.screen.1 - 1);
     assert_eq!(d.app.overlay, Overlay::None);
     assert_eq!(d.app.sel, sel);
     // A click on a row runs it.

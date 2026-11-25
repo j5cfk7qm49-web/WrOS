@@ -234,6 +234,8 @@ pub struct App {
     /// What the small pane under the tree is showing. ←/→ cycles it.
     pub pane_mode: Mode,
     pub music: Music,
+    /// Present while a playing title needs to scroll in the message area.
+    pub(crate) marquee: Option<crate::motion::Marquee>,
     /// Listens to system audio, but only while the spectrum view is showing.
     pub viz: Visualizer,
     /// When the player last asked for the queue, so it stays current while open.
@@ -262,6 +264,9 @@ pub struct App {
     /// Where the view switcher on the scene pane's bottom edge was drawn:
     /// each view's name, and the arrows either side.
     pub view_hits: Vec<(Rect, Mode)>,
+    /// The info bar's visible gauges and the progress bar's clickable meter.
+    pub(crate) widget_hits: Vec<(Rect, crate::gauges::Widget)>,
+    pub(crate) progress_hit: Rect,
     /// In a graphical session (native or under Cage), where Alt and a menu's
     /// letter opens that menu; a terminal keeps Alt-b and Alt-f for words.
     pub alt_menus: bool,
@@ -1053,6 +1058,7 @@ impl App {
             pomo: Pomodoro::default(),
             pane_mode: Mode::Pomodoro,
             music: Music::dormant(setup.music),
+            marquee: None,
             // A real launch asks whether this is WrOS; a test (background off) says no
             // unless it sets the field itself.
             wros_music: setup.background && music::on_wros(),
@@ -1068,6 +1074,8 @@ impl App {
             music_row: 0,
             create_hits: Vec::new(),
             view_hits: Vec::new(),
+            widget_hits: Vec::new(),
+            progress_hit: Rect::default(),
             alt_menus: false,
             settings_area: std::cell::Cell::default(),
             settings_hits: std::cell::RefCell::default(),
@@ -5513,12 +5521,25 @@ impl App {
         true
     }
 
+    pub fn widget_hits(&self) -> &[(Rect, crate::gauges::Widget)] {
+        &self.widget_hits
+    }
+
     /// A left click focuses the pane under the pointer and acts on it.
     pub fn on_click(&mut self, x: u16, y: u16) {
         // The menu bar first: its titles, an open menu's rows, or a click away
         // that closes the menu.
         if self.bar_click(x, y) || self.settings_click(x, y) {
             return;
+        }
+        if self.overlay == Overlay::None {
+            if hit(self.progress_hit, x, y) {
+                self.run_action(Action::Progress);
+                return;
+            }
+            if self.widget_hits().iter().any(|&(rect, _)| hit(rect, x, y)) {
+                return;
+            }
         }
         if self.desk_view == outline::DeskView::Outline && self.overlay == Overlay::None {
             self.commonplace.click(x, y);
@@ -5554,12 +5575,6 @@ impl App {
                     self.open_kofi();
                 }
             }
-            return;
-        }
-        // The words and the bar at the left of the status bar: the Progress
-        // page.
-        if self.overlay == Overlay::None && !self.focus_mode && y + 1 == self.screen.1 && x < 32 {
-            self.run_action(Action::Progress);
             return;
         }
         // The spelling popup takes clicks on itself; any other click closes

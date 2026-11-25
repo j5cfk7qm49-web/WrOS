@@ -31,6 +31,26 @@ pub enum Item {
     Clock,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Widget {
+    Wifi,
+    Sound,
+    Battery,
+    Clock,
+}
+
+impl Item {
+    pub fn widget(self) -> Option<Widget> {
+        match self {
+            Self::Wifi => Some(Widget::Wifi),
+            Self::Volume => Some(Widget::Sound),
+            Self::Battery => Some(Widget::Battery),
+            Self::Clock => Some(Widget::Clock),
+            Self::Light => None,
+        }
+    }
+}
+
 /// How long the light shows after a brightness key.
 pub const LIGHT_SHOWN: std::time::Duration = std::time::Duration::from_secs(4);
 
@@ -117,9 +137,6 @@ impl Gauges {
 /// first on a narrow screen, then volume, then Wi-Fi; the battery last.
 pub fn fit(items: Vec<(Item, String)>, room: usize) -> Vec<(Item, String)> {
     let mut keep = items;
-    let width = |items: &[(Item, String)]| -> usize {
-        items.iter().map(|(_, s)| s.chars().count() + 2).sum()
-    };
     for drop in [
         Item::Clock,
         Item::Light,
@@ -127,12 +144,16 @@ pub fn fit(items: Vec<(Item, String)>, room: usize) -> Vec<(Item, String)> {
         Item::Wifi,
         Item::Battery,
     ] {
-        if width(&keep) <= room {
+        if keep.iter().map(|(_, text)| item_width(text)).sum::<usize>() <= room {
             break;
         }
         keep.retain(|(item, _)| *item != drop);
     }
     keep
+}
+
+pub(crate) fn item_width(text: &str) -> usize {
+    ratatui::text::Span::raw(text).width() + 2
 }
 
 /// The gauges now. Battery and light come from the kernel's status files; the

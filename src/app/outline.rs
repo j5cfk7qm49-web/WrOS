@@ -16,7 +16,7 @@ use ratatui::Frame;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
-use ratatui::text::{Line, Span};
+use ratatui::text::Line;
 use ratatui::widgets::{Block, Paragraph};
 
 use super::{App, Overlay, read::ReadDesk, study::StudyDesk};
@@ -76,6 +76,7 @@ struct Outline {
     ancestors: Vec<Location>,
     rows: Vec<OutlineRow>,
     has_more: bool,
+    backlinks: Option<u64>,
     draft: Option<Draft>,
     prompt: Option<Prompt>,
     details: Option<Vec<String>>,
@@ -233,23 +234,26 @@ impl CommonplaceDesk {
     }
 
     fn open_today(&mut self, date: NaiveDate) -> anyhow::Result<()> {
-        if self
-            .outline
-            .as_ref()
-            .is_some_and(|outline| outline.date == date || outline.draft.is_some())
+        if let Some(outline) = &mut self.outline
+            && (outline.date == date || outline.draft.is_some())
         {
+            if let Some(store) = &mut self.store {
+                outline.refresh_backlinks(store);
+            }
             return Ok(());
         }
         let store = self.open_store()?;
         let today = store.ensure_today(date).map_err(anyhow::Error::msg)?;
         let location = Location::new(Some(today), "Today".into());
         let (rows, has_more) = page(store, &location)?;
+        let backlinks = store.backlink_count(today).ok();
         self.outline = Some(Outline {
             date,
             location,
             ancestors: Vec::new(),
             rows,
             has_more,
+            backlinks,
             draft: None,
             prompt: None,
             details: None,
@@ -499,6 +503,7 @@ impl CommonplaceDesk {
                 {
                     outline.details = Some(commands::describe(store, node)?);
                 }
+                outline.refresh_backlinks(store);
                 outline.prompt = None;
             }
             KeyCode::Left => prompt.editor.left(),
@@ -546,12 +551,37 @@ impl Outline {
         self.rows.get(self.location.selected)
     }
 
+    fn refresh_backlinks(&mut self, store: &mut PagedBrain) {
+        self.backlinks = self
+            .location
+            .parent
+            .and_then(|node| store.backlink_count(node).ok());
+    }
+
+    fn heading(&self, console: bool) -> String {
+        let dot = crate::ui::info_separator(console);
+        let mut path = self.ancestors.iter().chain(std::iter::once(&self.location));
+        let first = path.next().expect("current location");
+        let mut title = if first.title == "Today" && first.query.is_none() {
+            format!("Outline{dot}Today{dot}{}", self.date.format("%Y-%m-%d"))
+        } else {
+            format!("Outline{dot}{}", first.title)
+        };
+        let arrow = crate::ui::breadcrumb_separator(console);
+        for location in path {
+            title.push_str(arrow);
+            title.push_str(&location.title);
+        }
+        title
+    }
+
     fn load(&mut self, store: &mut PagedBrain, mut location: Location) -> anyhow::Result<()> {
         let (rows, has_more) = page(store, &location)?;
         location.selected = location.selected.min(rows.len().saturating_sub(1));
         self.location = location;
         self.rows = rows;
         self.has_more = has_more;
+        self.refresh_backlinks(store);
         self.details = None;
         Ok(())
     }
@@ -777,6 +807,7 @@ impl App {
                 location,
                 rows,
                 has_more,
+                backlinks: None,
                 ancestors: Vec::new(),
                 draft: None,
                 prompt: None,
@@ -1063,6 +1094,23 @@ impl App {
     }
 }
 
+pub(crate) fn info(app: &App) -> Option<String> {
+    let desk = &app.commonplace;
+    let outline = if desk.active_side {
+        &desk.other_outline
+    } else {
+        &desk.outline
+    };
+    let outline = outline.as_ref()?;
+    let title = outline.heading(app.linux_console);
+    let dot = crate::ui::info_separator(app.linux_console);
+    Some(match outline.backlinks {
+        Some(1) => format!("{title}{dot}1 backlink"),
+        Some(count) => format!("{title}{dot}{count} backlinks"),
+        None => title,
+    })
+}
+
 pub(crate) fn draw(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme, side: bool) {
     app.commonplace.note_hits.clear();
     let focused = side == app.commonplace.active_side;
@@ -1075,7 +1123,7 @@ pub(crate) fn draw(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme, side
         return;
     };
     let [title, body, keys] = Layout::vertical([
-        Constraint::Length(1),
+        Constraint::Length(u16::from(side)),
         Constraint::Min(0),
         Constraint::Length(2),
     ])
@@ -1083,26 +1131,12 @@ pub(crate) fn draw(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme, side
     let text = Style::default().fg(theme.text);
     let dim = Style::default().fg(theme.dim);
     let accent = Style::default().fg(theme.accent);
-    let root = outline.ancestors.first().unwrap_or(&outline.location);
-    let heading = if outline.location.query.is_some() {
-        format!(" Outline · {}", outline.location.title)
-    } else if root.parent.is_none() {
-        " Outline · Pages".into()
-    } else {
-        format!(" Outline · Today · {}", outline.date.format("%Y-%m-%d"))
-    };
-    let path = if outline.ancestors.is_empty() || outline.location.query.is_some() {
-        String::new()
-    } else {
-        format!("  ›  {}", outline.location.title)
-    };
-    f.render_widget(
-        Line::from(vec![
-            Span::styled(heading, accent),
-            Span::styled(path, text),
-        ]),
-        title,
-    );
+    if side {
+        f.render_widget(
+            Line::styled(format!(" {}", outline.heading(app.linux_console)), accent),
+            title,
+        );
+    }
     if let Some(prompt) = &mut outline.prompt {
         let [hint, input] =
             Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(body);
