@@ -16,6 +16,15 @@ use unicode_width::UnicodeWidthStr;
 pub const CELL_WIDTH: usize = 8;
 pub const CELL_HEIGHT: usize = 16;
 
+/// The three-cell view tile's left and right edges, including the due-dot variant.
+pub const TILE_LEFT: char = '\u{E100}';
+pub const TILE_RIGHT: char = '\u{E101}';
+pub const TILE_RIGHT_DUE: char = '\u{E102}';
+/// The view tile's middle cells, in W, r, O, S order.
+pub const TILE_LETTERS: [char; 4] = ['\u{E110}', '\u{E111}', '\u{E112}', '\u{E113}'];
+/// The power tile's middle cell.
+pub const TILE_POWER: char = '\u{E114}';
+
 static DATA: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/unifont.bin"));
 
 /// A glyph's bitmap: 16 rows, 8 or 16 pixels each.
@@ -275,6 +284,50 @@ mod tests {
                 let lit = p.rgb_pixmap.get_pixel(x, y) == [255, 255, 255];
                 assert_eq!(lit, a.pixel(x, y), "pixel {x},{y}");
             }
+        }
+    }
+
+    #[test]
+    fn tile_cells_have_their_frame() {
+        for c in TILE_LETTERS.into_iter().chain([TILE_POWER]) {
+            let tile = glyph(c).unwrap();
+            assert!(!tile.wide, "{c:?} must be one cell wide");
+            for y in [1, 14] {
+                assert_eq!(tile.rows[y], 0xFF, "{c:?}, row {y}");
+            }
+        }
+        for (c, letter) in TILE_LETTERS.into_iter().zip(['W', 'r', 'O', 'S']) {
+            let tile = glyph(c).unwrap();
+            let original = glyph(letter).unwrap();
+            assert!(!original.wide);
+            for y in (0..CELL_HEIGHT).filter(|&y| y != 1 && y != 14) {
+                assert_eq!(tile.rows[y], original.rows[y], "{c:?}, row {y}");
+            }
+        }
+
+        let left = glyph(TILE_LEFT).unwrap();
+        let right = glyph(TILE_RIGHT).unwrap();
+        let due = glyph(TILE_RIGHT_DUE).unwrap();
+        assert!(!left.wide && !right.wide && !due.wide);
+        for y in 0..CELL_HEIGHT {
+            let left_row = if y == 1 || y == 14 {
+                0x03
+            } else if (1..=14).contains(&y) {
+                0x02
+            } else {
+                0
+            };
+            let right_row = if y == 1 || y == 14 {
+                0xC0
+            } else if (1..=14).contains(&y) {
+                0x40
+            } else {
+                0
+            };
+            assert_eq!(left.rows[y], left_row, "left row {y}");
+            assert_eq!(right.rows[y], right_row, "right row {y}");
+            let dot = if y == 3 || y == 4 { 0x18 } else { 0 };
+            assert_eq!(due.rows[y], right.rows[y] | dot, "due row {y}");
         }
     }
 

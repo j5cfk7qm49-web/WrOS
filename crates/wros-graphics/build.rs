@@ -49,6 +49,21 @@ fn main() {
     for (cp, rows) in narrow_drawings(&narrow) {
         glyphs.insert(cp, rows);
     }
+    // The middle cells of the view tiles keep Unifont's own letters.
+    for (cp, letter) in (0xE110..=0xE113).zip(['W', 'r', 'O', 'S']) {
+        let mut rows = glyphs
+            .get(&(letter as u32))
+            .unwrap_or_else(|| panic!("Unifont tile letter {letter:?} is missing"))
+            .clone();
+        assert_eq!(
+            rows.len(),
+            16,
+            "Unifont tile letter {letter:?} is not one cell wide"
+        );
+        rows[1] = 0xFF;
+        rows[14] = 0xFF;
+        glyphs.insert(cp, rows);
+    }
 
     let mut index = Vec::with_capacity(glyphs.len() * 8);
     let mut blob = Vec::new();
