@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.0~rc29 · Catalogue search and waiting for the previous project's sync
+
+- Type `@` in an essay to search Open Library and Crossref as well as your
+  project and Library: title, author, ISBN or DOI. Press → on a book to see
+  its editions, or paste a web address to cite the page. The pick fills in
+  the source and its Works Cited entry. **Add a source** searches the same
+  way. Online search is on by default and can be turned off in
+  Settings › Writing › Manuscript; project and Library sources stay
+  available offline.
+- Exporting an MLA paper that cites a source picked from the Library works
+  again (rc27 and rc28 stopped with "Check the details for source …").
+- Restart, Shut down and Quit wait for the previous project's Drive sync
+  after a project switch, as they already did for the open project's.
+  Quit says which project is still syncing. If that sync ends with a
+  problem, WrOS says so once, and the project syncs again when you open it.
+
 ## 0.1.0~rc28 · Navigation, save and sync fixes
 
 - Switch between Write, Library, Brain and Review from View. Commands for
