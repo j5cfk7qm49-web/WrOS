@@ -117,8 +117,8 @@ The writing application runs as the writer. Ctrl+Alt+F2 opens the authenticated 
 
 The W r O S tiles switch between Write, read, Outline and Study. Click a tile,
 or press Super+1 through Super+4. From the menus, Left from File reaches the
-tiles. The ⏻ Power tile at the right holds Lock, Sleep, Restart… (Restart the
-computer in Ctrl-K) and Shut down…. Esc then W opens it. The power rows ask
+tiles. The ⏻ Power tile at the right holds Lock, Sleep,
+Restart… (Restart the computer in Ctrl-K) and Shut down…. Esc then W opens it. The power rows ask
 first, as they do in Settings › System › Battery and power. On a live USB it
 also offers Install WrOS to disk…. About WrOS is the last item in Help. Open
 File › Back up now to back up the open project to its configured destinations.
