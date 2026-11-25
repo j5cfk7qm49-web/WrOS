@@ -24,7 +24,9 @@ impl Lookup {
     pub(super) fn new(kind: Kind, input: &str) -> Result<Self> {
         let id = match kind {
             Kind::Doi => doi(input).context("Enter a DOI beginning with 10.")?,
-            Kind::Isbn => isbn(input).context("Enter an ISBN-10 or ISBN-13 with its check digit")?,
+            Kind::Isbn => {
+                isbn(input).context("Enter an ISBN-10 or ISBN-13 with its check digit")?
+            }
         };
         Ok(Self { kind, id })
     }

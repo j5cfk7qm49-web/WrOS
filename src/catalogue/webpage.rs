@@ -129,7 +129,8 @@ fn scan_head(mut html: &str) -> Head {
                 }
                 if name == "script"
                     && attribute(attributes, "type").is_some_and(|kind| {
-                        kind.trim_ascii().eq_ignore_ascii_case("application/ld+json")
+                        kind.trim_ascii()
+                            .eq_ignore_ascii_case("application/ld+json")
                     })
                     && let Ok(value) = serde_json::from_str::<Value>(text)
                 {
@@ -292,7 +293,10 @@ fn read_linked_data(details: &mut Details, value: &Value) {
 }
 
 fn text(value: &Value) -> Option<&str> {
-    value.as_str().map(str::trim).filter(|text| !text.is_empty())
+    value
+        .as_str()
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
 }
 
 fn author_name(name: &str) -> Value {
@@ -359,7 +363,9 @@ mod tests {
     }
 
     fn record(html: &str) -> Record {
-        page_record(URL, &fixture_head(html), today()).unwrap().record
+        page_record(URL, &fixture_head(html), today())
+            .unwrap()
+            .record
     }
 
     #[test]
@@ -408,7 +414,10 @@ mod tests {
         );
         assert_eq!(graph["title"], "Writing & Reading > Notes");
         assert_eq!(graph["container-title"], "The Site");
-        assert_eq!(record("<TITLE>Just a title</TITLE>")["title"], "Just a title");
+        assert_eq!(
+            record("<TITLE>Just a title</TITLE>")["title"],
+            "Just a title"
+        );
     }
 
     #[test]

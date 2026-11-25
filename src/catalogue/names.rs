@@ -9,7 +9,7 @@ use grimoire_core::atomic;
 use serde_json::{Value, json};
 
 use super::encode;
-use super::fetch::{Fetch, Kind, Request};
+use super::fetch::{Fetch, Kind, Request, Response};
 
 pub fn from_heading(heading: &str) -> Value {
     let heading = heading.trim();
@@ -36,27 +36,40 @@ fn is_date_suffix(dates: &str) -> bool {
 }
 
 pub fn by_rule(name: &str) -> Value {
+    // Particles stay with the family name whatever their case: "Le Guin", "van Beethoven".
     const PARTICLES: &[&str] = &["de", "van", "von", "wa", "da", "del", "le", "la"];
+    // A name with one of these words is an organisation, kept whole.
+    const ORGANISATION: &[&str] = &[
+        "inc",
+        "inc.",
+        "ltd",
+        "ltd.",
+        "llc",
+        "press",
+        "university",
+        "house",
+        "books",
+        "group",
+        "publishing",
+        "publishers",
+        "society",
+        "association",
+        "institute",
+        "company",
+    ];
 
     let name = name.trim();
+    let words: Vec<_> = name.split_whitespace().collect();
     if name.contains([',', '&'])
-        || name == "Penguin Random House"
-        || ["Inc", "Press", "University"]
-            .into_iter()
-            .any(|marker| name.contains(marker))
+        || words
+            .iter()
+            .any(|word| ORGANISATION.contains(&word.to_lowercase().as_str()))
     {
         return json!({"literal": name});
     }
 
-    let words: Vec<_> = name.split_whitespace().collect();
-    // Le Guin keeps the capitalized particle as part of the family name.
-    let family_words = if words.ends_with(&["Le", "Guin"]) {
-        2
-    } else {
-        1
-    };
-    let mut family_start = words.len().saturating_sub(family_words);
-    while family_start > 0 && PARTICLES.contains(&words[family_start - 1]) {
+    let mut family_start = words.len().saturating_sub(1);
+    while family_start > 1 && PARTICLES.contains(&words[family_start - 1].to_lowercase().as_str()) {
         family_start -= 1;
     }
     if family_start == 0 {
@@ -100,12 +113,15 @@ impl Names {
             return by_rule(as_written);
         }
 
+        // Only a name every lookup answered for is kept: one worked out while a site was
+        // unreachable is tried again next time.
+        let mut answered = true;
         let url = format!("https://openlibrary.org/authors/{author_key}.json");
-        let name = fetch_json(fetch, url)
+        let name = fetch_json(fetch, url, &mut answered)
             .and_then(|author| {
                 author["remote_ids"]["wikidata"]
                     .as_str()
-                    .and_then(|id| authority_name(fetch, id))
+                    .and_then(|id| authority_name(fetch, id, &mut answered))
                     .or_else(|| {
                         author["personal_name"]
                             .as_str()
@@ -115,8 +131,10 @@ impl Names {
             })
             .unwrap_or_else(|| by_rule(as_written));
 
-        self.cache.insert(author_key.to_owned(), name.clone());
-        let _ = self.save();
+        if answered {
+            self.cache.insert(author_key.to_owned(), name.clone());
+            let _ = self.save();
+        }
         name
     }
 
@@ -135,19 +153,28 @@ fn is_digits(id: &str) -> bool {
     !id.is_empty() && id.bytes().all(|byte| byte.is_ascii_digit())
 }
 
-fn fetch_json(fetch: &dyn Fetch, url: String) -> Option<Value> {
+/// A successful reply, if there was one. A site that couldn't be reached or answered with
+/// anything but success or 404 (a definite "no such record") clears `answered`.
+fn fetched(fetch: &dyn Fetch, request: Request, answered: &mut bool) -> Option<Response> {
+    match fetch.fetch(&request) {
+        Ok(reply) if (200..300).contains(&reply.status) => Some(reply),
+        Ok(reply) if reply.status == 404 => None,
+        _ => {
+            *answered = false;
+            None
+        }
+    }
+}
+
+fn fetch_json(fetch: &dyn Fetch, url: String, answered: &mut bool) -> Option<Value> {
     let request = Request {
         url,
         kind: Kind::Api,
     };
-    let reply = fetch.fetch(&request).ok()?;
-    if !(200..300).contains(&reply.status) {
-        return None;
-    }
-    serde_json::from_slice(&reply.body).ok()
+    serde_json::from_slice(&fetched(fetch, request, answered)?.body).ok()
 }
 
-fn authority_name(fetch: &dyn Fetch, wikidata: &str) -> Option<Value> {
+fn authority_name(fetch: &dyn Fetch, wikidata: &str, answered: &mut bool) -> Option<Value> {
     if !is_digits(wikidata.strip_prefix('Q')?) {
         return None;
     }
@@ -156,7 +183,7 @@ fn authority_name(fetch: &dyn Fetch, wikidata: &str) -> Option<Value> {
         "https://query.wikidata.org/sparql?format=json&query={}",
         encode(&query, true),
     );
-    let reply = fetch_json(fetch, url)?;
+    let reply = fetch_json(fetch, url, answered)?;
     let lc = reply["results"]["bindings"][0]["lc"]["value"].as_str()?;
     let digits = lc.trim_start_matches(|c: char| c.is_ascii_lowercase());
     if !lc.starts_with('n') || lc.len() - digits.len() > 3 || !is_digits(digits) {
@@ -168,11 +195,7 @@ fn authority_name(fetch: &dyn Fetch, wikidata: &str) -> Option<Value> {
         url,
         kind: Kind::Head,
     };
-    let reply = fetch.fetch(&request).ok()?;
-    if !(200..300).contains(&reply.status) {
-        return None;
-    }
-    reply
+    fetched(fetch, request, answered)?
         .headers
         .iter()
         .find_map(|(name, value)| {
@@ -216,6 +239,14 @@ mod tests {
             by_rule("Penguin Random House"),
             json!({"literal": "Penguin Random House"})
         );
+        assert_eq!(
+            by_rule("Charles de Gaulle"),
+            json!({"family": "de Gaulle", "given": "Charles"})
+        );
+        assert_eq!(
+            by_rule("Oxford University Press"),
+            json!({"literal": "Oxford University Press"})
+        );
     }
 
     #[test]
@@ -246,7 +277,12 @@ mod tests {
                 200,
                 r#"{"results":{"bindings":[{"lc":{"value":"n80131379"}}]}}"#,
             )
-            .reply_with_headers(loc, 200, &[("X-PrefLabel", "Morrison, Toni, 1931-2019")], "");
+            .reply_with_headers(
+                loc,
+                200,
+                &[("X-PrefLabel", "Morrison, Toni, 1931-2019")],
+                "",
+            );
         assert_eq!(
             names.resolve(&CheckHead(&fetch), "OL1A", "Toni Morrison"),
             json!({"family": "Morrison", "given": "Toni"})
@@ -283,6 +319,50 @@ mod tests {
     }
 
     #[test]
+    fn a_name_worked_out_while_offline_is_not_kept() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut names = Names::load(dir.path().join("catalogue-names.json"));
+        let offline = FixtureFetch::new();
+        assert_eq!(
+            names.resolve(&offline, "OL2A", "Simone de Beauvoir")["family"],
+            "de Beauvoir",
+            "the rule, while Open Library is unreachable"
+        );
+        // Open Library answers, but Wikidata is busy: still not kept.
+        let busy = FixtureFetch::new()
+            .reply(
+                "https://openlibrary.org/authors/OL2A.json",
+                200,
+                r#"{"remote_ids":{"wikidata":"Q7197"},"personal_name":"Beauvoir, Simone de"}"#,
+            )
+            .reply("https://query.wikidata.org/", 429, "");
+        assert_eq!(
+            names.resolve(&busy, "OL2A", "Simone de Beauvoir")["family"],
+            "Beauvoir"
+        );
+        let online = FixtureFetch::new().reply(
+            "https://openlibrary.org/authors/OL2A.json",
+            200,
+            r#"{"personal_name":"Beauvoir, Simone de"}"#,
+        );
+        assert_eq!(
+            names.resolve(&online, "OL2A", "Simone de Beauvoir")["family"],
+            "Beauvoir"
+        );
+        assert_eq!(
+            online.requests().len(),
+            1,
+            "asked again: nothing was kept before"
+        );
+        let later = FixtureFetch::new();
+        names.resolve(&later, "OL2A", "Simone de Beauvoir");
+        assert!(
+            later.requests().is_empty(),
+            "kept once every lookup answered"
+        );
+    }
+
+    #[test]
     fn resolved_names_are_cached_on_disk() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("grimoire").join("catalogue-names.json");
@@ -294,13 +374,22 @@ mod tests {
         );
         let mut names = Names::load(path.clone());
         let expected = json!({"family": "Beauvoir", "given": "Simone de"});
-        assert_eq!(names.resolve(&fetch, "OL2A", "Simone de Beauvoir"), expected);
-        assert_eq!(names.resolve(&fetch, "OL2A", "Simone de Beauvoir"), expected);
+        assert_eq!(
+            names.resolve(&fetch, "OL2A", "Simone de Beauvoir"),
+            expected
+        );
+        assert_eq!(
+            names.resolve(&fetch, "OL2A", "Simone de Beauvoir"),
+            expected
+        );
         assert_eq!(fetch.requests(), vec![openlibrary.to_owned()]);
 
         let mut reopened = Names::load(path);
         let offline = FixtureFetch::new();
-        assert_eq!(reopened.resolve(&offline, "OL2A", "Simone de Beauvoir"), expected);
+        assert_eq!(
+            reopened.resolve(&offline, "OL2A", "Simone de Beauvoir"),
+            expected
+        );
         assert!(offline.requests().is_empty());
     }
 }

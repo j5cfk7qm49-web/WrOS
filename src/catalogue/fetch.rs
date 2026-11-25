@@ -86,7 +86,11 @@ impl Fetch for HttpFetch {
                 })
                 .collect();
             let body = match request.kind {
-                Kind::Api => reply.body_mut().with_config().limit(API_CAP).read_to_vec()?,
+                Kind::Api => reply
+                    .body_mut()
+                    .with_config()
+                    .limit(API_CAP)
+                    .read_to_vec()?,
                 Kind::Page => read_page_head(reply.body_mut().as_reader())?,
                 Kind::Head => Vec::new(),
             };

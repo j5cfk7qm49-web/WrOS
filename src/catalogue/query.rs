@@ -10,9 +10,8 @@ pub enum Query {
 
 pub fn classify(line: &str) -> Option<Query> {
     let line = line.trim();
-    if line.chars().filter(|c| !c.is_whitespace()).nth(2).is_none() {
-        return None;
-    }
+    // Fewer than 3 characters (spaces aside) is not a search yet.
+    line.chars().filter(|c| !c.is_whitespace()).nth(2)?;
     if let Some(id) = isbn(line) {
         return Some(Query::Isbn(id));
     }

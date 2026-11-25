@@ -461,18 +461,27 @@ impl Job {
         let hits = match self {
             Self::Books(text) => openlibrary::parse_search(&json(openlibrary::search_url(&text))?),
             Self::Articles(text) => crossref::parse_search(&json(crossref::search_url(&text))?),
-            Self::Isbn(isbn) => openlibrary::parse_isbn(&json(openlibrary::isbn_url(&isbn))?, &isbn)
-                .into_iter()
-                .collect(),
+            Self::Isbn(isbn) => {
+                openlibrary::parse_isbn(&json(openlibrary::isbn_url(&isbn))?, &isbn)
+                    .into_iter()
+                    .collect()
+            }
             Self::Doi(doi) => crossref::parse_doi(&json(crossref::doi_url(&doi))?, &doi)
                 .into_iter()
                 .collect(),
             Self::Page(url) => {
                 let body = fetch_body(fetch, url.clone(), Kind::Page)?;
-                vec![webpage::page_record(&url, &body, chrono::Local::now().date_naive())?]
+                vec![webpage::page_record(
+                    &url,
+                    &body,
+                    chrono::Local::now().date_naive(),
+                )?]
             }
             Self::Editions(work, offset) => {
-                let id = work.work.as_deref().context("The book has no work identifier")?;
+                let id = work
+                    .work
+                    .as_deref()
+                    .context("The book has no work identifier")?;
                 let (hits, more) = openlibrary::parse_editions(
                     &json(openlibrary::editions_url(id, offset))?,
                     &work,
@@ -487,7 +496,10 @@ impl Job {
 fn fetch_body(fetch: &dyn Fetch, url: String, kind: Kind) -> anyhow::Result<Vec<u8>> {
     let response = fetch.fetch(&Request { url, kind })?;
     let status = response.status;
-    ensure!((200..300).contains(&status), "The catalogue returned HTTP {status}");
+    ensure!(
+        (200..300).contains(&status),
+        "The catalogue returned HTTP {status}"
+    );
     Ok(response.body)
 }
 
@@ -499,7 +511,9 @@ fn search_error(error: anyhow::Error) -> SearchStatus {
             .any(|cause| match cause.downcast_ref::<ureq::Error>() {
                 Some(ureq::Error::HostNotFound | ureq::Error::ConnectionFailed) => true,
                 Some(ureq::Error::Io(error)) => connection_error(error),
-                _ => cause.downcast_ref::<io::Error>().is_some_and(connection_error),
+                _ => cause
+                    .downcast_ref::<io::Error>()
+                    .is_some_and(connection_error),
             })
     {
         SearchStatus::Offline
@@ -637,7 +651,11 @@ mod tests {
         });
 
         assert_eq!(search.hits().len(), 1);
-        assert!(fetch.requests().contains(&openlibrary::search_url("dune messiah")));
+        assert!(
+            fetch
+                .requests()
+                .contains(&openlibrary::search_url("dune messiah"))
+        );
     }
 
     #[test]
@@ -727,7 +745,11 @@ mod tests {
                     200,
                     r#"{"entries":[{"title":"Dune"}],"links":{"next":"?limit=50&offset=50"}}"#,
                 )
-                .reply(&second_page, 200, r#"{"entries":[{"title":"Dune, second edition"}]}"#),
+                .reply(
+                    &second_page,
+                    200,
+                    r#"{"entries":[{"title":"Dune, second edition"}]}"#,
+                ),
         );
         let mut search = Search::new(fetch.clone(), true);
         let t = Instant::now();

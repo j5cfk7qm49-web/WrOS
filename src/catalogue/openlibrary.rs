@@ -30,7 +30,9 @@ pub fn parse_search(reply: &Value) -> Vec<Hit> {
             put_names(&mut record, "author", &doc["author_name"], nonempty);
             let work = text(&doc["key"]).and_then(|key| ol_id(key, 'W'));
             let edition = text(&edition["key"]).and_then(|key| ol_id(key, 'M'));
-            let editions = doc["edition_count"].as_u64().and_then(|n| n.try_into().ok());
+            let editions = doc["edition_count"]
+                .as_u64()
+                .and_then(|n| n.try_into().ok());
             let authors = author_ids(&doc["author_key"], nonempty);
             Some(book_hit(record, work, edition, editions, authors))
         })
@@ -87,10 +89,14 @@ pub fn parse_isbn(reply: &Value, isbn: &str) -> Option<Hit> {
         nonempty(&author["name"])
     });
     let work = text(&book["works"][0]["key"]).and_then(|key| ol_id(key, 'W'));
-    let edition = [&book["key"], &book["identifiers"]["openlibrary"], &book["url"]]
-        .into_iter()
-        .filter_map(text)
-        .find_map(|key| ol_id(key, 'M'));
+    let edition = [
+        &book["key"],
+        &book["identifiers"]["openlibrary"],
+        &book["url"],
+    ]
+    .into_iter()
+    .filter_map(text)
+    .find_map(|key| ol_id(key, 'M'));
     let authors = author_ids(&book["authors"], |author| {
         text(&author["key"]).or_else(|| text(&author["url"]))
     });
@@ -168,27 +174,33 @@ fn book_record(book: &Value, title: &str) -> Record {
 
 fn translated_by(statement: &str) -> Option<&str> {
     let lower = statement.to_ascii_lowercase();
-    lower.match_indices("translated ").find_map(|(start, marker)| {
-        let mut rest = &lower[start + marker.len()..];
-        if let Some(from) = rest.strip_prefix("from the ") {
-            let (language, after_language) = from.split_once(' ')?;
-            if language.is_empty() || !language.chars().all(|c| c.is_alphanumeric() || c == '_') {
-                return None;
+    lower
+        .match_indices("translated ")
+        .find_map(|(start, marker)| {
+            let mut rest = &lower[start + marker.len()..];
+            if let Some(from) = rest.strip_prefix("from the ") {
+                let (language, after_language) = from.split_once(' ')?;
+                if language.is_empty() || !language.chars().all(|c| c.is_alphanumeric() || c == '_')
+                {
+                    return None;
+                }
+                rest = after_language;
             }
-            rest = after_language;
-        }
-        let name = rest.strip_prefix("by ")?;
-        let original = &statement[statement.len() - name.len()..];
-        original
-            .split(['.', ';'])
-            .next()
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
-    })
+            let name = rest.strip_prefix("by ")?;
+            let original = &statement[statement.len() - name.len()..];
+            original
+                .split(['.', ';'])
+                .next()
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+        })
 }
 
 fn nonempty(value: &Value) -> Option<&str> {
-    value.as_str().map(str::trim).filter(|text| !text.is_empty())
+    value
+        .as_str()
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
 }
 
 fn text(value: &Value) -> Option<&str> {
