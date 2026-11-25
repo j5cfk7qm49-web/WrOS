@@ -9743,6 +9743,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wros-media-key"
+version = "0.1.0"
+dependencies = [
+ "alsa",
+ "libc",
+ "tempfile",
+]
+
+[[package]]
 name = "wros-shell"
 version = "0.1.0"
 dependencies = [
