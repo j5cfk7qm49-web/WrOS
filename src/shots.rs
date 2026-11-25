@@ -389,7 +389,9 @@ fn owner_preview() {
     let cache = fixture.path().join("cache");
     {
         let mut store = PagedBrain::open_library(&library, &cache).unwrap();
-        let today = store.ensure_today(chrono::Local::now().date_naive()).unwrap();
+        let today = store
+            .ensure_today(chrono::Local::now().date_naive())
+            .unwrap();
         store
             .create_note_with_text(
                 Place {

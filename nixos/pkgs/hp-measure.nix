@@ -4,7 +4,7 @@ let
   recipe = src + "/tools/hp-measure";
   pdfium = pkgs.pdfium-binaries;
   poppler = pkgs.poppler-utils;
-  tesseract = pkgs.tesseract5.override { enableLanguages = [ "chi_sim" "chi_sim_vert" ]; };
+  tesseract = pkgs.tesseract5.override { enableLanguages = [ "eng" "chi_sim" "chi_sim_vert" ]; };
   jbig2 = pkgs.jbig2enc or null;
   python = pkgs.python3.withPackages (ps: [ ps.pillow ]);
 
