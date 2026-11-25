@@ -4,6 +4,7 @@ mod app;
 mod backup_service;
 mod battery;
 mod books;
+mod catalogue;
 #[cfg(all(target_os = "linux", feature = "compositor-warmth"))]
 mod compositor_warmth;
 #[cfg(target_os = "linux")]
