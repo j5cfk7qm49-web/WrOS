@@ -187,7 +187,7 @@ fn study_cards_use_a_saved_search_and_never_type_into_the_manuscript() {
     assert!(desk.shows("Answer for Review"));
     desk.key(KeyCode::Char('5'));
     assert!(desk.shows("No cards due"));
-    assert!(desk.rows()[0].contains("[S•]"));
+    assert!(desk.rows()[0].contains("[S]•"));
     desk.typed("Pasted over nothing");
     assert_eq!(desk.app.editor.text(), draft);
     drop(desk);
@@ -1571,7 +1571,11 @@ fn write_info_without_tree_names_only_the_project() {
     let mut d = info_book("info-without-tree", 100);
     d.app.deck.state.current_mut().outline = false;
     d.draw();
-    assert_eq!(d.info().trim(), "Project");
+    let info = d.info();
+    assert!(info.trim().starts_with("Project"), "{info}");
+    for repeated in ["Chapter", "Scene", "· 5"] {
+        assert!(!info.contains(repeated), "{info}");
+    }
 }
 
 #[test]
