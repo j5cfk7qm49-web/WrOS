@@ -5904,7 +5904,10 @@ impl App {
             ("Manuscript look…".into(), Action::ManuscriptLook),
             ("Author details…".into(), Action::AuthorDetails),
             (
-                "Search catalogues online from @ and Add a source".into(),
+                format!(
+                    "Search catalogues online from @ and Add a source · {}",
+                    if self.catalogue_on { "on" } else { "off" }
+                ),
                 Action::CatalogueSearch,
             ),
         ]

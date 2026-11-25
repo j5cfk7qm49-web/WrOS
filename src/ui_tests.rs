@@ -352,7 +352,10 @@ fn brain_at_links_a_catalogue_book_with_no_page_step() {
     let library = folder.path().join("Brain");
     let cache = folder.path().join("cache");
     let mut store = PagedBrain::open_library(&library, &cache).unwrap();
-    let (edition, _) = store.find_editions("The Dispossessed", 1).unwrap().remove(0);
+    let (edition, _) = store
+        .find_editions("The Dispossessed", 1)
+        .unwrap()
+        .remove(0);
     let today = NodeId::Today(chrono::Local::now().date_naive());
     let row = store.children(Some(today), 0, 10).unwrap().remove(0);
     assert!(row.body.contains("[The Dispossessed](brain:"));
@@ -373,7 +376,10 @@ fn library_at_adds_a_catalogue_edition() {
     poll_catalogue(&mut desk, |desk| desk.shows("Library · The Dispossessed"));
     assert!(desk.shows("› Edition · The Dispossessed"));
     let store = desk.app.library_store_if_present().unwrap().unwrap();
-    let (_, edition) = store.find_editions("The Dispossessed", 1).unwrap().remove(0);
+    let (_, edition) = store
+        .find_editions("The Dispossessed", 1)
+        .unwrap()
+        .remove(0);
     assert_eq!(edition.bibliography["author"][0]["family"], "Le Guin");
     assert_eq!(desk.app.editor.text(), draft);
     let project = sources::Snapshot::open(&desk.root).unwrap();
@@ -500,7 +506,12 @@ fn picking_a_catalogue_book_shows_its_works_cited_line_then_cites_with_a_page() 
     poll_catalogue(&mut desk, |desk| desk.shows(SOLITUDE_TITLE));
     desk.key(KeyCode::Enter);
     poll_catalogue(&mut desk, |desk| desk.shows(SOLITUDE_LINE));
-    assert!(fetch.requests().iter().any(|url| url.contains("id.loc.gov")));
+    assert!(
+        fetch
+            .requests()
+            .iter()
+            .any(|url| url.contains("id.loc.gov"))
+    );
     desk.typed("194");
     desk.key(KeyCode::Enter);
     let project = sources::Snapshot::open(&desk.root).unwrap();
@@ -547,7 +558,9 @@ fn the_editions_list_scrolls_and_loads_more() {
     desk.key(KeyCode::Right);
     poll_catalogue(&mut desk, |desk| desk.shows("Crime e Castigo"));
     let rows = desk.rows();
-    let english = rows.iter().position(|row| row.contains("Penguin Books 1998"));
+    let english = rows
+        .iter()
+        .position(|row| row.contains("Penguin Books 1998"));
     let german = rows.iter().position(|row| row.contains("Schuld und Sühne"));
     assert!(english.unwrap() < german.unwrap());
     assert!(fetch.requests().contains(&first_url));
@@ -639,7 +652,9 @@ fn offline_shows_one_quiet_line() {
 
     let (mut desk, _folder, fetch) = catalogue_writer("catalogue-offline", FixtureFetch::new());
     desk.typed("@dune");
-    poll_catalogue(&mut desk, |desk| desk.shows("Offline: showing local sources"));
+    poll_catalogue(&mut desk, |desk| {
+        desk.shows("Offline: showing local sources")
+    });
     let screen = desk.rows().join("\n");
     assert_eq!(screen.matches("Offline: showing local sources").count(), 1);
     assert_eq!(fetch.requests().len(), 2);
@@ -685,7 +700,10 @@ fn add_a_source_fills_from_a_search_and_saves_the_corrected_version() {
         link.identity.edition_id,
         grimoire_brain::model::NodeId::Note(edition.edition).external_id()
     );
-    assert_eq!(metadata.bibliography["publisher"], "Harper Perennial Classics");
+    assert_eq!(
+        metadata.bibliography["publisher"],
+        "Harper Perennial Classics"
+    );
     assert!(!desk.app.review_library_changes(false));
 }
 

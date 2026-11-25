@@ -31,12 +31,18 @@ mod tests {
 
     #[test]
     fn library_lookups_send_only_the_identifier_to_the_expected_host() {
-        let doi = Kind::Doi.identifier("https://doi.org/10.1000/a?b#c").unwrap();
+        let doi = Kind::Doi
+            .identifier("https://doi.org/10.1000/a?b#c")
+            .unwrap();
         assert_eq!(
             crossref::doi_url(&doi),
             "https://api.crossref.org/works/10.1000%2Fa%3Fb%23c"
         );
-        assert!(Kind::Doi.identifier("https://example.org/10.1000/a").is_err());
+        assert!(
+            Kind::Doi
+                .identifier("https://example.org/10.1000/a")
+                .is_err()
+        );
         let isbn = Kind::Isbn.identifier("978-0-14-032872-1").unwrap();
         assert!(openlibrary::isbn_url(&isbn).contains("ISBN%3A9780140328721"));
         assert!(Kind::Isbn.identifier("978-0-14-032872-2").is_err());

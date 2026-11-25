@@ -181,11 +181,7 @@ impl LibraryDesk {
             return;
         }
         if let Some((_, editor)) = &mut self.prompt {
-            let edited = if redo {
-                editor.redo()
-            } else {
-                editor.undo()
-            };
+            let edited = if redo { editor.redo() } else { editor.undo() };
             if edited {
                 self.catalogue_edited(false);
             }
@@ -308,7 +304,10 @@ impl LibraryDesk {
         let Some((Input::Catalogue(kind), editor)) = &self.prompt else {
             return Ok(None);
         };
-        let catalogue = self.catalogue.as_mut().expect("the Library catalogue search");
+        let catalogue = self
+            .catalogue
+            .as_mut()
+            .expect("the Library catalogue search");
         let in_editions = catalogue.search.editions().is_some();
         let now = Instant::now();
         let (hits, selected) = catalogue.hits();
@@ -713,7 +712,9 @@ fn resolve_open_library_names(mut hit: Hit, fetch: &dyn Fetch, path: PathBuf) ->
     // A picker can be closed while its worker is running. Serialize authority lookups
     // and cache writes so the next picker can reuse any names the first one resolved.
     static CACHE: Mutex<()> = Mutex::new(());
-    let _cache_guard = CACHE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _cache_guard = CACHE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut names = names::Names::load(path);
     if let Some(authors) = hit.record.get_mut("author").and_then(Value::as_array_mut) {
         // The mapper drops missing author IDs and names independently.
@@ -728,7 +729,11 @@ fn resolve_open_library_names(mut hit: Hit, fetch: &dyn Fetch, path: PathBuf) ->
             }
         }
     }
-    if let Some(translators) = hit.record.get_mut("translator").and_then(Value::as_array_mut) {
+    if let Some(translators) = hit
+        .record
+        .get_mut("translator")
+        .and_then(Value::as_array_mut)
+    {
         for name in translators {
             if let Some(written) = name["literal"].as_str() {
                 *name = names::by_rule(written);
@@ -748,8 +753,7 @@ pub(crate) fn keep_in_library(
         .find_editions(edition.title(), 32)
         .map_err(anyhow::Error::msg)?;
     if let Some((key, _)) = candidates.iter().find(|(_, existing)| {
-        sources::library_fingerprint(&existing.bibliography)
-            .is_ok_and(|found| found == fingerprint)
+        sources::library_fingerprint(&existing.bibliography).is_ok_and(|found| found == fingerprint)
     }) {
         return Ok(*key);
     }
@@ -1143,7 +1147,10 @@ mod tests {
         let second = keep_in_library(&mut store, &vintage).unwrap();
         assert_eq!(first.work, second.work);
         assert_ne!(first.edition, second.edition);
-        assert_eq!(store.edition(second).unwrap().unwrap().bibliography, vintage);
+        assert_eq!(
+            store.edition(second).unwrap().unwrap().bibliography,
+            vintage
+        );
 
         assert_eq!(keep_in_library(&mut store, &penguin).unwrap(), first);
         let other = record("Vintage", 1998, "OL1W");

@@ -56,7 +56,9 @@ pub fn render(sources: &Sources, groups: &[Vec<Cite<'_>>]) -> Result<PaperCitati
             .get(cite.key)
             .with_context(|| format!("No project source uses the key {}.", cite.key))?
             .clone();
-        data.remove("_wros");
+        // WrOS's own bookkeeping isn't citation data, and the CSL reader rejects object
+        // values: `_wros`, and `x-` fields such as `x-wros-library` and `x-wros-catalogue`.
+        data.retain(|field, _| field != "_wros" && !field.starts_with("x-"));
         let item: Item = serde_json::from_value(serde_json::Value::Object(data))
             .with_context(|| format!("Check the details for source {}.", cite.key))?;
         records.insert(cite.key, item);
@@ -179,6 +181,42 @@ fn flatten(children: &[ElemChild], omit_names: bool, runs: &mut Vec<Formatted>) 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_catalogue_record_has_a_works_cited_line() {
+        let record = serde_json::json!({
+            "type": "book",
+            "title": "One Hundred Years of Solitude",
+            "author": [{"family": "García Márquez", "given": "Gabriel"}],
+            "publisher": "Harper Perennial",
+            "issued": {"date-parts": [[2006]]},
+            "x-wros-catalogue": {"openlibrary_work": "OL2W", "openlibrary_edition": "OL2M"},
+        });
+        let line = works_cited_line(record.as_object().unwrap()).unwrap();
+        assert!(
+            line.starts_with("García Márquez, Gabriel. One Hundred Years of Solitude."),
+            "{line}"
+        );
+    }
+
+    #[test]
+    fn a_library_pick_still_renders_in_a_paper() {
+        // rc27's @ writes Library provenance into sources.json as an object.
+        let sources = Sources::parse(
+            r#"[{"id":"gardens","type":"book","title":"A History of Gardens",
+                "author":[{"family":"Kim","given":"Ana"}],"issued":{"date-parts":[[2019]]},
+                "x-wros-library":{"version":1,"identity":{"work_id":"w","edition_id":"e"},
+                    "fingerprint":"f"}}]"#,
+        )
+        .unwrap();
+        let cite = Cite {
+            key: "gardens",
+            page: Some("12"),
+            suppress_author: false,
+        };
+        let rendered = render(&sources, &[vec![cite]]).unwrap();
+        assert_eq!(rendered.works_cited.len(), 1);
+    }
 
     #[test]
     fn baron_mla_fixtures_produce_pages_and_a_styled_works_cited() {

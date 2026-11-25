@@ -461,8 +461,20 @@ fn the_manuscript_page_turns_catalogue_search_off() {
     desk.choose("Writing");
     desk.choose("Manuscript");
     assert_eq!(desk.app.deck.shell.nav.current(), Route::WritingManuscript);
+    assert!(
+        desk.rows()
+            .iter()
+            .any(|r| r.contains("Search catalogues online from @ and Add a source · on"))
+    );
     desk.choose("Search catalogues online from @ and Add a source");
     assert!(!desk.app.catalogue_on);
+    desk.draw();
+    assert!(
+        desk.rows()
+            .iter()
+            .any(|r| r.contains("Search catalogues online from @ and Add a source · off")),
+        "the row says the setting is off now"
+    );
     assert!(!Settings::load().catalogue_search);
     assert_eq!(
         desk.app.new_catalogue_search().status(),

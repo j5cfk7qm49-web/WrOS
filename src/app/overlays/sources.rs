@@ -431,14 +431,16 @@ impl App {
     }
 
     fn on_catalogue_pick(&mut self, dialog: &mut SourceDialog, hit: Hit) -> bool {
-        let result = CataloguePick::start(hit, &self.catalogue_fetch, &dialog.book)
-            .and_then(|pick| match pick {
-                CataloguePick::Ready(record) => self.finish_catalogue_pick(dialog, record),
-                CataloguePick::Resolving(receiver) => {
-                    let catalogue = dialog.catalogue.as_ref().expect("a catalogue pick");
-                    catalogue.0.borrow_mut().resolving = Some(receiver);
-                    dialog.notice.clear();
-                    Ok(false)
+        let result =
+            CataloguePick::start(hit, &self.catalogue_fetch, &dialog.book).and_then(|pick| {
+                match pick {
+                    CataloguePick::Ready(record) => self.finish_catalogue_pick(dialog, record),
+                    CataloguePick::Resolving(receiver) => {
+                        let catalogue = dialog.catalogue.as_ref().expect("a catalogue pick");
+                        catalogue.0.borrow_mut().resolving = Some(receiver);
+                        dialog.notice.clear();
+                        Ok(false)
+                    }
                 }
             });
         match result {
@@ -464,7 +466,13 @@ impl App {
             self.write_brain_reference(target, Some((edition, text(&record, "title").to_owned())))?;
             return Ok(true);
         }
-        if matches!(dialog.page, Page::Form { original_key: None, .. }) {
+        if matches!(
+            dialog.page,
+            Page::Form {
+                original_key: None,
+                ..
+            }
+        ) {
             dialog.close_catalogue_editions();
             dialog.page = form(Some(("", &record)));
             dialog.query.clear();
@@ -1095,8 +1103,9 @@ impl App {
                     *kind = TYPES[next].1.to_owned();
                 }
                 Key::Enter => {
-                    if let Some(Page::Pick { chosen: Some(cite), .. }) =
-                        dialog.editing_citation.as_deref_mut()
+                    if let Some(Page::Pick {
+                        chosen: Some(cite), ..
+                    }) = dialog.editing_citation.as_deref_mut()
                     {
                         let prior = cite.record(dialog.snapshot.as_ref());
                         let result = form_record(prior, kind, fields);
@@ -1126,10 +1135,10 @@ impl App {
                         if let Some(key) = original_key {
                             next.sources.update(key, record)?;
                         } else {
-                            let key = record.get("id").and_then(Value::as_str).map_or_else(
-                                || next.sources.suggested_key(&record),
-                                str::to_owned,
-                            );
+                            let key = record
+                                .get("id")
+                                .and_then(Value::as_str)
+                                .map_or_else(|| next.sources.suggested_key(&record), str::to_owned);
                             record.insert("id".into(), Value::String(key.clone()));
                             next.sources.add(record)?;
                             if catalogue_record.is_some()
@@ -1215,7 +1224,9 @@ impl App {
             },
         }
         if edit_citation
-            && let Page::Pick { chosen: Some(cite), .. } = &dialog.page
+            && let Page::Pick {
+                chosen: Some(cite), ..
+            } = &dialog.page
             && let Some(record) = cite.record(dialog.snapshot.as_ref())
         {
             let page = form(Some((&cite.key, record)));
@@ -1307,7 +1318,9 @@ impl SourceDialog {
         let catalogue = self.catalogue.as_ref()?;
         let local_count = match self.page {
             Page::Pick { chosen: None, .. } | Page::BrainPick(_) => self.matches().len(),
-            Page::Form { original_key: None, .. } => 0,
+            Page::Form {
+                original_key: None, ..
+            } => 0,
             _ => return None,
         };
         let mut catalogue = catalogue.0.borrow_mut();
@@ -1548,12 +1561,18 @@ fn form(existing: Option<(&str, &sources::Record)>) -> Page {
     Page::Form {
         original_key: (!key.is_empty()).then(|| key.to_owned()),
         catalogue_record: record.filter(|_| key.is_empty()).cloned(),
-        kind: record.map_or(TYPES[0].1, |record| text(record, "type")).to_owned(),
+        kind: record
+            .map_or(TYPES[0].1, |record| text(record, "type"))
+            .to_owned(),
         fields: FIELDS
             .iter()
             .map(|(_, key)| field_value(record, key))
             .collect(),
-        field: if record.is_some() { FORM_TYPE } else { FORM_SEARCH },
+        field: if record.is_some() {
+            FORM_TYPE
+        } else {
+            FORM_SEARCH
+        },
     }
 }
 
@@ -1642,8 +1661,7 @@ pub(in crate::app) fn catalogue_row(hit: &Hit, width: usize) -> String {
         .map(|part| part.chars().count())
         .sum::<usize>();
     if !isbn.is_empty()
-        && details + end.chars().count() + edition_count.chars().count() + isbn.len() + 9
-            <= width
+        && details + end.chars().count() + edition_count.chars().count() + isbn.len() + 9 <= width
     {
         end.push(' ');
         end.push_str(isbn);
@@ -1715,7 +1733,10 @@ fn draw_editions(
     let mut lines = vec![
         catalogue_header(&catalogue),
         Line::styled(
-            truncate(&format!("Editions · {}", text(&work.record, "title")), width),
+            truncate(
+                &format!("Editions · {}", text(&work.record, "title")),
+                width,
+            ),
             active,
         ),
     ];
@@ -2008,7 +2029,9 @@ pub(super) fn draw(f: &mut Frame, dialog: &SourceDialog, area: Rect, t: &Theme) 
         } => {
             let searching = *field == FORM_SEARCH;
             let width = usize::from(inner.width);
-            if original_key.is_none() && let Some(catalogue) = &dialog.catalogue {
+            if original_key.is_none()
+                && let Some(catalogue) = &dialog.catalogue
+            {
                 let catalogue = catalogue.0.borrow();
                 lines.push(Line::styled(
                     truncate(&format!("Search [{}]", dialog.query), width),
