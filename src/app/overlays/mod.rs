@@ -50,6 +50,7 @@ pub(crate) use help::lay_out as help_lay_out;
 #[cfg(test)]
 pub(crate) use menu::about_row;
 pub use sources::SourceDialog;
+pub(super) use sources::catalogue_row;
 
 impl App {
     /// A key while an overlay is up goes to that overlay alone.

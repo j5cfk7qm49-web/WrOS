@@ -310,6 +310,124 @@ const SOLITUDE_TITLE: &str = "One Hundred Years of Solitude";
 const SOLITUDE_LINE: &str = "García Márquez, Gabriel. One Hundred Years of Solitude.";
 const CROSSREF_EMPTY: &str = r#"{"message":{"items":[]}}"#;
 
+fn dispossessed_fixture() -> crate::catalogue::fetch::FixtureFetch {
+    use crate::catalogue::{fetch::FixtureFetch, openlibrary};
+
+    FixtureFetch::new()
+        .reply(
+            &openlibrary::search_url("dispossessed"),
+            200,
+            r#"{"docs":[{
+                "key":"/works/OL3W","title":"The Dispossessed",
+                "author_name":["Ursula K. Le Guin"],"author_key":["OL3A"],
+                "editions":{"docs":[{"key":"/books/OL3M","title":"The Dispossessed",
+                    "publisher":["Harper & Row"],"publish_date":["1974"]}]}
+            }]}"#,
+        )
+        .reply("https://api.crossref.org/works?", 200, CROSSREF_EMPTY)
+        .reply(
+            "https://openlibrary.org/authors/OL3A.json",
+            200,
+            r#"{"personal_name":"Le Guin, Ursula K."}"#,
+        )
+}
+
+#[test]
+fn brain_at_links_a_catalogue_book_with_no_page_step() {
+    use grimoire_brain::bounded_store::PagedBrain;
+    use grimoire_brain::model::NodeId;
+
+    let (mut desk, folder, _) = catalogue_writer("brain-at-catalogue", dispossessed_fixture());
+    desk.press(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::SUPER));
+    desk.key(KeyCode::Char('n'));
+    desk.typed("@dispossessed");
+    assert!(desk.shows("Catalogue · online search on"));
+    poll_catalogue(&mut desk, |desk| desk.shows("The Dispossessed"));
+    desk.key(KeyCode::Enter);
+    poll_catalogue(&mut desk, |desk| desk.app.overlay == Overlay::None);
+    assert!(!desk.shows("Page ["));
+    desk.key(KeyCode::Enter);
+    drop(desk);
+
+    let library = folder.path().join("Brain");
+    let cache = folder.path().join("cache");
+    let mut store = PagedBrain::open_library(&library, &cache).unwrap();
+    let (edition, _) = store.find_editions("The Dispossessed", 1).unwrap().remove(0);
+    let today = NodeId::Today(chrono::Local::now().date_naive());
+    let row = store.children(Some(today), 0, 10).unwrap().remove(0);
+    assert!(row.body.contains("[The Dispossessed](brain:"));
+    assert_eq!(store.details(row.id).unwrap().links, [edition.work]);
+}
+
+#[test]
+fn library_at_adds_a_catalogue_edition() {
+    use grimoire_core::sources;
+
+    let (mut desk, _folder, _) = catalogue_writer("library-at-catalogue", dispossessed_fixture());
+    let draft = desk.app.editor.text();
+    desk.menu(&["Tools", "Notes", "Library"]);
+    desk.typed("@dispossessed");
+    assert!(desk.shows("Search Open Library and Crossref · ISBN, DOI, title or author"));
+    poll_catalogue(&mut desk, |desk| desk.shows("The Dispossessed"));
+    desk.key(KeyCode::Enter);
+    poll_catalogue(&mut desk, |desk| desk.shows("Library · The Dispossessed"));
+    assert!(desk.shows("› Edition · The Dispossessed"));
+    let store = desk.app.library_store_if_present().unwrap().unwrap();
+    let (_, edition) = store.find_editions("The Dispossessed", 1).unwrap().remove(0);
+    assert_eq!(edition.bibliography["author"][0]["family"], "Le Guin");
+    assert_eq!(desk.app.editor.text(), draft);
+    let project = sources::Snapshot::open(&desk.root).unwrap();
+    assert!(project.sources.iter().next().is_none());
+}
+
+#[test]
+fn library_d_and_l_still_work_with_online_search_off() {
+    use crate::catalogue::{crossref, fetch::FixtureFetch, openlibrary};
+
+    let isbn_url = openlibrary::isbn_url("9780140328721");
+    let doi_url = crossref::doi_url("10.2307/40149212");
+    let fixture = FixtureFetch::new()
+        .reply(
+            &isbn_url,
+            200,
+            r#"{"ISBN:9780140328721":{"title":"Fantastic Mr. Fox",
+                "works":[{"key":"/works/OL4W"}],
+                "authors":[{"name":"Roald Dahl","key":"/authors/OL4A"}]}}"#,
+        )
+        .reply(
+            &doi_url,
+            200,
+            r#"{"message":{"type":"journal-article","title":["Article"]}}"#,
+        );
+    let (mut desk, _folder, fetch) = catalogue_writer("library-exact-off", fixture);
+    desk.app.catalogue_on = false;
+    desk.menu(&["Tools", "Notes", "Library"]);
+    desk.key(KeyCode::Char('@'));
+    assert!(desk.shows("Online search is off · Settings › Writing › Manuscript"));
+    desk.typed("l978-0-14-032872-1");
+    desk.app.tick_deck();
+    assert!(fetch.requests().is_empty());
+    desk.key(KeyCode::Enter);
+    poll_catalogue(&mut desk, |desk| desk.shows("Fantastic Mr. Fox"));
+    assert_eq!(fetch.requests().as_slice(), std::slice::from_ref(&isbn_url));
+    desk.keys(&[KeyCode::Right, KeyCode::Enter]);
+    assert!(desk.shows("Library · Fantastic Mr. Fox"));
+    assert_eq!(fetch.requests().as_slice(), std::slice::from_ref(&isbn_url));
+    desk.key(KeyCode::Esc);
+
+    desk.key(KeyCode::Char('d'));
+    assert!(desk.shows("doi:"));
+    dispatch_event(
+        &mut desk.app,
+        Event::Paste("https://doi.org/10.2307/40149212".into()),
+        &mut desk.armed,
+    );
+    assert_eq!(fetch.requests().as_slice(), std::slice::from_ref(&isbn_url));
+    desk.key(KeyCode::Enter);
+    poll_catalogue(&mut desk, |desk| desk.shows("Article"));
+    assert_eq!(fetch.requests(), [isbn_url, doi_url]);
+}
+
 fn solitude_fixture() -> crate::catalogue::fetch::FixtureFetch {
     use crate::catalogue::{fetch::FixtureFetch, openlibrary};
 

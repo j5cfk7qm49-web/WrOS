@@ -2,8 +2,8 @@
 
 use super::*;
 use crate::app::brain::BrainReferenceTarget;
-use crate::app::brain::library::keep_in_library;
-use crate::catalogue::{Hit, SearchStatus, names};
+use crate::app::brain::library::{CataloguePick, keep_in_library};
+use crate::catalogue::{Hit, SearchStatus};
 use grimoire_brain::library::EditionKey;
 use grimoire_brain::model::NodeId;
 use grimoire_core::sync::Fingerprint;
@@ -12,7 +12,6 @@ use serde_json::{Value, json};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
-use std::sync::Mutex;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SourceDialog {
@@ -423,41 +422,48 @@ impl App {
             unreachable!("the source picker was just polled");
         };
         let result = result.and_then(|record| self.finish_catalogue_pick(&mut dialog, record));
-        if let Err(error) = result {
-            dialog.notice = format!("{error:#}");
+        match result {
+            Ok(true) => return,
+            Ok(false) => {}
+            Err(error) => dialog.notice = format!("{error:#}"),
         }
         self.overlay = Overlay::ProjectSources(dialog);
     }
 
-    fn start_catalogue_pick(&mut self, dialog: &mut SourceDialog, hit: Hit) -> Result<()> {
-        let open_library = hit
-            .record
-            .get("x-wros-catalogue")
-            .is_some_and(|data| data.get("openlibrary_work").is_some());
-        if !open_library {
-            return self.finish_catalogue_pick(dialog, hit.record);
+    fn on_catalogue_pick(&mut self, dialog: &mut SourceDialog, hit: Hit) -> bool {
+        let result = CataloguePick::start(hit, &self.catalogue_fetch, &dialog.book)
+            .and_then(|pick| match pick {
+                CataloguePick::Ready(record) => self.finish_catalogue_pick(dialog, record),
+                CataloguePick::Resolving(receiver) => {
+                    let catalogue = dialog.catalogue.as_ref().expect("a catalogue pick");
+                    catalogue.0.borrow_mut().resolving = Some(receiver);
+                    dialog.notice.clear();
+                    Ok(false)
+                }
+            });
+        match result {
+            Ok(close) => close,
+            Err(error) => {
+                dialog.notice = format!("{error:#}");
+                false
+            }
         }
-        let fetch = Arc::clone(&self.catalogue_fetch);
-        let path = catalogue_names_path(&dialog.book);
-        let (tx, rx) = mpsc::channel();
-        let worker = std::thread::Builder::new()
-            .name("Catalogue author names".into())
-            .spawn(move || {
-                let record = resolve_open_library_names(hit, fetch.as_ref(), path);
-                let _ = tx.send(record);
-            })?;
-        drop(worker);
-        let catalogue = dialog.catalogue.as_ref().expect("a catalogue pick");
-        catalogue.0.borrow_mut().resolving = Some(rx);
-        dialog.notice.clear();
-        Ok(())
     }
 
+    // A Brain link completes the picker immediately. Citation and form picks advance a step.
     fn finish_catalogue_pick(
         &mut self,
         dialog: &mut SourceDialog,
         mut record: sources::Record,
-    ) -> Result<()> {
+    ) -> Result<bool> {
+        if let Page::BrainPick(target) = &dialog.page {
+            let store = self
+                .library_store_if_present()?
+                .ok_or_else(|| anyhow::anyhow!("The Library is unavailable"))?;
+            let edition = keep_in_library(store, &record)?;
+            self.write_brain_reference(target, Some((edition, text(&record, "title").to_owned())))?;
+            return Ok(true);
+        }
         if matches!(dialog.page, Page::Form { original_key: None, .. }) {
             dialog.close_catalogue_editions();
             dialog.page = form(Some(("", &record)));
@@ -467,10 +473,10 @@ impl App {
                 catalogue.0.borrow_mut().search.edit("", Instant::now());
             }
             dialog.notice.clear();
-            return Ok(());
+            return Ok(false);
         }
         let Page::Pick { target, .. } = &dialog.page else {
-            return Ok(());
+            return Ok(false);
         };
         let library = if let Ok(Some(store)) = self.library_store_if_present() {
             let edition = keep_in_library(store, &record)?;
@@ -518,14 +524,14 @@ impl App {
             *field = 0;
         }
         dialog.notice.clear();
-        Ok(())
+        Ok(false)
     }
 
-    fn on_catalogue_editions_key(&mut self, dialog: &mut SourceDialog, key: Key) {
+    fn on_catalogue_editions_key(&mut self, dialog: &mut SourceDialog, key: Key) -> bool {
         if matches!(key, Key::Left | Key::Esc) {
             dialog.close_catalogue_editions();
             dialog.notice.clear();
-            return;
+            return false;
         }
         let mut catalogue = dialog
             .catalogue
@@ -534,14 +540,14 @@ impl App {
             .0
             .borrow_mut();
         if catalogue.resolving.is_some() {
-            return;
+            return false;
         }
         let selected = dialog
             .catalogue_view
             .as_mut()
             .expect("the editions view is open");
         let Some((_, editions, _)) = catalogue.search.editions() else {
-            return;
+            return false;
         };
         match key {
             Key::Up => *selected = selected.saturating_sub(1),
@@ -555,15 +561,14 @@ impl App {
             Key::Enter => {
                 if let Some(hit) = editions.get(*selected).cloned() {
                     drop(catalogue);
-                    if let Err(error) = self.start_catalogue_pick(dialog, hit) {
-                        dialog.notice = format!("{error:#}");
-                    }
+                    return self.on_catalogue_pick(dialog, hit);
                 } else {
                     catalogue.search.more_editions(Instant::now());
                 }
             }
             _ => (),
         }
+        false
     }
 
     pub(crate) fn review_library_changes(&mut self, export: bool) -> bool {
@@ -770,8 +775,9 @@ impl App {
             return;
         };
         if dialog.catalogue_view.is_some() {
-            self.on_catalogue_editions_key(&mut dialog, key);
-            self.overlay = Overlay::ProjectSources(dialog);
+            if !self.on_catalogue_editions_key(&mut dialog, key) {
+                self.overlay = Overlay::ProjectSources(dialog);
+            }
             return;
         }
         if key == Key::Esc {
@@ -816,8 +822,8 @@ impl App {
             match key {
                 Key::Enter => {
                     if let Some(hit) = dialog.catalogue_hit(index) {
-                        if let Err(error) = self.start_catalogue_pick(&mut dialog, hit) {
-                            dialog.notice = format!("{error:#}");
+                        if self.on_catalogue_pick(&mut dialog, hit) {
+                            return;
                         }
                     } else if let Some(catalogue) = dialog.picker_catalogue() {
                         catalogue.0.borrow_mut().search.submit(Instant::now());
@@ -1250,11 +1256,11 @@ impl App {
 
 impl SourceDialog {
     fn picker_catalogue(&self) -> Option<&CatalogueSearch> {
-        // The Brain's picker receives its catalogue rows and keys in the Library task.
         self.catalogue.as_ref().filter(|_| {
             matches!(
                 self.page,
                 Page::Pick { chosen: None, .. }
+                    | Page::BrainPick(_)
                     | Page::Form {
                         original_key: None,
                         field: FORM_SEARCH,
@@ -1299,12 +1305,8 @@ impl SourceDialog {
 
     fn tick_catalogue(&mut self, now: Instant) -> Option<Result<sources::Record>> {
         let catalogue = self.catalogue.as_ref()?;
-        if matches!(self.page, Page::BrainPick(_)) {
-            catalogue.0.borrow_mut().search.tick(now);
-            return None;
-        }
         let local_count = match self.page {
-            Page::Pick { chosen: None, .. } => self.matches().len(),
+            Page::Pick { chosen: None, .. } | Page::BrainPick(_) => self.matches().len(),
             Page::Form { original_key: None, .. } => 0,
             _ => return None,
         };
@@ -1440,47 +1442,6 @@ fn library_pick(
         edition,
         record,
     })
-}
-
-fn catalogue_names_path(book: &Path) -> PathBuf {
-    if cfg!(test) {
-        book.join(".grimoire/catalogue-names.json")
-    } else {
-        crate::home().join(".cache/grimoire/catalogue-names.json")
-    }
-}
-
-fn resolve_open_library_names(
-    mut hit: Hit,
-    fetch: &dyn catalogue::Fetch,
-    path: PathBuf,
-) -> sources::Record {
-    // A picker can be closed while its worker is running. Serialize authority lookups
-    // and cache writes so the next picker can reuse any names the first one resolved.
-    static CACHE: Mutex<()> = Mutex::new(());
-    let _cache_guard = CACHE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    let mut names = names::Names::load(path);
-    if let Some(authors) = hit.record.get_mut("author").and_then(Value::as_array_mut) {
-        // The mapper drops missing author IDs and names independently.
-        let matched = authors.len() == hit.authors.len();
-        for (index, name) in authors.iter_mut().enumerate() {
-            if let Some(written) = name["literal"].as_str() {
-                *name = if matched {
-                    names.resolve(fetch, &hit.authors[index], written)
-                } else {
-                    names::by_rule(written)
-                };
-            }
-        }
-    }
-    if let Some(translators) = hit.record.get_mut("translator").and_then(Value::as_array_mut) {
-        for name in translators {
-            if let Some(written) = name["literal"].as_str() {
-                *name = names::by_rule(written);
-            }
-        }
-    }
-    hit.record
 }
 
 fn source_line(record: &sources::Record) -> String {
@@ -1653,7 +1614,7 @@ fn form_record(
     Ok(record)
 }
 
-fn catalogue_row(hit: &Hit, width: usize) -> String {
+pub(in crate::app) fn catalogue_row(hit: &Hit, width: usize) -> String {
     let title = text(&hit.record, "title");
     let author = field_value(Some(&hit.record), "author");
     let publisher = text(&hit.record, "publisher");
@@ -1928,7 +1889,9 @@ pub(super) fn draw(f: &mut Frame, dialog: &SourceDialog, area: Rect, t: &Theme) 
                 "Enter save   Shift-Tab back   Esc cancel"
             }
         }
-        Page::Pick { chosen: None, .. } | Page::Form { .. } if dialog.catalogue_view.is_some() => {
+        Page::Pick { chosen: None, .. } | Page::BrainPick(_) | Page::Form { .. }
+            if dialog.catalogue_view.is_some() =>
+        {
             lines = draw_editions(dialog, dialog.catalogue_view.unwrap_or(0), inner, active);
             "↑/↓ choose   Enter select   ←/Esc back"
         }

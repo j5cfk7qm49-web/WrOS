@@ -3971,6 +3971,9 @@ impl App {
     fn toggle_catalogue_search(&mut self) {
         self.catalogue_on = !self.catalogue_on;
         let on = self.catalogue_on;
+        if !on {
+            self.cancel_library_catalogue();
+        }
         Self::save_setting(|s| s.catalogue_search = on);
         self.msg = if on {
             "online search on".into()
