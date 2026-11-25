@@ -1079,18 +1079,7 @@ fn draw_list(
     let h = shown as u16;
     let x = x.min(area.right().saturating_sub(w));
     let rect = Rect::new(x, y, w, h);
-    f.render_widget(Clear, rect);
-    let band = crate::ui::bar_band(t, linux_console).unwrap_or(t.sel);
-    let inner = Rect::new(x.saturating_add(1), y, w.saturating_sub(2), h);
-    for cy in rect.top()..rect.bottom() {
-        for cx in rect.left()..rect.right() {
-            let cell = &mut f.buffer_mut()[(cx, cy)];
-            cell.set_fg(t.text).set_bg(band);
-            if linux_console && (cx == rect.left() || cx + 1 == rect.right()) {
-                cell.set_symbol("│").set_fg(t.border);
-            }
-        }
-    }
+    let (inner, band) = draw_panel(f, area, rect, linux_console, t);
     let start = (sel + 1).saturating_sub(shown);
     let mut drawn = vec![];
     for (line, (i, row)) in rows.iter().enumerate().skip(start).take(shown).enumerate() {
@@ -1100,10 +1089,9 @@ fn draw_list(
         } else {
             Style::default().fg(t.text)
         };
+        let r = Rect::new(inner.x, inner.y + line as u16, inner.width, 1);
         let style = match (on, lit) {
-            (true, true) => Style::default()
-                .fg(ratatui::style::Color::Black)
-                .bg(t.accent),
+            (true, true) => light_panel_row(f, rect, r.y, linux_console, t),
             (true, false) => base.bg(t.sel),
             _ => base.bg(band),
         };
@@ -1120,16 +1108,39 @@ fn draw_list(
             truncate(&row.label, label_w),
             row.key,
         );
-        let r = Rect::new(inner.x, inner.y + line as u16, inner.width, 1);
-        if on && lit && !linux_console {
-            for cx in rect.left()..rect.right() {
-                f.buffer_mut()[(cx, r.y)]
-                    .set_fg(ratatui::style::Color::Black)
-                    .set_bg(t.accent);
-            }
-        }
         f.render_widget(Paragraph::new(Line::styled(text, style)), r);
         drawn.push((i, r));
+    }
+    Drawn {
+        area: rect,
+        rows: drawn,
+    }
+}
+
+/// The Platinum band and shadow shared by dropdowns and widget panels.
+pub(super) fn draw_panel(
+    f: &mut Frame,
+    area: Rect,
+    rect: Rect,
+    linux_console: bool,
+    t: &Theme,
+) -> (Rect, Color) {
+    f.render_widget(Clear, rect);
+    let band = crate::ui::bar_band(t, linux_console).unwrap_or(t.sel);
+    let inner = Rect::new(
+        rect.x.saturating_add(1),
+        rect.y,
+        rect.width.saturating_sub(2),
+        rect.height,
+    );
+    for cy in rect.top()..rect.bottom() {
+        for cx in rect.left()..rect.right() {
+            let cell = &mut f.buffer_mut()[(cx, cy)];
+            cell.set_fg(t.text).set_bg(band);
+            if linux_console && (cx == rect.left() || cx + 1 == rect.right()) {
+                cell.set_symbol("│").set_fg(t.border);
+            }
+        }
     }
     if !rect.is_empty() {
         let clip = area.intersection(f.area());
@@ -1147,10 +1158,22 @@ fn draw_list(
             }
         }
     }
-    Drawn {
-        area: rect,
-        rows: drawn,
+    (inner, band)
+}
+
+pub(super) fn light_panel_row(
+    f: &mut Frame,
+    panel: Rect,
+    y: u16,
+    linux_console: bool,
+    t: &Theme,
+) -> Style {
+    if !linux_console {
+        for x in panel.left()..panel.right() {
+            f.buffer_mut()[(x, y)].set_fg(Color::Black).set_bg(t.accent);
+        }
     }
+    Style::default().fg(Color::Black).bg(t.accent)
 }
 
 fn shadow_cell(cell: &mut ratatui::buffer::Cell, dim: ratatui::style::Color) {

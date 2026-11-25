@@ -127,7 +127,7 @@ pub fn draw(
         if matches!(app.overlay, Overlay::Bar { .. }) {
             overlay_area.height = info.y.saturating_sub(overlay_area.y);
         }
-        crate::app::overlays::draw(f, app, overlay_area, &t);
+        crate::app::overlays::draw(f, app, overlay_area, info, &t);
     }
 
     let animating = motion.is_some_and(|(motion, graphical)| {

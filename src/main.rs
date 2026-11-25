@@ -1355,7 +1355,8 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
     if ctrl
         && (matches!(
             app.overlay,
-            Overlay::Pins
+            Overlay::Widget { .. }
+                | Overlay::Pins
                 | Overlay::PinCategory { .. }
                 | Overlay::Journal
                 | Overlay::Scratchpad

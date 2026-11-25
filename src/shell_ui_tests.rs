@@ -575,6 +575,198 @@ fn wait_system(desk: &mut Desk) {
     desk.draw();
 }
 
+fn record_widget_requests(
+    desk: &mut Desk,
+) -> std::sync::Arc<std::sync::Mutex<Vec<wros_sys::Request>>> {
+    use std::sync::{Arc, Mutex};
+    use wros_sys::{Backend, Reply, Request, Simulated};
+
+    struct Recorder {
+        calls: Arc<Mutex<Vec<Request>>>,
+        simulator: Simulated,
+    }
+    impl Backend for Recorder {
+        fn request(&mut self, request: Request) -> anyhow::Result<Reply> {
+            self.calls.lock().unwrap().push(request.clone());
+            match request {
+                Request::Wifi(_) | Request::Brightness(_) => {
+                    Ok(Reply::Message("request completed".into()))
+                }
+                other => self.simulator.request(other),
+            }
+        }
+    }
+
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    desk.app.deck.use_test_backend(Box::new(Recorder {
+        calls: calls.clone(),
+        simulator: Simulated::laptop(),
+    }));
+    calls
+}
+
+#[test]
+fn brightness_popup_sends_request_and_floors_at_5() {
+    use crate::app::shell::Panel;
+    use crate::gauges::Widget;
+    use wros_sys::Request;
+
+    let mut desk = widget_desk("widget-brightness");
+    let calls = record_widget_requests(&mut desk);
+    desk.app.deck.gauges.light = Some(10);
+    desk.app.deck.snapshot = Some(wros_sys::Snapshot {
+        brightness_percent: Some(10),
+        ..Default::default()
+    });
+    let anchor = click_widget(&mut desk, Widget::Battery);
+    assert!(desk.shows("Battery 76%  /  2h 15m left"));
+    for (key, percent) in [
+        (KeyCode::Right, 15),
+        (KeyCode::Left, 10),
+        (KeyCode::Left, 5),
+        (KeyCode::Left, 5),
+    ] {
+        desk.key(key);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.gauges.light, Some(percent));
+        assert_eq!(
+            desk.app.deck.snapshot.as_ref().unwrap().brightness_percent,
+            Some(percent)
+        );
+    }
+    assert_eq!(
+        *calls.lock().unwrap(),
+        [
+            Request::Brightness(15),
+            Request::Brightness(10),
+            Request::Brightness(5),
+            Request::Brightness(5),
+        ]
+    );
+    desk.app.on_click(anchor.right() - 1, anchor.y - 1);
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::Panel(Panel::Power));
+
+    desk.key(KeyCode::Esc);
+    desk.key(KeyCode::Esc);
+    desk.key(KeyCode::Esc);
+    click_widget(&mut desk, Widget::Battery);
+    desk.keys(&[KeyCode::Down, KeyCode::Enter]);
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::WarmScreen);
+    wait_system(&mut desk);
+    assert_eq!(calls.lock().unwrap().last(), Some(&Request::DisplayStatus));
+}
+
+#[test]
+fn volume_popup_steps_by_5() {
+    use crate::gauges::Widget;
+    use wros_sys::Request;
+
+    let mut desk = widget_desk("widget-volume");
+    let calls = record_widget_requests(&mut desk);
+    desk.app.music.state = music::State::Playing(music::Track {
+        title: "A quiet track".into(),
+        artist: "Local artist".into(),
+        progress: 0.0,
+        duration: 60.0,
+        playing: true,
+    });
+    click_widget(&mut desk, Widget::Sound);
+    assert!(desk.shows("Volume  70%"));
+    assert!(desk.shows("Output: Default sound card"));
+    assert!(desk.shows("A quiet track / Local artist"));
+    assert!(desk.shows("Pause"));
+    assert!(desk.shows("Next track"));
+    for (key, current, next) in [
+        (KeyCode::Right, 70, 75),
+        (KeyCode::Left, 75, 70),
+        (KeyCode::Right, 98, 100),
+        (KeyCode::Left, 2, 0),
+    ] {
+        assert_eq!(
+            desk.app.overlay,
+            Overlay::Widget {
+                kind: Widget::Sound,
+                sel: 0,
+            }
+        );
+        desk.app.deck.gauges.volume = Some(current);
+        desk.key(key);
+        wait_system(&mut desk);
+        assert_eq!(desk.app.deck.gauges.volume, Some(next));
+    }
+    desk.keys(&[KeyCode::Down, KeyCode::Enter]);
+    wait_system(&mut desk);
+    assert!(desk.shows("Unmute"));
+    desk.key(KeyCode::Enter);
+    wait_system(&mut desk);
+    desk.keys(&[KeyCode::End, KeyCode::Enter]);
+    wait_system(&mut desk);
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::SoundView);
+    assert_eq!(
+        *calls.lock().unwrap(),
+        [
+            Request::SetVolume(75),
+            Request::SetVolume(70),
+            Request::SetVolume(100),
+            Request::SetVolume(0),
+            Request::SetMute(true),
+            Request::SetMute(false),
+            Request::AudioStatus,
+        ]
+    );
+}
+
+#[test]
+fn wifi_popup_lists_networks_and_toggles() {
+    use crate::app::shell::Panel;
+    use crate::gauges::Widget;
+    use wros_sys::Request;
+
+    let mut desk = widget_desk("widget-wifi");
+    let calls = record_widget_requests(&mut desk);
+    click_widget(&mut desk, Widget::Wifi);
+    assert!(desk.shows("Looking for networks…"));
+    wait_system(&mut desk);
+    assert!(desk.shows("✓ WrOS-Studio  95%"));
+    assert!(desk.shows("WriterDeck-Cafe  78%"));
+    assert!(desk.shows("PublicLibrary  52%"));
+
+    desk.keys(&[KeyCode::Down, KeyCode::Enter]);
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::WifiConnect);
+    let form = desk.app.deck.shell.wifi_form.as_ref().unwrap();
+    assert_eq!(form.network.ssid, "WriterDeck-Cafe");
+    assert!(form.password.is_empty());
+    assert_eq!(*calls.lock().unwrap(), [Request::ScanWifi]);
+    desk.key(KeyCode::Esc);
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::WifiNetworks);
+    for _ in 0..4 {
+        desk.key(KeyCode::Esc);
+    }
+    assert_eq!(desk.app.overlay, Overlay::None);
+
+    click_widget(&mut desk, Widget::Wifi);
+    assert!(desk.shows("Turn Wi-Fi off"));
+    desk.keys(&[KeyCode::End, KeyCode::Up, KeyCode::Enter]);
+    wait_system(&mut desk);
+    assert!(desk.shows("Turn Wi-Fi on"));
+    desk.key(KeyCode::Enter);
+    wait_system(&mut desk);
+    assert!(desk.shows("Turn Wi-Fi off"));
+    assert!(desk.shows("✓ WrOS-Studio  95%"));
+    assert_eq!(
+        *calls.lock().unwrap(),
+        [
+            Request::ScanWifi,
+            Request::Wifi(false),
+            Request::Wifi(true),
+            Request::ScanWifi,
+        ]
+    );
+    desk.keys(&[KeyCode::End, KeyCode::Enter]);
+    wait_system(&mut desk);
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::Panel(Panel::Network));
+}
+
 #[test]
 fn native_read_only_system_views_keep_editor_state_and_failed_refresh_drops_stale_results() {
     use std::sync::{

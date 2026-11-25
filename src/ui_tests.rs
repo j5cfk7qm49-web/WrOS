@@ -1751,13 +1751,131 @@ fn widget_click_targets() {
         })
         .collect();
     assert_eq!(d.app.widget_hits(), hits.as_slice());
-    for (rect, _) in hits {
-        d.app.on_click(rect.x, rect.y);
-        assert_eq!(d.app.overlay, Overlay::None);
-    }
     d.app.focus_mode = true;
     d.draw();
     assert!(d.app.widget_hits().is_empty());
+}
+
+fn widget_desk(tag: &str) -> Desk {
+    let mut d = Desk::open(book(tag, true), 100, 30);
+    d.app.deck.gauges = crate::gauges::Gauges {
+        battery: Some(76),
+        battery_minutes: Some(135),
+        light: Some(50),
+        volume: Some(70),
+        wifi: Some(crate::gauges::Wifi::Bars(2)),
+        wifi_radio: Some(true),
+        ..Default::default()
+    };
+    d.app.deck.clock = "14:07".into();
+    d.draw();
+    d
+}
+
+fn click_widget(d: &mut Desk, kind: crate::gauges::Widget) -> Rect {
+    let &(rect, _) = d
+        .app
+        .widget_hits()
+        .iter()
+        .find(|(_, widget)| *widget == kind)
+        .unwrap();
+    d.app.on_click(rect.x, rect.y);
+    d.draw();
+    rect
+}
+
+#[test]
+fn each_widget_opens_its_popup_above_it() {
+    use crate::gauges::Widget;
+
+    let mut d = widget_desk("widgets-above");
+    d.app.deck.shell.wifi_networks = Some(Vec::new());
+    let before = d.term.backend().buffer().clone();
+    for (kind, link) in [
+        (Widget::Wifi, "Network settings…"),
+        (Widget::Sound, "Sound settings…"),
+        (Widget::Battery, "Battery settings…"),
+        (Widget::Clock, "Date and time settings…"),
+    ] {
+        let rect = click_widget(&mut d, kind);
+        assert!(matches!(d.app.overlay, Overlay::Widget { kind: k, .. } if k == kind));
+        let y = rect.y - 1;
+        assert!(d.rows()[usize::from(y)].contains(link));
+        let t = &d.app.theme;
+        let buf = d.term.backend().buffer();
+        assert_eq!(
+            buf[(rect.right() - 1, y)].bg,
+            ui::bar_band(t, false).unwrap_or(t.sel)
+        );
+        assert_eq!(buf[(rect.right(), y)].fg, t.dim);
+        assert_eq!(
+            buf[(rect.right(), y)].symbol(),
+            before[(rect.right(), y)].symbol()
+        );
+        assert_eq!(
+            buf[(rect.x, rect.y)].symbol(),
+            before[(rect.x, rect.y)].symbol()
+        );
+        d.key(KeyCode::Esc);
+    }
+}
+
+#[test]
+fn clock_popup_shows_month() {
+    use crate::app::shell::{Panel, Route};
+    use crate::gauges::Widget;
+
+    let mut d = widget_desk("widget-month");
+    metric_clock(&mut d);
+    click_widget(&mut d, Widget::Clock);
+    assert!(d.shows("Sunday, October 25, 2026"));
+    assert!(d.shows("October 2026"));
+    assert!(d.shows("Mon  Tue  Wed  Thu  Fri  Sat  Sun"));
+    assert!(d.shows("25*"));
+    assert!(d.shows("31"));
+    d.keys(&[KeyCode::End, KeyCode::Enter]);
+    assert_eq!(d.app.deck.shell.nav.current(), Route::Panel(Panel::DateTime));
+}
+
+#[test]
+fn popup_closes_on_esc_and_outside_click() {
+    use crate::gauges::Widget;
+
+    let mut d = widget_desk("widgets-dismiss");
+    let rect = click_widget(&mut d, Widget::Battery);
+    d.key(KeyCode::Esc);
+    assert_eq!(d.app.overlay, Overlay::None);
+    click_widget(&mut d, Widget::Battery);
+    d.app.on_click(0, 0);
+    assert_eq!(d.app.overlay, Overlay::None);
+    click_widget(&mut d, Widget::Battery);
+    d.app.on_click(rect.x, rect.y);
+    assert_eq!(d.app.overlay, Overlay::None);
+    click_widget(&mut d, Widget::Battery);
+    d.app.on_right_click(0, 0);
+    assert_eq!(d.app.overlay, Overlay::None);
+}
+
+#[test]
+fn find_anything_opens_widget_by_name() {
+    use crate::gauges::Widget;
+
+    let mut d = widget_desk("widgets-find-anything");
+    d.app.focus_mode = true;
+    d.app.deck.shell.wifi_networks = Some(Vec::new());
+    d.draw();
+    assert!(d.app.widget_hits().is_empty());
+    d.press(KeyEvent::new(
+        KeyCode::Modifier(ModifierKeyCode::LeftSuper),
+        KeyModifiers::NONE,
+    ));
+    d.typed("Wi-Fi");
+    d.key(KeyCode::Enter);
+    assert!(matches!(
+        d.app.overlay,
+        Overlay::Widget { kind: Widget::Wifi, .. }
+    ));
+    assert!(d.shows("Network settings…"));
 }
 
 #[test]

@@ -686,6 +686,7 @@ fn previews() {
         volume: Some(55),
         muted: false,
         wifi: Some(crate::gauges::Wifi::Bars(2)),
+        ..Default::default()
     };
     s.app.deck.clock = "14:07".into();
     s.app.deck.backup_mark = Some(crate::app::BackupMark::Done("13:52".into()));

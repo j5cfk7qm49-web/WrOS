@@ -1098,16 +1098,13 @@ fn page_entries(app: &App, route: Route) -> Vec<Entry> {
                         )),
                         Entry::new("Brightness -10%", Choice::System(5)),
                         Entry::new("Brightness +10%", Choice::System(6)),
-                        if app.deck.graphical_session
-                            && !crate::session::native()
-                            && !cfg!(all(target_os = "linux", feature = "compositor-warmth"))
-                        {
-                            Entry::info("Warm screen · unavailable in this build")
-                        } else {
+                        if app.warm_screen_available() {
                             Entry::new(
                                 "Warm screen · blue light filter",
                                 Choice::Open(Route::WarmScreen),
                             )
+                        } else {
+                            Entry::info("Warm screen · unavailable in this build")
                         },
                     ]);
                     if app.deck.session_settings.is_some() {
@@ -2048,6 +2045,34 @@ pub(super) const WIFI_SCAN_FAILED: &str =
     "Couldn't scan for Wi-Fi. Make sure Wi-Fi is on, then try again.";
 
 impl App {
+    pub(super) fn warm_screen_available(&self) -> bool {
+        !self.deck.graphical_session
+            || crate::session::native()
+            || cfg!(all(target_os = "linux", feature = "compositor-warmth"))
+    }
+
+    pub(super) fn open_wifi_network(&mut self, network: wros_sys::WifiNetwork) {
+        if !network.security.is_empty()
+            && network.security != "--"
+            && !network
+                .security
+                .split_whitespace()
+                .all(|kind| matches!(kind, "WPA1" | "WPA2" | "WPA3"))
+        {
+            self.deck.note = "This network needs enrollment beyond a personal WPA password; \
+                              use a supported saved profile or another network."
+                .into();
+            self.deck.shell.notices.push(&self.deck.note);
+            return;
+        }
+        self.deck.shell.wifi_form = Some(WifiForm {
+            network,
+            password: Zeroizing::new(String::new()),
+            selected: 0,
+        });
+        self.deck.shell.nav.open(Route::WifiConnect);
+    }
+
     fn clear_system_view(&mut self, request: &wros_sys::Request) {
         use wros_sys::Request;
         match request {
@@ -2732,23 +2757,7 @@ impl App {
                             .request(crate::backup_service::Request::DisconnectGoogle);
                     }
                     Choice::WifiSelect(network) if !self.deck.busy => {
-                        if !network.security.is_empty()
-                            && network.security != "--"
-                            && !network
-                                .security
-                                .split_whitespace()
-                                .all(|kind| matches!(kind, "WPA1" | "WPA2" | "WPA3"))
-                        {
-                            self.deck.note = "This network needs enrollment beyond a personal WPA password; use a supported saved profile or another network.".into();
-                            self.deck.shell.notices.push(&self.deck.note);
-                            return;
-                        }
-                        self.deck.shell.wifi_form = Some(WifiForm {
-                            network,
-                            password: Zeroizing::new(String::new()),
-                            selected: 0,
-                        });
-                        self.deck.shell.nav.open(Route::WifiConnect);
+                        self.open_wifi_network(network);
                     }
                     Choice::WifiDisconnect if !self.deck.busy => {
                         self.deck.request(wros_sys::Request::DisconnectWifi);

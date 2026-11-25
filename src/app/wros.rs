@@ -212,6 +212,7 @@ pub struct Deck {
     pub lid_settings: Option<PathBuf>,
     /// Battery, screen light and volume for the bottom bar.
     pub gauges: crate::gauges::Gauges,
+    widget_wifi_scan_pending: bool,
     /// When a brightness key last changed the light: it shows for a moment.
     pub light_flash: Option<std::time::Instant>,
     /// "14:07", worked out on the tick so drawing never reads the time zone.
@@ -366,6 +367,7 @@ impl Deck {
             lid_close,
             lid_settings,
             gauges: crate::gauges::Gauges::default(),
+            widget_wifi_scan_pending: false,
             light_flash: None,
             clock: String::new(),
             backup_mark: None,
@@ -971,11 +973,55 @@ impl App {
     }
     /// New readings from the gauges' thread; a change of light (its key) shows
     /// the light for a moment.
-    pub fn set_gauges(&mut self, gauges: crate::gauges::Gauges, now: std::time::Instant) {
+    pub fn set_gauges(&mut self, mut gauges: crate::gauges::Gauges, now: std::time::Instant) {
         if self.deck.gauges.light.is_some() && gauges.light != self.deck.gauges.light {
             self.deck.light_flash = Some(now);
         }
+        gauges.wifi_radio = gauges.wifi_radio.or(self.deck.gauges.wifi_radio);
         self.deck.gauges = gauges;
+    }
+
+    pub(super) fn scan_widget_wifi(&mut self) {
+        self.deck.widget_wifi_scan_pending = self.deck.shell.wifi_networks.is_none();
+        self.run_widget_wifi_scan();
+    }
+
+    fn run_widget_wifi_scan(&mut self) {
+        if !matches!(
+            self.overlay,
+            Overlay::Widget {
+                kind: crate::gauges::Widget::Wifi,
+                ..
+            }
+        ) || self.deck.shell.wifi_networks.is_some()
+        {
+            self.deck.widget_wifi_scan_pending = false;
+        }
+        if self.deck.widget_wifi_scan_pending && !self.deck.busy {
+            self.deck.widget_wifi_scan_pending = false;
+            self.deck.request(Request::ScanWifi);
+        }
+    }
+
+    fn replace_wifi_networks(&mut self, networks: Option<Vec<wros_sys::WifiNetwork>>) {
+        let rows = |networks: &Option<Vec<wros_sys::WifiNetwork>>| {
+            networks.as_ref().map_or(1, |networks| networks.len().max(1))
+        };
+        if let Overlay::Widget {
+            kind: crate::gauges::Widget::Wifi,
+            sel,
+        } = &mut self.overlay
+        {
+            // Keep the toggle and Settings selected across an asynchronous scan.
+            let old = rows(&self.deck.shell.wifi_networks);
+            let new = rows(&networks);
+            *sel = if *sel >= old {
+                new + (*sel - old)
+            } else {
+                (*sel).min(new - 1)
+            };
+        }
+        self.deck.shell.wifi_networks = networks;
     }
     pub fn deck_shortcut(&mut self, action: ShortcutAction) {
         match action {
@@ -1134,6 +1180,20 @@ impl App {
                     if request != Request::ReportUpdateReady {
                         self.deck.note = message;
                     }
+                    if let Request::Wifi(on) = request {
+                        self.deck.gauges.wifi_radio = Some(on);
+                        if !on {
+                            self.deck.gauges.wifi = Some(crate::gauges::Wifi::Off);
+                        }
+                        self.replace_wifi_networks(None);
+                        self.deck.widget_wifi_scan_pending = on;
+                    }
+                    if let Request::Brightness(percent) = request {
+                        self.deck.gauges.light = Some(percent);
+                        if let Some(snapshot) = &mut self.deck.snapshot {
+                            snapshot.brightness_percent = Some(percent);
+                        }
+                    }
                     if matches!(request, Request::KeyboardConfirm(_)) {
                         self.observe_deck(tutorial::Event::LayoutConfirmed);
                     }
@@ -1226,7 +1286,7 @@ impl App {
                         "{} named Wi-Fi networks returned. Select a network to connect.",
                         networks.len()
                     );
-                    self.deck.shell.wifi_networks = Some(networks);
+                    self.replace_wifi_networks(Some(networks));
                     self.observe_deck(tutorial::Event::WifiScanned);
                 }
                 Ok(Reply::SavedWifi(profiles)) => {
@@ -1398,6 +1458,17 @@ impl App {
                     } else if !self.on_update_error(&request, &e) {
                         self.deck.note = format!("Unavailable: {e}");
                     }
+                    if matches!(self.overlay, Overlay::Widget { .. })
+                        && matches!(
+                            request,
+                            Request::Wifi(_)
+                                | Request::SetMute(_)
+                                | Request::SetVolume(_)
+                                | Request::Brightness(_)
+                        )
+                    {
+                        self.msg = self.deck.note.clone();
+                    }
                     if matches!(self.overlay, Overlay::Deck(Page::KeyboardWait)) {
                         self.overlay = Overlay::Deck(Page::Keyboard { sel: 0 });
                     }
@@ -1442,6 +1513,7 @@ impl App {
             }
         }
         self.run_pending_settings_row();
+        self.run_widget_wifi_scan();
     }
     pub fn on_deck_key(&mut self, key: Key) {
         let Overlay::Deck(page) = self.overlay.clone() else {

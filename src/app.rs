@@ -266,6 +266,8 @@ pub struct App {
     pub view_hits: Vec<(Rect, Mode)>,
     /// The info bar's visible gauges and the progress bar's clickable meter.
     pub(crate) widget_hits: Vec<(Rect, crate::gauges::Widget)>,
+    /// The widget panel as drawn and the index of its first visible row.
+    widget_panel: std::cell::Cell<(Rect, usize)>,
     pub(crate) progress_hit: Rect,
     /// In a graphical session (native or under Cage), where Alt and a menu's
     /// letter opens that menu; a terminal keeps Alt-b and Alt-f for words.
@@ -583,6 +585,10 @@ impl PartialEq for HistoryTimeline {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Overlay {
     None,
+    Widget {
+        kind: crate::gauges::Widget,
+        sel: usize,
+    },
     ProjectSources(Box<overlays::SourceDialog>),
     PaperDetails {
         details: project::MlaDetails,
@@ -1075,6 +1081,7 @@ impl App {
             create_hits: Vec::new(),
             view_hits: Vec::new(),
             widget_hits: Vec::new(),
+            widget_panel: std::cell::Cell::default(),
             progress_hit: Rect::default(),
             alt_menus: false,
             settings_area: std::cell::Cell::default(),
@@ -2546,6 +2553,7 @@ impl App {
         match action {
             Action::OutlineBeside => self.toggle_outline_beside(),
             Action::SwitchDeskView(view) => self.switch_desk_view(view),
+            Action::OpenWidget(kind) => self.open_widget(kind),
             Action::NewScene | Action::NewChapter | Action::NewPart | Action::NewFolder => {
                 self.switch_desk_view(outline::DeskView::Write);
                 self.select_open_scene();
@@ -5527,6 +5535,9 @@ impl App {
 
     /// A left click focuses the pane under the pointer and acts on it.
     pub fn on_click(&mut self, x: u16, y: u16) {
+        if self.widget_click(x, y) {
+            return;
+        }
         // The menu bar first: its titles, an open menu's rows, or a click away
         // that closes the menu.
         if self.bar_click(x, y) || self.settings_click(x, y) {
@@ -5537,7 +5548,8 @@ impl App {
                 self.run_action(Action::Progress);
                 return;
             }
-            if self.widget_hits().iter().any(|&(rect, _)| hit(rect, x, y)) {
+            if let Some(&(_, kind)) = self.widget_hits().iter().find(|&&(r, _)| hit(r, x, y)) {
+                self.open_widget(kind);
                 return;
             }
         }
@@ -5700,6 +5712,12 @@ impl App {
     /// A right click in the prose: the same as a left click there, which
     /// offers spelling fixes when it lands on a misspelt word.
     pub fn on_right_click(&mut self, x: u16, y: u16) {
+        if matches!(self.overlay, Overlay::Widget { .. }) {
+            if !hit(self.widget_panel.get().0, x, y) {
+                self.overlay = Overlay::None;
+            }
+            return;
+        }
         if matches!(self.overlay, Overlay::Spelling { .. }) {
             self.overlay = Overlay::None;
         }
@@ -5716,7 +5734,8 @@ impl App {
         }
         if matches!(
             self.overlay,
-            Overlay::Pins
+            Overlay::Widget { .. }
+                | Overlay::Pins
                 | Overlay::PinCategory { .. }
                 | Overlay::Journal
                 | Overlay::Scratchpad

@@ -9,6 +9,7 @@ use grimoire_core::project::Kind;
 pub enum Action {
     OutlineBeside,
     SwitchDeskView(crate::app::outline::DeskView),
+    OpenWidget(crate::gauges::Widget),
     Settings,
     SystemSettings,
     Workspaces,
@@ -288,6 +289,7 @@ impl Entry {
 /// often wanted, then scenes and notes in book order, then themes.
 pub fn entries(app: &crate::app::App) -> Vec<Entry> {
     use crate::app::outline::DeskView;
+    use crate::gauges::Widget;
     let m = app.mod_label();
     let part = app.project.meta.part_noun();
     let mut v = vec![
@@ -585,6 +587,14 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
         Entry::new("Read chapter aloud", "", Action::ReadChapterAloud),
         Entry::new("Read manuscript aloud", "", Action::ReadManuscriptAloud),
         Entry::new("Revision notes", "", Action::ReviewNotes),
+        Entry::new("Wi-Fi", "", Action::OpenWidget(Widget::Wifi)),
+        Entry::new("Sound", "", Action::OpenWidget(Widget::Sound)),
+        Entry::new(
+            "Battery and brightness",
+            "",
+            Action::OpenWidget(Widget::Battery),
+        ),
+        Entry::new("Date and calendar", "", Action::OpenWidget(Widget::Clock)),
     ]);
     // Every help topic, so "help sync" goes straight to it.
     for t in crate::help::TOPICS {

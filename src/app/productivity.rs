@@ -1976,8 +1976,11 @@ impl App {
     }
 }
 
-fn calendar_grid(p: &Productivity, t: &Theme) -> Vec<Line<'static>> {
-    let selected = p.calendar_date;
+pub(super) fn calendar_grid(
+    p: &Productivity,
+    selected: NaiveDate,
+    t: &Theme,
+) -> Vec<Line<'static>> {
     let (year, month) = (selected.year(), selected.month());
     let first = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
     let normal = Style::default().fg(t.text);
@@ -2064,7 +2067,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let body = Rect::new(inside.x, inside.y, inside.width, inside.height - footer_h);
     let footer = Rect::new(inside.x, body.y + body.height, inside.width, footer_h);
     let mut lines = if page == Page::Calendar {
-        calendar_grid(&app.productivity, t)
+        calendar_grid(&app.productivity, app.productivity.calendar_date, t)
     } else {
         Vec::new()
     };
