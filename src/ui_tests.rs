@@ -1554,8 +1554,9 @@ fn write_info_with_tree_shows_scene_details_not_path() {
     d.draw();
     assert!(!d.app.rect_tree.is_empty());
     let info = d.info();
-    assert_eq!(info.trim(), "draft · goal 2,500 · edited 14 min ago");
-    for repeated in ["Project", "Chapter", "Scene", "· 5"] {
+    // The goal is in the editor's title (words / goal), so it isn't repeated here.
+    assert_eq!(info.trim(), "draft · edited 14 min ago");
+    for repeated in ["Project", "Chapter", "Scene", "· 5", "goal", "2,500"] {
         assert!(!info.contains(repeated), "{info}");
     }
     d.app.editor.select_all();
@@ -1564,11 +1565,13 @@ fn write_info_with_tree_shows_scene_details_not_path() {
 }
 
 #[test]
-fn write_info_without_tree_shows_path() {
+fn write_info_without_tree_names_only_the_project() {
+    // The editor's title shows the chapter, scene and words; with the outline hidden, only the
+    // project's name is shown nowhere else.
     let mut d = info_book("info-without-tree", 100);
     d.app.deck.state.current_mut().outline = false;
     d.draw();
-    assert_eq!(d.info().trim(), "Project › Chapter › Scene · 5");
+    assert_eq!(d.info().trim(), "Project");
 }
 
 #[test]
@@ -1580,12 +1583,14 @@ fn long_path_keeps_scene_name() {
     d.app.project.meta.title = "A very long project title that cannot fit on the line".into();
     d.app.project.nodes[chapter].title = "A very long chapter title that cannot fit either".into();
     d.app.project.nodes[scene].title = "The whole scene name".into();
+    // Focus mode hides the editor's title, so its one line carries the whole path.
+    d.app.focus_mode = true;
     d.draw();
     assert!(d.app.rect_tree.is_empty());
-    let info = d.info();
+    let info = d.status();
     assert!(info.trim_start().starts_with('…'), "{info}");
     assert!(
-        info.trim_end().ends_with("› The whole scene name · 5"),
+        info.contains("› The whole scene name · 5"),
         "{info}"
     );
 }
@@ -2199,17 +2204,17 @@ fn current_tile_is_filled_and_due_dot_shows() {
         } else {
             d.app.theme.for_console()
         };
-        let width = if glyphs { 3 } else { 4 };
+        let width = 3;
         for x in 10..10 + width {
             assert_eq!(buf[(x, 0)].bg, theme.accent);
         }
         assert_eq!(buf[(11, 0)].fg, ratatui::style::Color::Black);
-        assert_eq!(buf[(12, 0)].fg, theme.warn);
-        assert_eq!(buf[(12, 0)].symbol(), if glyphs { "\u{E102}" } else { "•" });
+        assert_eq!(buf[(13, 0)].fg, theme.warn);
+        assert_eq!(buf[(13, 0)].symbol(), "•");
         assert!(d.rows()[0].contains(if glyphs {
-            "\u{E100}\u{E113}\u{E102}"
+            "\u{E100}\u{E113}\u{E101}•"
         } else {
-            "[S•]"
+            "[S]•"
         }));
         assert_eq!(buf[(1, 0)].fg, theme.border);
         assert_eq!(buf[(2, 0)].fg, theme.dim);

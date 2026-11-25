@@ -29,7 +29,6 @@ const MIN_EDIT: u16 = 24;
 // TestBackend in builds without wros-graphics.
 pub(crate) const TILE_LEFT: char = '\u{E100}';
 pub(crate) const TILE_RIGHT: char = '\u{E101}';
-pub(crate) const TILE_RIGHT_DUE: char = '\u{E102}';
 pub(crate) const TILE_LETTERS: [char; 4] = ['\u{E110}', '\u{E111}', '\u{E112}', '\u{E113}'];
 pub(crate) const TILE_POWER: char = '\u{E114}';
 
@@ -1210,7 +1209,12 @@ pub(crate) fn info_section(app: &App) -> Vec<Span<'static>> {
             let Some(scene) = app.open.map(|i| &app.project.nodes[i]) else {
                 return Vec::new();
             };
+            // The editor's title already shows the chapter, the scene, its words and its goal, and
+            // the outline shows the project: only what neither shows goes here (the owner's rule).
             let mut details = Vec::new();
+            if !app.deck.state.current().outline || app.rect_tree.is_empty() {
+                details.push(app.project.meta.title.clone());
+            }
             details.extend(
                 scene
                     .status
@@ -1218,9 +1222,6 @@ pub(crate) fn info_section(app: &App) -> Vec<Span<'static>> {
                     .filter(|s| !s.trim().is_empty())
                     .cloned(),
             );
-            if let Some(goal) = scene.meta("target").and_then(|value| value.parse().ok()) {
-                details.push(format!("goal {}", thousands(goal)));
-            }
             if let Some(modified) = scene.stat.and_then(|stat| stat.modified) {
                 let age = SystemTime::now()
                     .duration_since(modified)
@@ -1236,9 +1237,9 @@ pub(crate) fn info_section(app: &App) -> Vec<Span<'static>> {
     }
 }
 
+/// Focus mode hides the editor's title and the outline, so its one line names the scene in full.
 fn shows_scene_path(app: &App) -> bool {
-    app.desk_view == DeskView::Write
-        && (app.focus_mode || !app.deck.state.current().outline || app.rect_tree.is_empty())
+    app.desk_view == DeskView::Write && app.focus_mode
 }
 
 fn scene_path(app: &App) -> Vec<Span<'static>> {

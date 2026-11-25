@@ -6,7 +6,7 @@ use super::*;
 use crate::app::outline::DeskView;
 use crate::app::shell::Category;
 use crate::palette::{Side, Title};
-use crate::ui::{TILE_LEFT, TILE_LETTERS, TILE_POWER, TILE_RIGHT, TILE_RIGHT_DUE};
+use crate::ui::{TILE_LEFT, TILE_LETTERS, TILE_POWER, TILE_RIGHT};
 use ratatui::style::Color;
 
 /// No dropdown is taller than this many rows; a short screen scrolls them.
@@ -896,7 +896,9 @@ pub fn draw_bar_line(f: &mut Frame, app: &App, area: Rect, t: &Theme, show_marks
     hits.retain(|(_, h)| !matches!(h, BarHit::Tile(_) | BarHit::Title(_)));
     for (view, glyph) in DeskView::ALL.into_iter().zip(TILE_LETTERS) {
         let due = view == DeskView::Study && app.commonplace.study.all_due > 0;
-        let dot = due && !app.tile_glyphs;
+        // Due cards: a dot in the warning colour just after the S tile, so the tile's frame
+        // keeps the border colour (a cell has one ink, and a red edge read as a bracket).
+        let dot = due;
         let width = 3 + u16::from(dot);
         if width > power_x - x {
             break;
@@ -913,25 +915,16 @@ pub fn draw_bar_line(f: &mut Frame, app: &App, area: Rect, t: &Theme, show_marks
             letter
         };
         let (left, symbol, right) = if app.tile_glyphs {
-            (
-                TILE_LEFT,
-                glyph,
-                if due { TILE_RIGHT_DUE } else { TILE_RIGHT },
-            )
+            (TILE_LEFT, glyph, TILE_RIGHT)
         } else {
             ('[', view.label().chars().next().unwrap(), ']')
         };
         spans.push(Span::styled(left.to_string(), frame));
         spans.push(Span::styled(symbol.to_string(), letter));
+        spans.push(Span::styled(right.to_string(), frame));
         if dot {
-            spans.push(Span::styled("•", frame.fg(t.warn)));
+            spans.push(Span::styled("•", base.fg(t.warn)));
         }
-        let edge = if due && app.tile_glyphs {
-            frame.fg(t.warn)
-        } else {
-            frame
-        };
-        spans.push(Span::styled(right.to_string(), edge));
         hits.push((Rect::new(x, area.y, width, 1), BarHit::Tile(view)));
         x += width;
     }
