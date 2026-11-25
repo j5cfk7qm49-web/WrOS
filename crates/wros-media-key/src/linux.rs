@@ -81,9 +81,9 @@ where
             Action::Brightness { up } => change_and_notify(self.state, || {
                 change_brightness(up, self.sys_root, &mut self.run_command)
             }),
-            Action::Volume(action) => change_and_notify(self.state, || {
-                (self.change_volume)(action).map(|()| true)
-            }),
+            Action::Volume(action) => {
+                change_and_notify(self.state, || (self.change_volume)(action).map(|()| true))
+            }
         };
         if result.is_ok() { 0 } else { 1 }
     }
@@ -236,7 +236,12 @@ fn record_music_key(state: &Path, action: &str) -> io::Result<()> {
     let path = state.join("music");
     let text = match fs::read_to_string(&path) {
         Ok(text) => text.replace("\r\n", "\n"),
-        Err(err) if matches!(err.kind(), io::ErrorKind::NotFound | io::ErrorKind::InvalidData) => {
+        Err(err)
+            if matches!(
+                err.kind(),
+                io::ErrorKind::NotFound | io::ErrorKind::InvalidData
+            ) =>
+        {
             String::new()
         }
         Err(err) => return Err(err),

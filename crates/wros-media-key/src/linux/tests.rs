@@ -328,7 +328,10 @@ fn music_keys_are_logged_for_the_app() {
         fs::read_to_string(&log).unwrap(),
         "1 play-pause\n2 next\n3 next\n"
     );
-    assert_eq!(fs::metadata(log).unwrap().permissions().mode() & 0o7777, 0o644);
+    assert_eq!(
+        fs::metadata(log).unwrap().permissions().mode() & 0o7777,
+        0o644
+    );
     assert!(fixture.calls.is_empty());
     assert!(fixture.volume_actions.is_empty());
     assert!(!fixture.state.join("changed").exists());

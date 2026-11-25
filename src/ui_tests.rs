@@ -1789,7 +1789,7 @@ fn widget_desk(tag: &str) -> Desk {
     d
 }
 
-fn click_widget(d: &mut Desk, kind: crate::gauges::Widget) -> Rect {
+fn click_widget(d: &mut Desk, kind: crate::gauges::Widget) -> ratatui::layout::Rect {
     let &(rect, _) = d
         .app
         .widget_hits()
@@ -1851,7 +1851,10 @@ fn clock_popup_shows_month() {
     assert!(d.shows("25*"));
     assert!(d.shows("31"));
     d.keys(&[KeyCode::End, KeyCode::Enter]);
-    assert_eq!(d.app.deck.shell.nav.current(), Route::Panel(Panel::DateTime));
+    assert_eq!(
+        d.app.deck.shell.nav.current(),
+        Route::Panel(Panel::DateTime)
+    );
 }
 
 #[test]
@@ -1890,7 +1893,10 @@ fn find_anything_opens_widget_by_name() {
     d.key(KeyCode::Enter);
     assert!(matches!(
         d.app.overlay,
-        Overlay::Widget { kind: Widget::Wifi, .. }
+        Overlay::Widget {
+            kind: Widget::Wifi,
+            ..
+        }
     ));
     assert!(d.shows("Network settings…"));
 }
@@ -1906,6 +1912,7 @@ fn wifi_volume_battery_and_clock_sit_at_the_right_of_the_info_bar() {
         volume: Some(70),
         muted: false,
         wifi: Some(crate::gauges::Wifi::Bars(2)),
+        ..crate::gauges::Gauges::default()
     };
     d.app.deck.clock = "14:07".into();
     d.draw();

@@ -1005,7 +1005,9 @@ impl App {
 
     fn replace_wifi_networks(&mut self, networks: Option<Vec<wros_sys::WifiNetwork>>) {
         let rows = |networks: &Option<Vec<wros_sys::WifiNetwork>>| {
-            networks.as_ref().map_or(1, |networks| networks.len().max(1))
+            networks
+                .as_ref()
+                .map_or(1, |networks| networks.len().max(1))
         };
         if let Overlay::Widget {
             kind: crate::gauges::Widget::Wifi,

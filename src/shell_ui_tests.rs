@@ -644,7 +644,10 @@ fn brightness_popup_sends_request_and_floors_at_5() {
         ]
     );
     desk.app.on_click(anchor.right() - 1, anchor.y - 1);
-    assert_eq!(desk.app.deck.shell.nav.current(), Route::Panel(Panel::Power));
+    assert_eq!(
+        desk.app.deck.shell.nav.current(),
+        Route::Panel(Panel::Power)
+    );
 
     desk.key(KeyCode::Esc);
     desk.key(KeyCode::Esc);
@@ -764,7 +767,10 @@ fn wifi_popup_lists_networks_and_toggles() {
     );
     desk.keys(&[KeyCode::End, KeyCode::Enter]);
     wait_system(&mut desk);
-    assert_eq!(desk.app.deck.shell.nav.current(), Route::Panel(Panel::Network));
+    assert_eq!(
+        desk.app.deck.shell.nav.current(),
+        Route::Panel(Panel::Network)
+    );
 }
 
 #[test]

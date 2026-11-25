@@ -3,7 +3,7 @@
 use super::{TYPED, bar, list_nav};
 use crate::app::shell::{Panel, Route, WIFI_SCAN_FAILED, path_to};
 use crate::app::{App, Key, Overlay, hit, productivity};
-use crate::gauges::{Wifi, Widget};
+use crate::gauges::{Widget, Wifi};
 use crate::music::State;
 use crate::theme::Theme;
 use chrono::NaiveDate;
@@ -67,7 +67,10 @@ fn rows(app: &App, kind: Widget, t: &Theme) -> Vec<Row> {
                         let check = if console { "[x]" } else { "✓" };
                         Row::info(format!("{check} {name}  {signal}%"))
                     } else {
-                        Row::action(format!("{name}  {signal}%"), Choice::Network(network.clone()))
+                        Row::action(
+                            format!("{name}  {signal}%"),
+                            Choice::Network(network.clone()),
+                        )
                     }
                 })
                 .collect();
@@ -86,7 +89,11 @@ fn rows(app: &App, kind: Widget, t: &Theme) -> Vec<Row> {
             }
             rows.extend([
                 Row::action(
-                    if on { "Turn Wi-Fi off" } else { "Turn Wi-Fi on" },
+                    if on {
+                        "Turn Wi-Fi off"
+                    } else {
+                        "Turn Wi-Fi on"
+                    },
                     Choice::Wifi(!on),
                 ),
                 Row::action(
@@ -130,7 +137,10 @@ fn rows(app: &App, kind: Widget, t: &Theme) -> Vec<Row> {
                 Row::info(track),
                 Row::action(play_pause, Choice::PlayPause),
                 Row::action("Next track", Choice::NextTrack),
-                Row::action(format!("Sound settings{more}"), Choice::Settings(Route::SoundView)),
+                Row::action(
+                    format!("Sound settings{more}"),
+                    Choice::Settings(Route::SoundView),
+                ),
             ]);
             rows
         }
@@ -152,7 +162,10 @@ fn rows(app: &App, kind: Widget, t: &Theme) -> Vec<Row> {
                 Row::info(charge),
                 slider("Brightness", gauges.light, Choice::Brightness, console, t),
                 if app.warm_screen_available() {
-                    Row::action(format!("Night light{more}"), Choice::Settings(Route::WarmScreen))
+                    Row::action(
+                        format!("Night light{more}"),
+                        Choice::Settings(Route::WarmScreen),
+                    )
                 } else {
                     Row::info("Night light unavailable")
                 },
@@ -310,12 +323,7 @@ pub(super) fn draw(
     let room = usize::from(anchor.y.saturating_sub(area.y));
     let shown = rows.len().min(bar::MAX_ROWS).min(room);
     let start = (sel + 1).saturating_sub(shown);
-    let panel = Rect::new(
-        right - width,
-        anchor.y - shown as u16,
-        width,
-        shown as u16,
-    );
+    let panel = Rect::new(right - width, anchor.y - shown as u16, width, shown as u16);
     app.widget_panel.set((panel, start));
     let (inner, band) = bar::draw_panel(f, area, panel, app.linux_console, t);
     for (offset, row) in rows.into_iter().skip(start).take(shown).enumerate() {
