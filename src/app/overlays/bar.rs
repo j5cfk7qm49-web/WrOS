@@ -904,8 +904,13 @@ pub fn draw_bar_line(f: &mut Frame, app: &App, area: Rect, t: &Theme, show_marks
             let filled = Style::default().fg(Color::Black).bg(t.accent);
             (filled, filled)
         } else {
-            let letter = base.fg(if due { t.warn } else { t.dim });
-            (base.fg(t.border), letter)
+            // Cards due: the whole S tile in the warning colour. A cell has one ink, so the letter
+            // cell's share of the box would turn red anyway; the frame follows it.
+            if due {
+                (base.fg(t.warn), base.fg(t.warn))
+            } else {
+                (base.fg(t.border), base.fg(t.dim))
+            }
         };
         let letter = if tile == Some(view) {
             letter.add_modifier(Modifier::UNDERLINED | Modifier::BOLD)

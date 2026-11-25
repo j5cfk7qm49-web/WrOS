@@ -2192,9 +2192,10 @@ fn current_tile_is_filled_and_due_letter_is_red() {
         for x in 1..4 {
             assert_eq!(buf[(x, 0)].bg, theme.accent);
         }
-        assert_eq!(buf[(10, 0)].fg, theme.border);
+        // Cards due: the whole S tile, frame and letter, in the warning colour.
+        assert_eq!(buf[(10, 0)].fg, theme.warn);
         assert_eq!(buf[(11, 0)].fg, theme.warn);
-        assert_eq!(buf[(12, 0)].fg, theme.border);
+        assert_eq!(buf[(12, 0)].fg, theme.warn);
         assert_eq!(buf[(5, 0)].fg, theme.dim);
         assert!(d.rows()[0].contains(if glyphs {
             "\u{E100}\u{E113}\u{E101} │"
