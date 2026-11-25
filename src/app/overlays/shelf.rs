@@ -416,6 +416,7 @@ impl App {
                 line_width: self.line_width,
                 typewriter: self.typewriter,
                 spelling: self.spell_lang.key().into(),
+                catalogue_search: self.catalogue_on,
                 ..Settings::default()
             },
             background: self.background,

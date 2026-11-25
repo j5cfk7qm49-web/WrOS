@@ -32,6 +32,7 @@ pub enum Action {
     Corkboard,
     OpenCodex,
     Spellcheck,
+    CatalogueSearch,
     Icons,
     SpellingSuggestions,
     Export,
@@ -249,6 +250,7 @@ impl Action {
             self,
             Action::SpellingLanguage
                 | Action::Spellcheck
+                | Action::CatalogueSearch
                 | Action::Icons
                 | Action::LineWidth
                 | Action::Typewriter

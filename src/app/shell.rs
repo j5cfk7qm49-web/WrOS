@@ -997,6 +997,7 @@ fn page_entries(app: &App, route: Route) -> Vec<Entry> {
                     Action::ManuscriptLook,
                     Action::AuthorDetails,
                     Action::MlaPaperDetails,
+                    Action::CatalogueSearch,
                 ],
             );
             rows.push(Entry::new(

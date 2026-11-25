@@ -6,10 +6,11 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::mpsc;
+use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 
 use crate::books;
+use crate::catalogue;
 use crate::music::{self, Music};
 use crate::palette::{self, Action, Side, Title};
 use crate::scene::{Mode, Pomodoro};
@@ -296,6 +297,10 @@ pub struct App {
     replace_redoable: bool,
     /// Spellcheck underlines are showing.
     pub spell_on: bool,
+    /// Search online catalogues from @ and Add a source.
+    pub catalogue_on: bool,
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub catalogue_fetch: Arc<dyn catalogue::Fetch>,
     /// Drawing on the Linux console. It does not know underline colours
     /// (`ESC[58;…m`) and reads them as faint, blink and font switches, and it
     /// turns dark backgrounds black.
@@ -1078,6 +1083,8 @@ impl App {
             replace_undoable: false,
             replace_redoable: false,
             spell_on: setup.settings.spellcheck,
+            catalogue_on: setup.settings.catalogue_search,
+            catalogue_fetch: catalogue::default_fetch(),
             linux_console: false,
             spell_lang: spell::Language::parse(&setup.settings.spelling),
             icons_on: setup.settings.icons,
@@ -2751,6 +2758,7 @@ impl App {
                 }
             }
             Action::Spellcheck => self.toggle_spellcheck(),
+            Action::CatalogueSearch => self.toggle_catalogue_search(),
             Action::Icons => self.toggle_icons(),
             Action::SpellingSuggestions => self.spelling(),
             Action::MoveUp => self.move_selected(true),
@@ -3958,6 +3966,23 @@ impl App {
         } else {
             "spellcheck off".into()
         };
+    }
+
+    fn toggle_catalogue_search(&mut self) {
+        self.catalogue_on = !self.catalogue_on;
+        let on = self.catalogue_on;
+        Self::save_setting(|s| s.catalogue_search = on);
+        self.msg = if on {
+            "online search on".into()
+        } else {
+            "online search off".into()
+        };
+    }
+
+    // The pickers start using this when they gain catalogue results.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn new_catalogue_search(&self) -> catalogue::Search {
+        catalogue::Search::new(Arc::clone(&self.catalogue_fetch), self.catalogue_on)
     }
 
     /// Misspelt words in one paragraph of the open scene, leaving out the word
@@ -5877,6 +5902,10 @@ impl App {
             ("Reading voice…".into(), Action::Voices),
             ("Manuscript look…".into(), Action::ManuscriptLook),
             ("Author details…".into(), Action::AuthorDetails),
+            (
+                "Search catalogues online from @ and Add a source".into(),
+                Action::CatalogueSearch,
+            ),
         ]
     }
 

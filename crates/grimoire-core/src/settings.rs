@@ -20,6 +20,8 @@ pub struct Settings {
     pub voice: String,
     /// Which English spellcheck knows: `en_US`, `en_GB`, `en_CA`, `en_AU`.
     pub spelling: String,
+    /// Search online catalogues from @ and Add a source. On unless turned off.
+    pub catalogue_search: bool,
 }
 
 /// A comfortable measure for prose: about twelve words a line.
@@ -34,6 +36,7 @@ impl Default for Settings {
             typewriter: true,
             voice: String::new(),
             spelling: "en_US".into(),
+            catalogue_search: true,
         }
     }
 }
@@ -69,6 +72,7 @@ impl Settings {
                 "typewriter" => out.typewriter = v.trim() != "false",
                 "voice" => out.voice = v.trim().trim_matches('"').to_string(),
                 "spelling" => out.spelling = v.trim().trim_matches('"').to_string(),
+                "catalogue_search" => out.catalogue_search = v.trim() != "false",
                 _ => {}
             }
         }
@@ -91,13 +95,15 @@ impl Settings {
              # The voice for Read aloud; empty picks the most natural one.\n\
              voice = \"{}\"\n\
              # Which English spellcheck knows: en_US, en_GB, en_CA or en_AU.\n\
-             spelling = {}\n",
+             spelling = {}\n\
+             catalogue_search = {}\n",
             self.spellcheck,
             self.icons,
             self.line_width,
             self.typewriter,
             self.voice.replace('"', ""),
-            self.spelling
+            self.spelling,
+            self.catalogue_search,
         )
     }
 }
@@ -112,6 +118,20 @@ mod tests {
         assert!(Settings::parse("").spellcheck);
         assert!(!Settings::parse("spellcheck = false\n").spellcheck);
         assert!(Settings::parse("spellcheck = true\n").spellcheck);
+    }
+
+    #[test]
+    fn catalogue_search_defaults_on_and_round_trips() {
+        assert!(Settings::default().catalogue_search);
+        assert!(Settings::parse("spellcheck = false\n").catalogue_search);
+        for (text, enabled) in [
+            ("catalogue_search = false\n", false),
+            ("catalogue_search = true\n", true),
+        ] {
+            let settings = Settings::parse(text);
+            assert_eq!(settings.catalogue_search, enabled);
+            assert_eq!(Settings::parse(&settings.to_text()), settings);
+        }
     }
 
     #[test]
@@ -149,6 +169,7 @@ mod tests {
             typewriter: false,
             voice: "/home/me/voices/en_US-lessac-high.onnx".into(),
             spelling: "en_GB".into(),
+            catalogue_search: false,
         };
         assert_eq!(Settings::parse(&s.to_text()), s);
     }

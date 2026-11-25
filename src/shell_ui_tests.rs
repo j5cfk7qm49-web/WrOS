@@ -446,6 +446,37 @@ fn unified_settings_reuse_existing_preferences_and_modal_cancel_paths() {
 }
 
 #[test]
+fn the_manuscript_page_turns_catalogue_search_off() {
+    if !music_test_home("the_manuscript_page_turns_catalogue_search_off") {
+        return;
+    }
+    let mut desk = Desk::open(book("shell-catalogue-search", true), 100, 30);
+    assert!(desk.app.catalogue_on);
+    assert_eq!(
+        desk.app.new_catalogue_search().status(),
+        &crate::catalogue::SearchStatus::Idle
+    );
+    desk.app.open_settings();
+    desk.draw();
+    desk.choose("Writing");
+    desk.choose("Manuscript");
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::WritingManuscript);
+    desk.choose("Search catalogues online from @ and Add a source");
+    assert!(!desk.app.catalogue_on);
+    assert!(!Settings::load().catalogue_search);
+    assert_eq!(
+        desk.app.new_catalogue_search().status(),
+        &crate::catalogue::SearchStatus::Off
+    );
+
+    close_settings(&mut desk);
+    let other = tempfile::tempdir().unwrap();
+    project::scaffold(other.path()).unwrap();
+    assert!(desk.app.open_book(other.path()), "{}", desk.app.msg);
+    assert!(!desk.app.catalogue_on);
+}
+
+#[test]
 fn unified_settings_preserve_future_and_externally_changed_preferences() {
     let root = book("shell-future", true);
     let path = root.join(".grimoire/writingdeck/shell.json");
