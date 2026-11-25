@@ -113,6 +113,7 @@ pub enum Action {
     Beside(std::path::PathBuf),
     LineWidth,
     Typewriter,
+    PomodoroChime,
     /// An older book keeps its writing history in `.git` inside it: move it
     /// to this machine's data folder, where no sync client can damage it.
     MoveHistoryOut,
@@ -259,6 +260,7 @@ impl Action {
                 | Action::Icons
                 | Action::LineWidth
                 | Action::Typewriter
+                | Action::PomodoroChime
         )
     }
 }

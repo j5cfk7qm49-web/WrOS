@@ -144,6 +144,13 @@ impl Watch {
             .map(|(text, _)| text.as_str())
     }
 
+    /// The reserve warning while a battery sleep is pending.
+    pub(crate) fn countdown_warning(&self) -> Option<&str> {
+        self.countdown
+            .and(self.notice.as_ref())
+            .map(|(text, _)| text.as_str())
+    }
+
     fn say(&mut self, text: &str, now: Instant, seconds: u64) {
         self.notice = Some((text.to_string(), now + Duration::from_secs(seconds)));
     }

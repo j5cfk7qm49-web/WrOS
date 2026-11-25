@@ -339,12 +339,13 @@ pub struct App {
     /// place as a note, so only one of them shows at a time.
     pub beside: Option<BesidePane>,
     pub rect_beside: Rect,
-    /// Focus mode: only the prose, centred, and a quiet status line.
+    /// Focus mode: only the prose and any urgent warnings.
     pub focus_mode: bool,
     /// The widest a line of prose runs (0: the whole pane), and whether focus
     /// mode keeps the line being written mid-screen. From settings.toml.
     pub line_width: usize,
     pub typewriter: bool,
+    pub pomodoro_chime: bool,
     /// The editor's whole pane, for clicks: `rect_editor` is only the column
     /// the prose is set in.
     pub rect_prose: Rect,
@@ -530,10 +531,10 @@ pub struct ExportReview {
 }
 
 /// The book's backup, as the bar's line shows it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BackupMark {
-    /// Backed up, at this time ("14:02", or "12 Nov" before today).
-    Done(String),
+    /// Backed up. Settings shows the snapshot time.
+    Done,
     Running,
     /// Queued until the backup place can be reached.
     Waiting,
@@ -1122,6 +1123,7 @@ impl App {
             focus_mode: false,
             line_width: setup.settings.line_width,
             typewriter: setup.settings.typewriter,
+            pomodoro_chime: setup.settings.pomodoro_chime,
             rect_prose: Rect::default(),
             side_room: true,
             last_caret: None,
@@ -2736,6 +2738,10 @@ impl App {
             }
             Action::LineWidth => self.cycle_line_width(),
             Action::Typewriter => self.toggle_typewriter(),
+            Action::PomodoroChime => {
+                self.pomodoro_chime = !self.pomodoro_chime;
+                Self::save_setting(|s| s.pomodoro_chime = self.pomodoro_chime);
+            }
             Action::Help => self.open_help(None),
             Action::About => self.open_about(),
             Action::Donate => self.overlay = Overlay::Donate,
@@ -5932,6 +5938,13 @@ impl App {
                 on_off(self.typewriter, "typewriter scrolling"),
                 Action::Typewriter,
             ),
+            (
+                format!(
+                    "Pomodoro chime · {}",
+                    if self.pomodoro_chime { "on" } else { "off" }
+                ),
+                Action::PomodoroChime,
+            ),
             ("Reading voice…".into(), Action::Voices),
             ("Manuscript look…".into(), Action::ManuscriptLook),
             ("Author details…".into(), Action::AuthorDetails),
@@ -5947,13 +5960,10 @@ impl App {
 
     /// The book's backup from what is already known (nothing is read here).
     pub fn backup_mark(&self) -> Option<BackupMark> {
-        self.deck.backup_mark.clone()
+        self.deck.backup_mark
     }
 
-    pub(crate) fn read_backup_mark(
-        &self,
-        now: chrono::DateTime<chrono::Local>,
-    ) -> Option<BackupMark> {
+    pub(crate) fn read_backup_mark(&self) -> Option<BackupMark> {
         let backups = &self.deck.shell.backup;
         if backups.auto.failing() {
             return Some(BackupMark::Failed);
@@ -5980,19 +5990,12 @@ impl App {
         {
             return Some(BackupMark::Waiting);
         }
-        let last = backups
+        backups
             .status
             .snapshots
             .iter()
-            .filter(|s| ours(&s._path))
-            .filter_map(|s| chrono::DateTime::parse_from_rfc3339(&s.time).ok())
-            .max()?
-            .with_timezone(&chrono::Local);
-        Some(BackupMark::Done(if last.date_naive() == now.date_naive() {
-            last.format("%H:%M").to_string()
-        } else {
-            last.format("%-d %b").to_string()
-        }))
+            .any(|s| ours(&s._path) && chrono::DateTime::parse_from_rfc3339(&s.time).is_ok())
+            .then_some(BackupMark::Done)
     }
 
     /// The screens Ctrl-K (and a Super tap) may leave for Find anything:
@@ -6065,7 +6068,7 @@ impl App {
 
     // ---- focus mode, and a scene beside --------------------------------
 
-    /// Ctrl-D: just the prose, centred, and a quiet status line — or back.
+    /// Ctrl-D: show just the prose and any urgent warnings, or return to the desk.
     pub fn toggle_focus_mode(&mut self) {
         if self.focus_mode {
             self.focus_mode = false;

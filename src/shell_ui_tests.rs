@@ -446,6 +446,26 @@ fn unified_settings_reuse_existing_preferences_and_modal_cancel_paths() {
 }
 
 #[test]
+fn pomodoro_chime_toggle_round_trips() {
+    if !music_test_home("pomodoro_chime_toggle_round_trips") {
+        return;
+    }
+    let mut desk = Desk::open(book("shell-pomodoro-chime", true), 100, 30);
+    assert!(desk.app.pomodoro_chime);
+    desk.app.open_settings();
+    desk.draw();
+    desk.choose("Writing");
+    desk.choose("Editor");
+    assert_eq!(desk.app.deck.shell.nav.current(), Route::WritingEditor);
+    desk.choose("Pomodoro chime · on");
+    assert!(!desk.app.pomodoro_chime);
+    assert!(!Settings::load().pomodoro_chime);
+    desk.choose("Pomodoro chime · off");
+    assert!(desk.app.pomodoro_chime);
+    assert!(Settings::load().pomodoro_chime);
+}
+
+#[test]
 fn the_manuscript_page_turns_catalogue_search_off() {
     if !music_test_home("the_manuscript_page_turns_catalogue_search_off") {
         return;

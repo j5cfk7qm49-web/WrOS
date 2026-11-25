@@ -59,10 +59,15 @@ pub fn draw(
     app.bar_hits.borrow_mut().clear();
     let nonwriting_view = app.desk_view != DeskView::Write;
     let focused = app.focus_mode && !nonwriting_view;
+    let warning = if focused {
+        focus_warning(app, &t)
+    } else {
+        None
+    };
     let [bar, main, info, progress] = Layout::vertical([
         Constraint::Length(u16::from(!focused)),
         Constraint::Min(0),
-        Constraint::Length(1),
+        Constraint::Length(u16::from(!focused || warning.is_some())),
         Constraint::Length(u16::from(!focused)),
     ])
     .areas(f.area());
@@ -88,7 +93,9 @@ pub fn draw(
     let now = Instant::now();
     if focused {
         app.marquee = None;
-        draw_focus_line(f, app, info, &t, now);
+        if let Some(warning) = warning {
+            draw_focus_line(f, info, &t, &warning, app.linux_console);
+        }
     } else {
         draw_info_bar(f, app, info, &t, now);
         draw_progress_bar(f, app, progress, &t, now);
@@ -880,7 +887,7 @@ fn draw_editor(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
     }
     let block = if app.focus_mode {
         // Focus mode draws the page, not a pane: no frame, no title.
-        Block::default().padding(Padding::new(2, 2, 1, 0))
+        Block::default().padding(Padding::horizontal(2))
     } else {
         pane_block(&title, focused, t).padding(Padding::new(2, 2, 0, 0))
     };
@@ -1200,7 +1207,6 @@ pub(crate) fn info_section(app: &App) -> Vec<Span<'static>> {
             .into_iter()
             .collect(),
         DeskView::Study => vec![Span::raw(crate::app::study::info(app))],
-        DeskView::Write if shows_scene_path(app) => scene_path(app),
         DeskView::Write => {
             if let Some(selection) = app.editor.selected_text() {
                 let words = grimoire_core::notes::count_words(&selection);
@@ -1237,31 +1243,6 @@ pub(crate) fn info_section(app: &App) -> Vec<Span<'static>> {
     }
 }
 
-/// Focus mode hides the editor's title and the outline, so its one line names the scene in full.
-fn shows_scene_path(app: &App) -> bool {
-    app.desk_view == DeskView::Write && app.focus_mode
-}
-
-fn scene_path(app: &App) -> Vec<Span<'static>> {
-    let Some(index) = app.open else {
-        return Vec::new();
-    };
-    let scene = &app.project.nodes[index];
-    let arrow = breadcrumb_separator(app.linux_console);
-    let dot = info_separator(app.linux_console);
-    let mut prefix = format!("{}{arrow}", app.project.meta.title);
-    if let Some(chapter) = app.parents[index].map(|i| &app.project.nodes[i])
-        && chapter.kind == Kind::Container
-    {
-        prefix.push_str(&chapter.title);
-        prefix.push_str(arrow);
-    }
-    vec![
-        Span::raw(prefix),
-        Span::raw(format!("{}{dot}{}", scene.title, thousands(scene.words()))),
-    ]
-}
-
 pub(crate) fn info_separator(console: bool) -> &'static str {
     if console { " | " } else { " · " }
 }
@@ -1275,7 +1256,7 @@ fn ellipsis(console: bool) -> &'static str {
 }
 
 /// Shorten at a character boundary using terminal cells, including wide titles.
-fn fit_text(text: &str, width: usize, from_left: bool, console: bool) -> String {
+fn fit_text(text: &str, width: usize, console: bool) -> String {
     if Span::raw(text).width() <= width {
         return text.to_owned();
     }
@@ -1283,24 +1264,13 @@ fn fit_text(text: &str, width: usize, from_left: bool, console: bool) -> String 
     let Some(room) = width.checked_sub(Span::raw(ellipsis).width()) else {
         return ".".repeat(width);
     };
-    if from_left {
-        let first = text
-            .char_indices()
-            .rev()
-            .map(|(i, _)| i)
-            .take_while(|&i| Span::raw(&text[i..]).width() <= room)
-            .last()
-            .unwrap_or(text.len());
-        format!("{ellipsis}{}", &text[first..])
-    } else {
-        let end = text
-            .char_indices()
-            .map(|(i, _)| i)
-            .take_while(|&i| Span::raw(&text[..i]).width() <= room)
-            .last()
-            .unwrap_or_default();
-        format!("{}{ellipsis}", &text[..end])
-    }
+    let end = text
+        .char_indices()
+        .map(|(i, _)| i)
+        .take_while(|&i| Span::raw(&text[..i]).width() <= room)
+        .last()
+        .unwrap_or_default();
+    format!("{}{ellipsis}", &text[..end])
 }
 
 fn info_text(info: &[Span<'_>]) -> String {
@@ -1312,17 +1282,11 @@ fn draw_info_bar(f: &mut Frame, app: &mut App, area: Rect, t: &Theme, now: Insta
         return;
     }
     let info = info_section(app);
-    let path = shows_scene_path(app);
     let console = app.linux_console;
     let text = info_text(&info);
     let width = usize::from(area.width);
-    let path_tail = if path {
-        info.last().map_or(0, Span::width) + Span::raw(ellipsis(console)).width()
-    } else {
-        0
-    };
     let text_width = Span::raw(text.as_str()).width();
-    let reserved = text_width.min((width / 2).max(path_tail));
+    let reserved = text_width.min(width / 2);
     let light = app
         .deck
         .light_flash
@@ -1334,7 +1298,7 @@ fn draw_info_bar(f: &mut Frame, app: &mut App, area: Rect, t: &Theme, now: Insta
         width.saturating_sub(reserved + 1),
     );
     let gauge_width: usize = items.iter().map(|(_, s)| gauges::item_width(s)).sum();
-    let left = fit_text(&text, width.saturating_sub(gauge_width + 1), path, console);
+    let left = fit_text(&text, width.saturating_sub(gauge_width + 1), console);
     f.render_widget(
         Line::styled(format!(" {left}"), Style::default().fg(t.text)),
         area,
@@ -1455,12 +1419,7 @@ fn draw_progress_bar(f: &mut Frame, app: &mut App, area: Rect, t: &Theme, now: I
                 );
                 f.render_widget(Line::styled(shown.content.clone(), shown.style), right);
             } else {
-                let text = fit_text(
-                    &shown.content,
-                    width.saturating_sub(2),
-                    false,
-                    app.linux_console,
-                );
+                let text = fit_text(&shown.content, width.saturating_sub(2), app.linux_console);
                 f.render_widget(Line::styled(format!(" {text}"), shown.style), area);
             }
             return;
@@ -1527,14 +1486,14 @@ fn draw_progress_bar(f: &mut Frame, app: &mut App, area: Rect, t: &Theme, now: I
             marquee.visible().to_owned()
         } else {
             app.marquee = None;
-            fit_text(title, title_room, false, app.linux_console)
+            fit_text(title, title_room, app.linux_console)
         };
         message = Some(Span::styled(format!("{music_prefix}{shown}"), dim));
     } else {
         app.marquee = None;
     }
     if let Some(message) = message.filter(|_| right_room > 0) {
-        let text = fit_text(&message.content, right_room, false, app.linux_console);
+        let text = fit_text(&message.content, right_room, app.linux_console);
         let right = Rect::new(
             area.right() - 1 - right_room as u16,
             area.y,
@@ -1545,55 +1504,19 @@ fn draw_progress_bar(f: &mut Frame, app: &mut App, area: Rect, t: &Theme, now: I
     }
 }
 
-fn draw_focus_line(f: &mut Frame, app: &App, area: Rect, t: &Theme, now: Instant) {
-    let info = info_section(app);
-    let mut tail = vec![daily_words(app, t)];
-    for (text, style) in status_marks(app, t, true) {
-        tail.push(Span::styled(format!("  {text}"), style));
-    }
-    let warn = Style::default().fg(t.warn);
-    let battery = app
-        .deck
-        .gauges
-        .items(true, app.linux_console, false, "")
-        .into_iter()
-        .next()
-        .map(|(_, text)| Span::styled(format!("  {text}"), warn));
-    let tail_width =
-        tail.iter().map(Span::width).sum::<usize>() + battery.as_ref().map_or(0, Span::width);
-    let room = usize::from(area.width).saturating_sub(1 + tail_width);
-    let path_tail = info.last().map_or(0, Span::width);
-    let notice = app.deck.battery.showing(now).and_then(|text| {
-        let notice_room = room.saturating_sub(path_tail + 3);
-        (notice_room > 0).then(|| {
-            let shown = fit_text(text, notice_room, false, app.linux_console);
-            Span::styled(format!("  {shown}"), warn)
-        })
-    });
-    let path = fit_text(
-        &info_text(&info),
-        room.saturating_sub(notice.as_ref().map_or(0, Span::width)),
-        true,
-        app.linux_console,
-    );
-    let mut spans = vec![Span::styled(
-        format!(" {path}"),
-        Style::default().fg(t.accent),
-    )];
-    spans.extend(tail);
-    spans.extend(notice);
-    spans.extend(battery);
-    f.render_widget(Line::from(spans), area);
+fn focus_warning(app: &App, t: &Theme) -> Option<String> {
+    let marks = ranked_marks(app, t, true);
+    let warnings = marks
+        .iter()
+        .map(|(text, _, _)| text.as_str())
+        .chain(app.deck.battery.countdown_warning());
+    let text = warnings.collect::<Vec<_>>().join("  ");
+    (!text.is_empty()).then_some(text)
 }
 
-/// The marks at the right of the menu bar's line: conflicts waiting to be
-/// settled, whether the words are saved, and the book's backup. With
-/// `warnings_only`, just the ones that need attention (focus mode).
-pub(crate) fn status_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(String, Style)> {
-    ranked_marks(app, t, warnings_only)
-        .into_iter()
-        .map(|(text, style, _)| (text, style))
-        .collect()
+fn draw_focus_line(f: &mut Frame, area: Rect, t: &Theme, warning: &str, console: bool) {
+    let shown = fit_text(warning, usize::from(area.width), console);
+    f.render_widget(Line::styled(shown, Style::default().fg(t.warn)), area);
 }
 
 /// How much a mark matters when the line is short: words not saved most,
@@ -1625,7 +1548,7 @@ fn ranked_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(String, Style
     // Saved is a steady dim tick; saving, waiting and not saved say so.
     let dirty = app.project.dirty_count();
     let save = match &app.save_state {
-        crate::app::SaveState::Failed(_) if dirty > 0 => Some((
+        crate::app::SaveState::Failed(_) if dirty > 0 => (
             if console {
                 format!("{dirty} not saved")
             } else {
@@ -1633,9 +1556,9 @@ fn ranked_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(String, Style
             },
             Style::default().fg(t.warn),
             UNSAVED,
-        )),
-        // Not on disk yet: focus mode says so too.
-        crate::app::SaveState::Waiting(_) if dirty > 0 => Some((
+        ),
+        _ if warnings_only => return out,
+        crate::app::SaveState::Waiting(_) if dirty > 0 => (
             if console {
                 format!("{dirty} waiting")
             } else {
@@ -1643,8 +1566,8 @@ fn ranked_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(String, Style
             },
             Style::default().fg(t.sun),
             PENDING,
-        )),
-        _ if dirty > 0 => Some((
+        ),
+        _ if dirty > 0 => (
             if console {
                 "saving".into()
             } else {
@@ -1652,8 +1575,8 @@ fn ranked_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(String, Style
             },
             Style::default().fg(t.dim),
             CALM,
-        )),
-        _ => Some((
+        ),
+        _ => (
             if console {
                 "saved".into()
             } else {
@@ -1661,22 +1584,17 @@ fn ranked_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(String, Style
             },
             Style::default().fg(t.dim),
             CALM,
-        )),
+        ),
     };
-    if let Some((text, style, rank)) = save
-        && (rank > CALM || !warnings_only)
-    {
-        out.push((text, style, rank));
+    out.push(save);
+    if warnings_only {
+        return out;
     }
     if let Some(mark) = app.backup_mark() {
         use crate::app::BackupMark;
         let (text, style, rank) = match mark {
-            BackupMark::Done(at) => (
-                if console {
-                    format!("backed up {at}")
-                } else {
-                    format!("⇅ {at}")
-                },
+            BackupMark::Done => (
+                if console { "backed up" } else { "⇅" }.into(),
                 Style::default().fg(t.dim),
                 CALM,
             ),
@@ -1708,9 +1626,7 @@ fn ranked_marks(app: &App, t: &Theme, warnings_only: bool) -> Vec<(String, Style
                 TROUBLE,
             ),
         };
-        if rank > CALM || !warnings_only {
-            out.push((text, style, rank));
-        }
+        out.push((text, style, rank));
     }
     out
 }

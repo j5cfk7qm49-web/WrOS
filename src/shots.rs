@@ -432,7 +432,7 @@ fn owner_preview() {
         };
         s.app.deck.shell.wifi_networks = Some(wros_sys::Simulated::default().wifi_networks);
         s.app.deck.clock = "14:07".into();
-        s.app.deck.backup_mark = Some(crate::app::BackupMark::Done("13:52".into()));
+        s.app.deck.backup_mark = Some(crate::app::BackupMark::Done);
 
         s.app.deck.state.current_mut().outline = true;
         s.key(KeyCode::Tab, KeyModifiers::NONE);
@@ -866,7 +866,7 @@ fn previews() {
         ..Default::default()
     };
     s.app.deck.clock = "14:07".into();
-    s.app.deck.backup_mark = Some(crate::app::BackupMark::Done("13:52".into()));
+    s.app.deck.backup_mark = Some(crate::app::BackupMark::Done);
     s.draw();
     frames.push(s.json("desk", None));
 

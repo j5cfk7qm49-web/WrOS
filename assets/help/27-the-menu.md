@@ -40,7 +40,7 @@ The mouse works everywhere on the bar: click a view tile to switch views, click 
 - Press `I` for a note's details, including its tags, fields and links. `@` adds a link by title, `O` opens linked notes, and `B` opens backlinks. Press `#` to tag a note. Use a built-in name like `book` or the title of a named page.
 - Press `/` to search, `S` to save a search on the selected note, and `R` to run that saved search. Use a phrase, `#tag`, `@title` for backlinks, or `field=value` when the selected note has that field.
 - In **Settings › Backups and accounts › Backups**, create an encrypted Commonplace backup and restore earlier Commonplace snapshots to a separate folder.
-- **Focus mode** (`Ctrl-D`): the top bar and other panes go away, leaving one line at the bottom. `Ctrl-D` again brings it all back.
+- **Focus mode** (`Ctrl-D`): the page fills the screen. Urgent warnings appear on the bottom line when needed. `Ctrl-D` again brings back the bars and panes.
 - **Show the outline** / **Hide the outline**: the outline column, without entering focus mode. It has no key of its own unless you give it one in Settings › Look and keyboard › Keyboard.
 - **Show the pins sidebar** / **Hide the pins sidebar**. See *Pins*.
 - **Open a scene beside…** (`v`).

@@ -187,7 +187,7 @@ fn study_cards_use_a_saved_search_and_never_type_into_the_manuscript() {
     assert!(desk.shows("Answer for Review"));
     desk.key(KeyCode::Char('5'));
     assert!(desk.shows("No cards due"));
-    assert!(desk.rows()[0].contains("[S]•"));
+    assert!(desk.rows()[0].contains("[S] │"));
     desk.typed("Pasted over nothing");
     assert_eq!(desk.app.editor.text(), draft);
     drop(desk);
@@ -1579,27 +1579,6 @@ fn write_info_without_tree_names_only_the_project() {
 }
 
 #[test]
-fn long_path_keeps_scene_name() {
-    let mut d = info_book("info-long-path", 40);
-    d.app.deck.state.current_mut().outline = true;
-    let scene = d.app.open.unwrap();
-    let chapter = d.app.parents[scene].unwrap();
-    d.app.project.meta.title = "A very long project title that cannot fit on the line".into();
-    d.app.project.nodes[chapter].title = "A very long chapter title that cannot fit either".into();
-    d.app.project.nodes[scene].title = "The whole scene name".into();
-    // Focus mode hides the editor's title, so its one line carries the whole path.
-    d.app.focus_mode = true;
-    d.draw();
-    assert!(d.app.rect_tree.is_empty());
-    let info = d.status();
-    assert!(info.trim_start().starts_with('…'), "{info}");
-    assert!(
-        info.contains("› The whole scene name · 5"),
-        "{info}"
-    );
-}
-
-#[test]
 fn read_outline_study_info_replaces_their_header_row() {
     use crate::app::outline::DeskView;
 
@@ -1959,13 +1938,13 @@ fn wifi_volume_battery_and_clock_sit_at_the_right_of_the_info_bar() {
         d.info()
     );
     d.app.linux_console = false;
-    // Focus mode keeps to the scene, unless the battery runs low.
+    // A battery reading by itself does not add chrome in focus mode.
     d.app.focus_mode = true;
     d.draw();
     assert!(!d.status().contains('▮'), "{}", d.status());
     d.app.deck.gauges.battery = Some(9);
     d.draw();
-    assert!(d.status().trim_end().ends_with("▮9%"), "{}", d.status());
+    assert!(!d.status().contains('▮'), "{}", d.status());
 }
 
 #[test]
@@ -2148,7 +2127,7 @@ fn narrow_screens_keep_the_message_whole_and_drop_the_clock_first() {
 fn top_bar_shows_tiles_menus_marks_and_power() {
     let (root, _, _) = conflicted("top-bar");
     let mut d = Desk::open(root, 170, 48);
-    d.app.deck.backup_mark = Some(app::BackupMark::Done("14:02".into()));
+    d.app.deck.backup_mark = Some(app::BackupMark::Done);
     let menus = " │ File  Edit  View  Project  Tools  Settings  Help";
     assert!(!d.app.tile_glyphs);
 
@@ -2156,10 +2135,7 @@ fn top_bar_shows_tiles_menus_marks_and_power() {
     d.draw();
     let top = &d.rows()[0];
     assert!(top.starts_with(&format!(" [W][r][O][S]{menus}")), "{top}");
-    assert!(
-        top.ends_with("1 conflict  saved  backed up 14:02 [Power]"),
-        "{top}"
-    );
+    assert!(top.ends_with("1 conflict  saved  backed up [Power]"), "{top}");
     let buf = d.term.backend().buffer();
     assert!(buf[(166, 0)].modifier.contains(Modifier::UNDERLINED));
 
@@ -2175,16 +2151,19 @@ fn top_bar_shows_tiles_menus_marks_and_power() {
     );
     assert!(top.starts_with(&format!("{tiles}{menus}")), "{top}");
     assert!(
-        top.ends_with("⚠ 1  ✓  ⇅ 14:02 \u{E100}\u{E114}\u{E101}"),
+        top.ends_with("⚠ 1  ✓  ⇅ \u{E100}\u{E114}\u{E101}"),
         "{top}"
     );
 }
 
 #[test]
-fn current_tile_is_filled_and_due_dot_shows() {
+fn current_tile_is_filled_and_due_letter_is_red() {
     use crate::app::outline::DeskView;
+    use crate::app::overlays::BarHit;
     use grimoire_brain::bounded_store::PagedBrain;
     use grimoire_brain::model::Place;
+    use ratatui::layout::Rect;
+    use ratatui::style::Color;
 
     let fixture = tempfile::tempdir().unwrap();
     let library = fixture.path().join("Commonplace");
@@ -2198,7 +2177,9 @@ fn current_tile_is_filled_and_due_dot_shows() {
     let mut d = Desk::open(book("tile-due", true), 170, 48);
     d.app.commonplace.set_paths(library, cache);
     d.app.switch_desk_view(DeskView::Study);
+    assert_eq!(d.app.commonplace.study.all_due, 1);
     for glyphs in [false, true] {
+        d.app.switch_desk_view(DeskView::Write);
         d.app.tile_glyphs = glyphs;
         d.app.linux_console = !glyphs;
         d.draw();
@@ -2208,20 +2189,32 @@ fn current_tile_is_filled_and_due_dot_shows() {
         } else {
             d.app.theme.for_console()
         };
-        let width = 3;
-        for x in 10..10 + width {
+        for x in 1..4 {
             assert_eq!(buf[(x, 0)].bg, theme.accent);
         }
-        assert_eq!(buf[(11, 0)].fg, ratatui::style::Color::Black);
-        assert_eq!(buf[(13, 0)].fg, theme.warn);
-        assert_eq!(buf[(13, 0)].symbol(), "•");
+        assert_eq!(buf[(10, 0)].fg, theme.border);
+        assert_eq!(buf[(11, 0)].fg, theme.warn);
+        assert_eq!(buf[(12, 0)].fg, theme.border);
+        assert_eq!(buf[(5, 0)].fg, theme.dim);
         assert!(d.rows()[0].contains(if glyphs {
-            "\u{E100}\u{E113}\u{E101}•"
+            "\u{E100}\u{E113}\u{E101} │"
         } else {
-            "[S]•"
+            "[S] │"
         }));
-        assert_eq!(buf[(1, 0)].fg, theme.border);
-        assert_eq!(buf[(2, 0)].fg, theme.dim);
+        assert!(
+            d.app
+                .bar_hits
+                .borrow()
+                .contains(&(Rect::new(10, 0, 3, 1), BarHit::Tile(DeskView::Study)))
+        );
+
+        d.app.switch_desk_view(DeskView::Study);
+        d.draw();
+        let buf = d.term.backend().buffer();
+        for x in 10..13 {
+            assert_eq!(buf[(x, 0)].bg, theme.accent);
+        }
+        assert_eq!(buf[(11, 0)].fg, Color::Black);
     }
 }
 
@@ -2237,16 +2230,11 @@ fn narrow_bar_drops_titles_before_power() {
         .unwrap()
         .dirty = true;
     d.app.save_state = app::SaveState::Failed("disk full".into());
-    d.app.deck.backup_mark = Some(app::BackupMark::Done("14:02".into()));
+    d.app.deck.backup_mark = Some(app::BackupMark::Done);
     for (glyphs, console, marks, power) in [
-        (true, false, "⚠ 1  ● 1  ⇅ 14:02", "\u{E100}\u{E114}\u{E101}"),
-        (false, false, "⚠ 1  ● 1  ⇅ 14:02", "[Power]"),
-        (
-            false,
-            true,
-            "1 conflict  1 not saved  backed up 14:02",
-            "[Power]",
-        ),
+        (true, false, "⚠ 1  ● 1  ⇅", "\u{E100}\u{E114}\u{E101}"),
+        (false, false, "⚠ 1  ● 1  ⇅", "[Power]"),
+        (false, true, "1 conflict  1 not saved  backed up", "[Power]"),
     ] {
         d.app.tile_glyphs = glyphs;
         d.app.linux_console = console;
@@ -2273,10 +2261,10 @@ fn narrow_bar_drops_titles_before_power() {
 fn status_top_right_shows_conflicts_then_save_then_backup() {
     let (root, _, _) = conflicted("status-top");
     let mut d = Desk::open(root, 120, 35);
-    d.app.deck.backup_mark = Some(crate::app::BackupMark::Done("14:02".into()));
+    d.app.deck.backup_mark = Some(crate::app::BackupMark::Done);
     d.draw();
     let top = d.rows()[0].clone();
-    assert!(top.ends_with("⚠ 1  ✓  ⇅ 14:02 [Power]"), "{top}");
+    assert!(top.ends_with("⚠ 1  ✓  ⇅ [Power]"), "{top}");
     // A failed backup stays in the warning colour until one works.
     d.app.deck.backup_mark = Some(crate::app::BackupMark::Failed);
     d.draw();
@@ -2318,7 +2306,7 @@ fn a_narrow_console_keeps_the_unsaved_warning_longest() {
 }
 
 #[test]
-fn focus_mode_says_when_words_are_waiting_to_be_written() {
+fn focus_mode_hides_the_waiting_save_mark() {
     let mut d = Desk::open(book("status-focus-waiting", true), 120, 35);
     d.key(KeyCode::Tab);
     d.ctrl('d');
@@ -2332,11 +2320,13 @@ fn focus_mode_says_when_words_are_waiting_to_be_written() {
         .dirty = true;
     d.app.save_state = app::SaveState::Waiting("placeholder".into());
     d.draw();
-    assert!(d.status().contains("◌ 1"), "{}", d.status());
+    assert!(d.status().trim().is_empty(), "{}", d.status());
 }
 
 #[test]
 fn focus_mode_one_line_keeps_warnings() {
+    use crate::battery::{Reading, Step};
+
     let (root, _, _) = conflicted("status-focus");
     let mut d = Desk::open(root, 120, 35);
     d.key(KeyCode::Tab);
@@ -2345,23 +2335,54 @@ fn focus_mode_one_line_keeps_warnings() {
     d.app.project.nodes[d.app.open.unwrap()].dirty = true;
     d.app.save_state = app::SaveState::Failed("disk full".into());
     d.app.deck.gauges.battery = Some(9);
-    d.app.deck.backup_mark = Some(crate::app::BackupMark::Done("14:02".into()));
-    d.draw();
-    let status = d.status();
-    assert!(status.contains("› Scene One · "), "{status}");
-    assert!(status.contains("today"), "{status}");
-    assert!(status.contains("● 1"), "{status}");
-    assert!(status.contains("⚠ 1"), "{status}");
-    assert!(status.trim_end().ends_with("▮9%"), "{status}");
-    assert!(!d.rows()[0].contains("File  Edit"));
-    assert!(!d.info().contains("Scene One · 5"));
-    assert!(
-        !status.contains('✓') && !status.contains('⇅'),
-        "only warnings: {status}"
-    );
     d.app.deck.backup_mark = Some(crate::app::BackupMark::Failed);
     d.draw();
-    assert!(d.status().contains("⇅!"), "{}", d.status());
+    assert_eq!(d.status().trim(), "⚠ 1  ● 1");
+    assert_eq!(d.app.edit_height, 34);
+    assert!(!d.rows()[0].contains("File  Edit"));
+
+    let scene = d.app.open.unwrap();
+    d.app.project.nodes[scene].dirty = false;
+    d.app.save_state = app::SaveState::Clean;
+    d.draw();
+    assert_eq!(d.status().trim(), "⚠ 1");
+    let copy = d.app.conflicts()[0];
+    d.app.project.nodes[copy].copy_of = None;
+
+    let now = Instant::now();
+    let reserve = Reading {
+        percent: Some(8),
+        discharging: true,
+        critical: true,
+    };
+    assert_eq!(d.app.deck.battery.read(reserve, true, now), Step::Save);
+    d.draw();
+    assert_eq!(
+        d.status().trim(),
+        "Battery 8%. WrOS saves, locks and sleeps in 30 seconds. Plug in to stay awake."
+    );
+    assert_eq!(
+        d.app.deck.battery.read(Reading::default(), true, now),
+        Step::Nothing
+    );
+    d.draw();
+    assert!(d.status().trim().is_empty(), "{}", d.status());
+    assert_eq!(d.app.edit_height, 35);
+}
+
+#[test]
+fn focus_mode_shows_only_the_page() {
+    let mut d = Desk::open(book("focus-page", true), 120, 35);
+    let prose = "The ferry left at dawn.";
+    d.app.editor.set_text(prose);
+    d.ctrl('d');
+    assert!(d.app.focus_mode);
+    assert_eq!(d.app.rect_prose, d.term.backend().buffer().area);
+    assert_eq!(d.app.rect_editor.y, 0);
+    assert_eq!(d.app.edit_height, 35);
+    let rows = d.rows();
+    assert_eq!(rows[0].trim(), prose);
+    assert!(rows[1..].iter().all(|row| row.trim().is_empty()));
 }
 
 // ---- notes beside the scene ------------------------------------------------

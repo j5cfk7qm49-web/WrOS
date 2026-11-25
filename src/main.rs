@@ -5,6 +5,7 @@ mod backup_service;
 mod battery;
 mod books;
 mod catalogue;
+mod chime;
 #[cfg(all(target_os = "linux", feature = "compositor-warmth"))]
 mod compositor_warmth;
 #[cfg(target_os = "linux")]
@@ -811,6 +812,7 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
         }
         app.tick_player();
         if app.pomo.tick() {
+            chime::on_phase_end(app.pomo.phase, app.pomodoro_chime, crate::chime::ring);
             app.msg = match app.pomo.phase {
                 scene::Phase::Break => "break — go and look at something far away".into(),
                 _ => "back to it".into(),

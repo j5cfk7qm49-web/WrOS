@@ -896,10 +896,7 @@ pub fn draw_bar_line(f: &mut Frame, app: &App, area: Rect, t: &Theme, show_marks
     hits.retain(|(_, h)| !matches!(h, BarHit::Tile(_) | BarHit::Title(_)));
     for (view, glyph) in DeskView::ALL.into_iter().zip(TILE_LETTERS) {
         let due = view == DeskView::Study && app.commonplace.study.all_due > 0;
-        // Due cards: a dot in the warning colour just after the S tile, so the tile's frame
-        // keeps the border colour (a cell has one ink, and a red edge read as a bracket).
-        let dot = due;
-        let width = 3 + u16::from(dot);
+        let width = 3;
         if width > power_x - x {
             break;
         }
@@ -907,7 +904,8 @@ pub fn draw_bar_line(f: &mut Frame, app: &App, area: Rect, t: &Theme, show_marks
             let filled = Style::default().fg(Color::Black).bg(t.accent);
             (filled, filled)
         } else {
-            (base.fg(t.border), base.fg(t.dim))
+            let letter = base.fg(if due { t.warn } else { t.dim });
+            (base.fg(t.border), letter)
         };
         let letter = if tile == Some(view) {
             letter.add_modifier(Modifier::UNDERLINED | Modifier::BOLD)
@@ -922,9 +920,6 @@ pub fn draw_bar_line(f: &mut Frame, app: &App, area: Rect, t: &Theme, show_marks
         spans.push(Span::styled(left.to_string(), frame));
         spans.push(Span::styled(symbol.to_string(), letter));
         spans.push(Span::styled(right.to_string(), frame));
-        if dot {
-            spans.push(Span::styled("•", base.fg(t.warn)));
-        }
         hits.push((Rect::new(x, area.y, width, 1), BarHit::Tile(view)));
         x += width;
     }

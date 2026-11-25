@@ -985,6 +985,7 @@ fn page_entries(app: &App, route: Route) -> Vec<Entry> {
                     Action::SpellingLanguage,
                     Action::LineWidth,
                     Action::Typewriter,
+                    Action::PomodoroChime,
                 ],
             );
             rows.push(Entry::new("Focus mode", Choice::Action(Action::FocusMode)));

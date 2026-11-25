@@ -415,6 +415,7 @@ impl App {
                 icons: self.icons_on,
                 line_width: self.line_width,
                 typewriter: self.typewriter,
+                pomodoro_chime: self.pomodoro_chime,
                 spelling: self.spell_lang.key().into(),
                 catalogue_search: self.catalogue_on,
                 ..Settings::default()
