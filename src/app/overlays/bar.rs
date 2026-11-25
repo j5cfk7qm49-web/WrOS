@@ -1018,7 +1018,17 @@ pub(super) fn draw_dropdowns(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         } else {
             menu.area.x.saturating_sub(w)
         };
-        let drawn = draw_list(f, area, x, row_y, &side_rows, *at, true, app.linux_console, t);
+        let drawn = draw_list(
+            f,
+            area,
+            x,
+            row_y,
+            &side_rows,
+            *at,
+            true,
+            app.linux_console,
+            t,
+        );
         hits.push((drawn.area, BarHit::Cover));
         for (i, r) in drawn.rows {
             hits.push((r, BarHit::SideRow(i)));
@@ -1091,7 +1101,9 @@ fn draw_list(
             Style::default().fg(t.text)
         };
         let style = match (on, lit) {
-            (true, true) => Style::default().fg(ratatui::style::Color::Black).bg(t.accent),
+            (true, true) => Style::default()
+                .fg(ratatui::style::Color::Black)
+                .bg(t.accent),
             (true, false) => base.bg(t.sel),
             _ => base.bg(band),
         };

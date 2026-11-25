@@ -313,10 +313,7 @@ impl ReadDesk {
         let Some((Input::Catalogue(kind), editor)) = &self.prompt else {
             return Ok(None);
         };
-        let catalogue = self
-            .catalogue
-            .as_mut()
-            .expect("the catalogue search");
+        let catalogue = self.catalogue.as_mut().expect("the catalogue search");
         let in_editions = catalogue.search.editions().is_some();
         let now = Instant::now();
         let (hits, selected) = catalogue.hits();
@@ -1009,11 +1006,7 @@ pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) 
             rows.push(Line::styled(
                 format!(
                     "{} {} · {}",
-                    if number == desk.edition {
-                        "›"
-                    } else {
-                        " "
-                    },
+                    if number == desk.edition { "›" } else { " " },
                     edition.label,
                     edition.title()
                 ),
@@ -1034,18 +1027,13 @@ pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) 
     } else {
         let visible = usize::from(body.height.max(1));
         let first = desk.selected.saturating_add(1).saturating_sub(visible);
-        desk
-            .works
+        desk.works
             .iter()
             .enumerate()
             .skip(first)
             .take(visible)
             .map(|(index, work)| {
-                let mark = if index == desk.selected {
-                    "›"
-                } else {
-                    " "
-                };
+                let mark = if index == desk.selected { "›" } else { " " };
                 let status = if work.status.is_empty() {
                     String::new()
                 } else {

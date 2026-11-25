@@ -151,7 +151,9 @@ fn move_legacy_folder(old: &Path, new: &Path) -> anyhow::Result<()> {
         Err(error) => return Err(error.into()),
     }
     // If another opener already moved the folder, use its destination.
-    if let Err(error) = grimoire_core::book_copy::rename_new(old, new) && path_is_missing(new)? {
+    if let Err(error) = grimoire_core::book_copy::rename_new(old, new)
+        && path_is_missing(new)?
+    {
         return Err(error);
     }
     Ok(())
@@ -355,7 +357,7 @@ impl CommonplaceDesk {
         }
         if affects_study {
             // A busy cache can retry the count on the next view change.
-                let _ = self.study.refresh(store);
+            let _ = self.study.refresh(store);
         }
         Ok(true)
     }
@@ -779,7 +781,11 @@ impl App {
         self.commonplace.select_side(false);
         let date = Local::now().date_naive();
         self.commonplace.open_today(date)?;
-        let store = self.commonplace.store.as_mut().expect("Open Commonplace store");
+        let store = self
+            .commonplace
+            .store
+            .as_mut()
+            .expect("Open Commonplace store");
         let tag = if let Some(tag) = &self.project.meta.outline_tag {
             tag.parse::<NodeId>().map_err(anyhow::Error::msg)?
         } else {
@@ -1305,7 +1311,10 @@ mod tests {
                 desk.open_store().unwrap().library_root().unwrap(),
                 store.as_path()
             );
-            assert_eq!(fs::read_to_string(store.join("x.loro")).unwrap(), "original");
+            assert_eq!(
+                fs::read_to_string(store.join("x.loro")).unwrap(),
+                "original"
+            );
             assert_eq!(
                 fs::read_to_string(cache.join("marker")).unwrap(),
                 "original cache"

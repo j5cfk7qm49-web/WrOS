@@ -292,7 +292,11 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
     let part = app.project.meta.part_noun();
     let mut v = vec![
         Entry::new("read", "Super+2", Action::SwitchDeskView(DeskView::Read)),
-        Entry::new("Outline", "Super+3", Action::SwitchDeskView(DeskView::Outline)),
+        Entry::new(
+            "Outline",
+            "Super+3",
+            Action::SwitchDeskView(DeskView::Outline),
+        ),
         Entry::new("Study", "Super+4", Action::SwitchDeskView(DeskView::Study)),
         Entry::new("Outline beside Write", "", Action::OutlineBeside),
         Entry::new("WrOS settings", "", Action::Settings),

@@ -56,7 +56,9 @@ fn outline_today_can_edit_nested_notes_and_reopen_them_without_touching_the_pros
     let library = fixture.path().join("Commonplace");
     let cache = fixture.path().join("cache");
     let mut desk = Desk::open(book("brain-today", true), 80, 24);
-    desk.app.commonplace.set_paths(library.clone(), cache.clone());
+    desk.app
+        .commonplace
+        .set_paths(library.clone(), cache.clone());
     let first_scene_body = desk.app.editor.text();
     desk.key(KeyCode::Tab);
     desk.typed("Write draft stays here.");
@@ -164,7 +166,9 @@ fn study_cards_use_a_saved_search_and_never_type_into_the_manuscript() {
     drop(store);
 
     let mut desk = Desk::open(book("review-cards", true), 80, 24);
-    desk.app.commonplace.set_paths(library.clone(), cache.clone());
+    desk.app
+        .commonplace
+        .set_paths(library.clone(), cache.clone());
     desk.key(KeyCode::Tab);
     desk.typed("Manuscript draft");
     let draft = desk.app.editor.text();
@@ -200,7 +204,9 @@ fn read_adds_editions_and_edits_the_selected_record_without_rewriting_the_work()
     let library = folder.path().join("Commonplace");
     let cache = folder.path().join("cache");
     let mut desk = Desk::open(book("library-editions", true), 100, 28);
-    desk.app.commonplace.set_paths(library.clone(), cache.clone());
+    desk.app
+        .commonplace
+        .set_paths(library.clone(), cache.clone());
     desk.menu(&["Tools", "Notes", "read"]);
     desk.key(KeyCode::Char('n'));
     desk.typed("The Garden Book");
@@ -246,7 +252,9 @@ fn edition_picker_links_an_outline_note_to_a_stable_work_and_edition() {
             .unwrap()
     };
     let mut desk = Desk::open(book("library-brain-link", true), 100, 28);
-    desk.app.commonplace.set_paths(library.clone(), cache.clone());
+    desk.app
+        .commonplace
+        .set_paths(library.clone(), cache.clone());
     desk.press(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::SUPER));
     desk.key(KeyCode::Char('n'));
     desk.typed("@Gardens");
@@ -278,9 +286,10 @@ fn catalogue_writer(
 ) {
     let folder = tempfile::tempdir().unwrap();
     let mut desk = metric_writer(tag, 80, 24);
-    desk.app
-        .commonplace
-        .set_paths(folder.path().join("Commonplace"), folder.path().join("cache"));
+    desk.app.commonplace.set_paths(
+        folder.path().join("Commonplace"),
+        folder.path().join("cache"),
+    );
     let fetch = std::sync::Arc::new(fixture);
     desk.app.catalogue_fetch = fetch.clone();
     (desk, folder, fetch)
@@ -817,9 +826,10 @@ fn view_menu_no_longer_lists_views() {
             width,
             height,
         );
-        desk.app
-            .commonplace
-            .set_paths(fixture.path().join("Commonplace"), fixture.path().join("cache"));
+        desk.app.commonplace.set_paths(
+            fixture.path().join("Commonplace"),
+            fixture.path().join("cache"),
+        );
         for current in DeskView::ALL {
             desk.app.switch_desk_view(current);
             assert!(
@@ -852,9 +862,10 @@ fn clicking_a_tile_switches_view() {
 
     let fixture = tempfile::tempdir().unwrap();
     let mut desk = Desk::open(book("tile-click", true), 80, 24);
-    desk.app
-        .commonplace
-        .set_paths(fixture.path().join("Commonplace"), fixture.path().join("cache"));
+    desk.app.commonplace.set_paths(
+        fixture.path().join("Commonplace"),
+        fixture.path().join("cache"),
+    );
 
     desk.app.on_click(79, 0);
     assert!(matches!(
@@ -880,9 +891,10 @@ fn keyboard_reaches_tiles_and_power() {
 
     let fixture = tempfile::tempdir().unwrap();
     let mut desk = Desk::open(book("tile-keys", true), 170, 48);
-    desk.app
-        .commonplace
-        .set_paths(fixture.path().join("Commonplace"), fixture.path().join("cache"));
+    desk.app.commonplace.set_paths(
+        fixture.path().join("Commonplace"),
+        fixture.path().join("cache"),
+    );
     desk.keys(&[KeyCode::F(10), KeyCode::Left]);
     assert!(matches!(
         desk.app.overlay,
@@ -892,7 +904,12 @@ fn keyboard_reaches_tiles_and_power() {
             ..
         }
     ));
-    desk.keys(&[KeyCode::Right, KeyCode::Right, KeyCode::Left, KeyCode::Enter]);
+    desk.keys(&[
+        KeyCode::Right,
+        KeyCode::Right,
+        KeyCode::Left,
+        KeyCode::Enter,
+    ]);
     assert_eq!(desk.app.desk_view, DeskView::Read);
     assert_eq!(desk.app.overlay, Overlay::None);
 
@@ -945,9 +962,10 @@ fn rc28_outline_commands_explain_their_scope_and_cannot_move_hidden_scenes() {
 
     let fixture = tempfile::tempdir().unwrap();
     let mut desk = Desk::open(book("rc28-outline-command-scope", true), 80, 24);
-    desk.app
-        .commonplace
-        .set_paths(fixture.path().join("Commonplace"), fixture.path().join("cache"));
+    desk.app.commonplace.set_paths(
+        fixture.path().join("Commonplace"),
+        fixture.path().join("cache"),
+    );
     let scene = first_scene(&desk.root);
     let before = fs::read_to_string(&scene).unwrap();
     for view in [DeskView::Read, DeskView::Outline, DeskView::Study] {
@@ -996,9 +1014,10 @@ fn rc28_project_search_from_read_opens_the_result_in_write() {
     )
     .unwrap();
     let mut desk = Desk::open(root, 80, 24);
-    desk.app
-        .commonplace
-        .set_paths(fixture.path().join("Commonplace"), fixture.path().join("cache"));
+    desk.app.commonplace.set_paths(
+        fixture.path().join("Commonplace"),
+        fixture.path().join("cache"),
+    );
     desk.app.switch_desk_view(DeskView::Read);
     desk.app.run_action(palette::Action::FindInBook);
     desk.typed("telescope");
@@ -1059,9 +1078,10 @@ fn rc28_read_keeps_a_tag_filter_when_reopened_and_undoes_prompt_edits() {
 fn named_outline_pages_are_reachable_from_today_and_exclude_day_pages() {
     let fixture = tempfile::tempdir().unwrap();
     let mut desk = Desk::open(book("brain-pages", true), 80, 24);
-    desk.app
-        .commonplace
-        .set_paths(fixture.path().join("Commonplace"), fixture.path().join("cache"));
+    desk.app.commonplace.set_paths(
+        fixture.path().join("Commonplace"),
+        fixture.path().join("cache"),
+    );
     desk.press(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::SUPER));
     assert!(desk.rows()[0].starts_with(" [W][r][O][S] │"));
     desk.key(KeyCode::Char('p'));
@@ -1089,9 +1109,10 @@ fn named_outline_pages_are_reachable_from_today_and_exclude_day_pages() {
 fn outline_beside_write_saves_tagged_notes_and_keeps_the_manuscript_draft() {
     let fixture = tempfile::tempdir().unwrap();
     let mut desk = Desk::open(book("brain-beside", true), 80, 24);
-    desk.app
-        .commonplace
-        .set_paths(fixture.path().join("Commonplace"), fixture.path().join("cache"));
+    desk.app.commonplace.set_paths(
+        fixture.path().join("Commonplace"),
+        fixture.path().join("cache"),
+    );
     desk.key(KeyCode::Tab);
     desk.typed("The manuscript retains its own draft.");
     let prose = desk.app.editor.text();
@@ -1117,9 +1138,10 @@ fn outline_beside_write_saves_tagged_notes_and_keeps_the_manuscript_draft() {
 fn outline_links_backlinks_tags_and_saved_lists_are_editable_from_the_keyboard() {
     let fixture = tempfile::tempdir().unwrap();
     let mut desk = Desk::open(book("brain-commands", true), 100, 30);
-    desk.app
-        .commonplace
-        .set_paths(fixture.path().join("Commonplace"), fixture.path().join("cache"));
+    desk.app.commonplace.set_paths(
+        fixture.path().join("Commonplace"),
+        fixture.path().join("cache"),
+    );
     desk.press(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::SUPER));
     for title in ["City maps", "Reading list"] {
         desk.key(KeyCode::Char('n'));
@@ -1858,16 +1880,8 @@ fn console_dropdown_keeps_its_edges_and_status_line() {
     d.draw();
     d.menu(&["File"]);
     let hits = d.app.bar_hits.borrow();
-    let first = hits
-        .iter()
-        .find(|(_, h)| *h == BarHit::Row(0))
-        .unwrap()
-        .0;
-    let second = hits
-        .iter()
-        .find(|(_, h)| *h == BarHit::Row(1))
-        .unwrap()
-        .0;
+    let first = hits.iter().find(|(_, h)| *h == BarHit::Row(0)).unwrap().0;
+    let second = hits.iter().find(|(_, h)| *h == BarHit::Row(1)).unwrap().0;
     let buf = d.term.backend().buffer();
     let t = d.app.theme.for_console();
     assert_eq!(buf[(first.x - 1, first.y)].symbol(), "│");
@@ -1988,7 +2002,10 @@ fn top_bar_shows_tiles_menus_marks_and_power() {
     d.draw();
     let top = &d.rows()[0];
     assert!(top.starts_with(&format!(" [W][r][O][S]{menus}")), "{top}");
-    assert!(top.ends_with("1 conflict  saved  backed up 14:02 [Power]"), "{top}");
+    assert!(
+        top.ends_with("1 conflict  saved  backed up 14:02 [Power]"),
+        "{top}"
+    );
     let buf = d.term.backend().buffer();
     assert!(buf[(166, 0)].modifier.contains(Modifier::UNDERLINED));
 
@@ -2003,7 +2020,10 @@ fn top_bar_shows_tiles_menus_marks_and_power() {
         "\u{E100}\u{E113}\u{E101}",
     );
     assert!(top.starts_with(&format!("{tiles}{menus}")), "{top}");
-    assert!(top.ends_with("⚠ 1  ✓  ⇅ 14:02 \u{E100}\u{E114}\u{E101}"), "{top}");
+    assert!(
+        top.ends_with("⚠ 1  ✓  ⇅ 14:02 \u{E100}\u{E114}\u{E101}"),
+        "{top}"
+    );
 }
 
 #[test]
@@ -2038,7 +2058,7 @@ fn current_tile_is_filled_and_due_dot_shows() {
         for x in 10..10 + width {
             assert_eq!(buf[(x, 0)].bg, theme.accent);
         }
-        assert_eq!(buf[(11, 0)].fg, Color::Black);
+        assert_eq!(buf[(11, 0)].fg, ratatui::style::Color::Black);
         assert_eq!(buf[(12, 0)].fg, theme.warn);
         assert_eq!(buf[(12, 0)].symbol(), if glyphs { "\u{E102}" } else { "•" });
         assert!(d.rows()[0].contains(if glyphs {
@@ -2067,7 +2087,12 @@ fn narrow_bar_drops_titles_before_power() {
     for (glyphs, console, marks, power) in [
         (true, false, "⚠ 1  ● 1  ⇅ 14:02", "\u{E100}\u{E114}\u{E101}"),
         (false, false, "⚠ 1  ● 1  ⇅ 14:02", "[Power]"),
-        (false, true, "1 conflict  1 not saved  backed up 14:02", "[Power]"),
+        (
+            false,
+            true,
+            "1 conflict  1 not saved  backed up 14:02",
+            "[Power]",
+        ),
     ] {
         d.app.tile_glyphs = glyphs;
         d.app.linux_console = console;
