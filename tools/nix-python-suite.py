@@ -82,7 +82,8 @@ def main():
         print(f'exclusions name missing test files: {stale}', file=sys.stderr)
         return 1
     print(f'{len(tests)} tests, {dropped} Debian-only tests excluded', flush=True)
-    result = unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(tests))
+    # durations: the log ends with the slowest tests, so a slow one is seen when it lands.
+    result = unittest.TextTestRunner(verbosity=2, durations=30).run(unittest.TestSuite(tests))
     if result.skipped:
         print(f'FAILED: {len(result.skipped)} tests skipped; provide what they need', file=sys.stderr)
         for test, why in result.skipped:

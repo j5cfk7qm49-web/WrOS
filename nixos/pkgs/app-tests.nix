@@ -107,6 +107,8 @@ in
     export WROS_CAGE=${wros-cage}/bin/cage
     export WROS_INSTALLER_BINARY=${app-test-binary}/bin/wros-installer
     export WROS_EPUBCHECK=${pkgs.epubcheck}/bin/epubcheck
+    # As the Rust suites (rust-packages.nix): flushes to disk do nothing during the tests.
+    export LD_PRELOAD="${pkgs.libeatmydata}/lib/libeatmydata.so"
     python3 tools/nix-python-suite.py
     mkdir -p "$out"
     echo "pass" > "$out/result"

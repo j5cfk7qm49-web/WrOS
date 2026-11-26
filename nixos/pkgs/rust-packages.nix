@@ -164,10 +164,18 @@ let
     # wayland-scanner: the compositor-warmth tests build a small gamma-control server.
     nativeBuildInputs = commonNativeBuildInputs ++ [ rustToolchain pkgs.git pkgs.wayland-scanner ] ++ extraNativeBuildInputs;
     buildInputs = commonBuildInputs;
+    # The tests build what they need themselves (dev and test profiles); the release build
+    # buildRustPackage would otherwise make first took six minutes and was never used (rc31).
+    dontCargoBuild = true;
     doCheck = true;
     checkPhase = ''
       runHook preCheck
       export HOME="$TMPDIR"
+      # Every save the app makes is flushed to disk twice (crates/grimoire-core/src/atomic.rs),
+      # and each UI test writes a whole new book: the flushes were nine tenths of the tests'
+      # time (rc31: 378 s to 52 s). A test can't tell a flushed file from an unflushed one, so
+      # here they do nothing. The shipped app is unchanged.
+      export LD_PRELOAD="${pkgs.libeatmydata}/lib/libeatmydata.so"
       # The pinned prose engine runtime the app itself uses.
       export WROS_TOOLS_PYTHON="${paths.toolPaths.toolsPython}"
       git config --global user.name "WrOS test"
