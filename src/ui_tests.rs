@@ -2135,7 +2135,10 @@ fn top_bar_shows_tiles_menus_marks_and_power() {
     d.draw();
     let top = &d.rows()[0];
     assert!(top.starts_with(&format!(" [W][r][O][S]{menus}")), "{top}");
-    assert!(top.ends_with("1 conflict  saved  backed up [Power]"), "{top}");
+    assert!(
+        top.ends_with("1 conflict  saved  backed up [Power]"),
+        "{top}"
+    );
     let buf = d.term.backend().buffer();
     assert!(buf[(166, 0)].modifier.contains(Modifier::UNDERLINED));
 
@@ -2150,10 +2153,7 @@ fn top_bar_shows_tiles_menus_marks_and_power() {
         "\u{E100}\u{E113}\u{E101}",
     );
     assert!(top.starts_with(&format!("{tiles}{menus}")), "{top}");
-    assert!(
-        top.ends_with("⚠ 1  ✓  ⇅ \u{E100}\u{E114}\u{E101}"),
-        "{top}"
-    );
+    assert!(top.ends_with("⚠ 1  ✓  ⇅ \u{E100}\u{E114}\u{E101}"), "{top}");
 }
 
 #[test]

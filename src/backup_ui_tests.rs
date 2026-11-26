@@ -252,11 +252,7 @@ fn the_backup_mark_names_only_this_books_own_backups() {
         .status
         .snapshots
         .push(snapshot(elsewhere.clone()));
-    assert_eq!(
-        app.read_backup_mark(),
-        None,
-        "not another book's"
-    );
+    assert_eq!(app.read_backup_mark(), None, "not another book's");
     app.deck
         .shell
         .backup

@@ -568,14 +568,16 @@ fn typed_words_reach_the_book_and_the_published_tree_carries_no_prose() {
 }
 
 #[test]
-fn brain_today_saves_and_reopens_through_the_terminal() {
-    let home = Home::new("brain-today");
-    let open_brain = |app: &App| {
-        app.send(b"\x0bBrain\r");
-        app.until("Brain Today", |screen, _| screen.contains("Brain · Today"));
+fn outline_today_saves_and_reopens_through_the_terminal() {
+    let home = Home::new("outline-today");
+    let open_outline = |app: &App| {
+        app.send(b"\x0bOutline\r");
+        app.until("Outline Today", |screen, _| {
+            screen.contains("Outline · Today")
+        });
     };
     let app = App::start(&home, 80, 24);
-    open_brain(&app);
+    open_outline(&app);
     app.send(b"nNote from the terminal\r");
     app.until("the saved note", |screen, _| {
         screen.contains("• Note from the terminal")
@@ -583,7 +585,7 @@ fn brain_today_saves_and_reopens_through_the_terminal() {
     drop(app);
 
     let app = App::start(&home, 80, 24);
-    open_brain(&app);
+    open_outline(&app);
     app.until("the reopened note", |screen, _| {
         screen.contains("• Note from the terminal")
     });

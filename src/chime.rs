@@ -91,7 +91,11 @@ mod tests {
         let ascending = tones(Kind::BreakToWork);
         for samples in [&descending, &ascending] {
             assert_eq!(samples.len(), 33_600);
-            assert!(samples.iter().all(|&sample| (-0.25..=0.25).contains(&sample)));
+            assert!(
+                samples
+                    .iter()
+                    .all(|&sample| (-0.25..=0.25).contains(&sample))
+            );
             assert!(samples.iter().any(|&sample| sample.abs() > 0.1));
         }
         assert_eq!(descending[..16_800], ascending[16_800..]);

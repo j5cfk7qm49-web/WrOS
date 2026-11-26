@@ -62,7 +62,7 @@ class UnifiedShellPTY(unittest.TestCase):
                             box = lambda: inside_box(terminal.screen.text.splitlines())
                             terminal.until(lambda: len(terminal.screen.text.splitlines()) == height
                                            and all(len(row) == width for row in terminal.screen.text.splitlines())
-                                           and terminal.screen.text.splitlines()[0].lstrip().startswith('WrOS')
+                                           and terminal.screen.text.splitlines()[0].lstrip().startswith('[W][r][O][S]')
                                            and box()[0].startswith('┌') and box()[-1].startswith('└'),
                                            'complete native availability frame')
                             captures = Path(__file__).resolve().parents[2]/'build/verification/native-feature-screens'

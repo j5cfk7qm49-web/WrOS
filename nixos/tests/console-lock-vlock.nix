@@ -49,7 +49,7 @@ pkgs.testers.runNixOSTest {
     # The console session draws the editor as text on tty1, which is what the screen
     # checks below read (the default session draws on DRM, which tty text cannot see).
     log_in(installed, "writer", "writer-lock-password", colemak=False, console=True)
-    installed.wait_until_tty_matches("1", "WrOS")
+    installed.wait_until_tty_matches("1", "File  Edit  View")
 
     # 4. Settings -> System -> Battery and power -> Lock writing session, the way rc13's own VM
     #    chain does it (os/tests/rc_vm_phases.py grim_open_settings, grim_to_panel, choose).
