@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0~rc31 · Square view tiles
+
+- The W, r, O and S tiles at the left of the top bar, and the ⏻ tile at the
+  right, are now squares two characters wide, with the letter clear of the
+  frame. The current view's tile is filled in, and the S tile still turns red
+  when cards are due. On the text console the letters are spaced out the same
+  way (W r O S).
+
 ## 0.1.0~rc30 · New top and bottom bars, the views renamed, fixes from the laptop
 
 - The views are now **Write, read, Outline and Study**, after the letters of
