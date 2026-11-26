@@ -34,7 +34,7 @@ The mouse works everywhere on the bar: click a view tile to switch views, click 
 
 - The W r O S tiles switch views: **Write** (`Super+1`) returns to the manuscript, **read** (`Super+2`) shows works and editions, **Outline** (`Super+3`) opens your personal outline, and **Study** (`Super+4`) opens cards. You can also use **Find anything**.
 - In read, press `F` to edit the active filter. An empty filter shows all works. Use `Page Up` and `Page Down` when the list spans several pages.
-- **Study** opens cards made in Outline notes. Press Enter to reveal an answer, then choose a grade from 0 to 5. Press F for a tag or saved search. A dot on the S tile marks due cards; the upper bottom bar shows how many are left today.
+- **Study** opens cards made in Outline notes. Press Enter to reveal an answer, then choose a grade from 0 to 5. Press F for a tag or saved search. The S tile turns red when cards are due; the upper bottom bar shows how many are left today.
 - Outline opens to **Today**. Press `N` to add a note, `Enter` to edit or save, and `Esc` to cancel an edit. Use `↑` and `↓` to choose a note, `→` to open its children, and `←` to go back. `P` shows named pages, where `N` adds a page. `T` returns to Today.
 - **Outline beside Write** opens the notes tagged for this project. A note created in that list receives the project tag. Press `Esc` outside an edit to return to the manuscript, or select the W tile. You can also click either pane.
 - Press `I` for a note's details, including its tags, fields and links. `@` adds a link by title, `O` opens linked notes, and `B` opens backlinks. Press `#` to tag a note. Use a built-in name like `book` or the title of a named page.

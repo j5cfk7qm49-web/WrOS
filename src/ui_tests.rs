@@ -187,7 +187,7 @@ fn study_cards_use_a_saved_search_and_never_type_into_the_manuscript() {
     assert!(desk.shows("Answer for Review"));
     desk.key(KeyCode::Char('5'));
     assert!(desk.shows("No cards due"));
-    assert!(desk.rows()[0].contains("[S] │"));
+    assert!(desk.rows()[0].contains("S │"));
     desk.typed("Pasted over nothing");
     assert_eq!(desk.app.editor.text(), draft);
     drop(desk);
@@ -877,7 +877,7 @@ fn clicking_a_tile_switches_view() {
         }
     ));
     desk.draw();
-    desk.app.on_click(8, 0);
+    desk.app.on_click(6, 0);
     assert_eq!(desk.app.desk_view, DeskView::Outline);
     assert_eq!(desk.app.overlay, Overlay::None);
     desk.draw();
@@ -1083,7 +1083,7 @@ fn named_outline_pages_are_reachable_from_today_and_exclude_day_pages() {
         fixture.path().join("cache"),
     );
     desk.press(KeyEvent::new(KeyCode::Char('3'), KeyModifiers::SUPER));
-    assert!(desk.rows()[0].starts_with(" [W][r][O][S] │"));
+    assert!(desk.rows()[0].starts_with(" W r O S │"));
     desk.key(KeyCode::Char('p'));
     assert!(desk.shows("Outline · Pages"));
     assert!(desk.shows("No pages yet"));
@@ -2128,13 +2128,13 @@ fn top_bar_shows_tiles_menus_marks_and_power() {
     let (root, _, _) = conflicted("top-bar");
     let mut d = Desk::open(root, 170, 48);
     d.app.deck.backup_mark = Some(app::BackupMark::Done);
-    let menus = " │ File  Edit  View  Project  Tools  Settings  Help";
+    let menus = "│ File  Edit  View  Project  Tools  Settings  Help";
     assert!(!d.app.tile_glyphs);
 
     d.app.linux_console = true;
     d.draw();
     let top = &d.rows()[0];
-    assert!(top.starts_with(&format!(" [W][r][O][S]{menus}")), "{top}");
+    assert!(top.starts_with(&format!(" W r O S {menus}")), "{top}");
     assert!(
         top.ends_with("1 conflict  saved  backed up [Power]"),
         "{top}"
@@ -2142,18 +2142,26 @@ fn top_bar_shows_tiles_menus_marks_and_power() {
     let buf = d.term.backend().buffer();
     assert!(buf[(166, 0)].modifier.contains(Modifier::UNDERLINED));
 
+    // Two cells a tile in both: the native renderer's squares sit where the console's letters do.
     d.app.linux_console = false;
     d.app.tile_glyphs = true;
     d.draw();
     let top = &d.rows()[0];
     let tiles = concat!(
-        " \u{E100}\u{E110}\u{E101}",
-        "\u{E100}\u{E111}\u{E101}",
-        "\u{E100}\u{E112}\u{E101}",
-        "\u{E100}\u{E113}\u{E101}",
+        " \u{E130}\u{E131}",
+        "\u{E122}\u{E123}",
+        "\u{E124}\u{E125}",
+        "\u{E126}\u{E127}",
     );
     assert!(top.starts_with(&format!("{tiles}{menus}")), "{top}");
-    assert!(top.ends_with("⚠ 1  ✓  ⇅ \u{E100}\u{E114}\u{E101}"), "{top}");
+    assert!(top.ends_with("⚠ 1  ✓  ⇅ \u{E128}\u{E129}"), "{top}");
+    // With its menu open, the power tile is lit like the current view's.
+    d.app.on_click(169, 0);
+    d.draw();
+    let buf = d.term.backend().buffer();
+    assert_eq!(buf[(168, 0)].symbol(), "\u{E138}");
+    assert_eq!(buf[(169, 0)].symbol(), "\u{E139}");
+    assert_eq!(buf[(168, 0)].fg, d.app.theme.accent);
 }
 
 #[test]
@@ -2188,40 +2196,54 @@ fn current_tile_is_filled_and_due_letter_is_red() {
         } else {
             d.app.theme.for_console()
         };
-        for x in 1..4 {
-            assert_eq!(buf[(x, 0)].bg, theme.accent);
+        // W, the current view, is filled: the console fills its two cells, the native renderer
+        // fills the square of the lit tile glyphs with their ink.
+        for x in 1..3 {
+            if glyphs {
+                assert_eq!(buf[(x, 0)].fg, theme.accent);
+            } else {
+                assert_eq!(buf[(x, 0)].bg, theme.accent);
+            }
         }
-        // Cards due: the whole S tile, frame and letter, in the warning colour.
-        assert_eq!(buf[(10, 0)].fg, theme.warn);
-        assert_eq!(buf[(11, 0)].fg, theme.warn);
-        assert_eq!(buf[(12, 0)].fg, theme.warn);
-        assert_eq!(buf[(5, 0)].fg, theme.dim);
+        // Cards due: the whole S tile in the warning colour; r is dim.
+        assert_eq!(buf[(7, 0)].fg, theme.warn);
+        if glyphs {
+            assert_eq!(buf[(8, 0)].fg, theme.warn);
+        }
+        assert_eq!(buf[(3, 0)].fg, theme.dim);
         assert!(d.rows()[0].contains(if glyphs {
-            "\u{E100}\u{E113}\u{E101} │"
+            "\u{E126}\u{E127}│"
         } else {
-            "[S] │"
+            "S │"
         }));
-        assert!(
-            d.app
-                .bar_hits
-                .borrow()
-                .contains(&(Rect::new(10, 0, 3, 1), BarHit::Tile(DeskView::Study)))
-        );
+        let hits = d.app.bar_hits.borrow().clone();
+        for (n, view) in DeskView::ALL.into_iter().enumerate() {
+            let tile = Rect::new(1 + 2 * n as u16, 0, 2, 1);
+            assert!(hits.contains(&(tile, BarHit::Tile(view))), "{view:?}");
+        }
 
         d.app.switch_desk_view(DeskView::Study);
         d.draw();
         let buf = d.term.backend().buffer();
-        for x in 10..13 {
-            assert_eq!(buf[(x, 0)].bg, theme.accent);
+        if glyphs {
+            assert_eq!(buf[(7, 0)].symbol(), "\u{E136}");
+            assert_eq!(buf[(8, 0)].symbol(), "\u{E137}");
+            assert_eq!(buf[(7, 0)].fg, theme.accent);
+            assert_eq!(buf[(1, 0)].symbol(), "\u{E120}");
+        } else {
+            for x in 7..9 {
+                assert_eq!(buf[(x, 0)].bg, theme.accent);
+            }
+            assert_eq!(buf[(7, 0)].fg, Color::Black);
         }
-        assert_eq!(buf[(11, 0)].fg, Color::Black);
     }
 }
 
 #[test]
 fn narrow_bar_drops_titles_before_power() {
     let (root, _, _) = conflicted("narrow-top-bar");
-    let mut d = Desk::open(root, 80, 24);
+    // rc31's two-cell tiles leave room for every title at 80 columns; 72 is too narrow for Help.
+    let mut d = Desk::open(root, 72, 24);
     d.app
         .project
         .nodes
@@ -2232,7 +2254,7 @@ fn narrow_bar_drops_titles_before_power() {
     d.app.save_state = app::SaveState::Failed("disk full".into());
     d.app.deck.backup_mark = Some(app::BackupMark::Done);
     for (glyphs, console, marks, power) in [
-        (true, false, "⚠ 1  ● 1  ⇅", "\u{E100}\u{E114}\u{E101}"),
+        (true, false, "⚠ 1  ● 1  ⇅", "\u{E128}\u{E129}"),
         (false, false, "⚠ 1  ● 1  ⇅", "[Power]"),
         (false, true, "1 conflict  1 not saved  backed up", "[Power]"),
     ] {
@@ -2241,14 +2263,9 @@ fn narrow_bar_drops_titles_before_power() {
         d.draw();
         let top = &d.rows()[0];
         let tiles = if glyphs {
-            concat!(
-                " \u{E100}\u{E110}\u{E101}",
-                "\u{E100}\u{E111}\u{E101}",
-                "\u{E100}\u{E112}\u{E101}",
-                "\u{E100}\u{E113}\u{E101}",
-            )
+            " \u{E130}\u{E131}\u{E122}\u{E123}\u{E124}\u{E125}\u{E126}\u{E127}│"
         } else {
-            " [W][r][O][S]"
+            " W r O S │"
         };
         assert!(top.starts_with(tiles), "{top}");
         assert!(top.contains("File"), "{top}");

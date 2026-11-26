@@ -25,12 +25,23 @@ const MIN_TREE: u16 = 6;
 const MIN_LEFT: u16 = 18;
 const MIN_EDIT: u16 = 24;
 
-// The native renderer's one-cell tiles. Keep the same code points available to
-// TestBackend in builds without wros-graphics.
-pub(crate) const TILE_LEFT: char = '\u{E100}';
-pub(crate) const TILE_RIGHT: char = '\u{E101}';
-pub(crate) const TILE_LETTERS: [char; 4] = ['\u{E110}', '\u{E111}', '\u{E112}', '\u{E113}'];
-pub(crate) const TILE_POWER: char = '\u{E114}';
+// The native renderer's two-cell tiles (wros-graphics `unifont::TILES`, `TILES_LIT` and
+// `TILE_POWER`). Keep the same code points available to TestBackend in builds without
+// wros-graphics.
+pub(crate) const TILES: [[char; 2]; 4] = [
+    ['\u{E120}', '\u{E121}'],
+    ['\u{E122}', '\u{E123}'],
+    ['\u{E124}', '\u{E125}'],
+    ['\u{E126}', '\u{E127}'],
+];
+pub(crate) const TILES_LIT: [[char; 2]; 4] = [
+    ['\u{E130}', '\u{E131}'],
+    ['\u{E132}', '\u{E133}'],
+    ['\u{E134}', '\u{E135}'],
+    ['\u{E136}', '\u{E137}'],
+];
+pub(crate) const TILE_POWER: [char; 2] = ['\u{E128}', '\u{E129}'];
+pub(crate) const TILE_POWER_LIT: [char; 2] = ['\u{E138}', '\u{E139}'];
 
 pub fn draw(
     f: &mut Frame,

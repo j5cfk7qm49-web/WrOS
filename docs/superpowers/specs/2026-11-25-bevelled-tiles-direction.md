@@ -1,7 +1,7 @@
 # Bevelled W r O S tiles in Chicago (direction for rc32)
 
 Status: **direction agreed with the owner, 2026-11-25. Not scheduled yet.** It's meant for rc32, together with the PDF reader's pixel image layer.
-rc30 ships the flat, boxed tiles from [the rc30 layout](2026-11-25-rc30-interface-layout-design.md).
+rc30 ships the flat, boxed tiles from [the rc30 layout](2026-11-25-rc30-interface-layout-design.md). rc31 makes them two cells (16 pixels) a tile: a 14×14 square with 2-pixel gaps and the letter raised a pixel, so it clears the bottom line (owner, 2026-11-26). The bevelled 15×15 squares below were chosen 4 pixels apart; in 16-pixel slots they would be 1 pixel apart, so rc32 has to settle the spacing.
 
 ## Why later
 
@@ -9,7 +9,7 @@ A character cell has two colours. A real bevel needs four: the face, a highlight
 
 The native session's renderer (`wros-graphics`) can paint pixels after the text is drawn, as the start-up logo is painted. rc32's PDF reader needs exactly that layer for its page images, so the tiles become a small extra once the layer exists:
 - The same widget can use sixel in Foot through `ratatui-image`.
-- The plain console keeps `[W][r][O][S]`.
+- The plain console shows `W r O S`: since rc31 every tile is two cells, a letter and a space, in the console as in the native session.
 
 ## What the owner chose
 

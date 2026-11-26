@@ -76,10 +76,18 @@ def load_glyphs():
                     int(next(source).rstrip().replace(".", "0").replace("#", "1"), 2)
                     for _ in range(CELL_HEIGHT)
                 )
-    for code, letter in enumerate("WrOS", 0xE110):
-        rows = bytearray(glyphs[letter])
-        rows[1] = rows[14] = 0xFF
-        glyphs[chr(code)] = bytes(rows)
+    # The view tiles (rc31), as build.rs makes them: a 14x14 square in two cells around Unifont's
+    # letter, raised a row, or the power symbol. E130-E139 are the lit copies.
+    for n, (symbol, lift) in enumerate([("W", 1), ("r", 1), ("O", 1), ("S", 1), ("\ue114", 0)]):
+        slot = [0] * CELL_HEIGHT
+        for y, bits in enumerate(glyphs[symbol]):
+            if bits:
+                slot[y - lift] = bits << 4
+        for y in range(CELL_HEIGHT):
+            slot[y] |= 0x7FFE if y in (1, 14) else 0x4002 if 2 <= y <= 13 else 0
+        for base in (0xE120, 0xE130):
+            glyphs[chr(base + 2 * n)] = bytes(row >> 8 for row in slot)
+            glyphs[chr(base + 2 * n + 1)] = bytes(row & 0xFF for row in slot)
     return glyphs
 
 
@@ -348,10 +356,15 @@ def paint(frame, glyphs):
             span = min(cells * CELL_WIDTH, grid_width - left)
             box = (left, top, left + span, top + CELL_HEIGHT)
             image.paste(bg, box)
-            if fg != bg and not style & HIDDEN:
+            lit = len(symbol) == 1 and 0xE130 <= ord(symbol) <= 0xE139
+            if lit:
+                # A lit tile (wros-graphics unifont.rs): its square filled with the ink, its lines black.
+                side = (1, 8) if ord(symbol) % 2 == 0 else (0, 7)
+                image.paste(fg, (left + side[0], top + 1, left + side[1], top + 15))
+            if (fg != bg or lit) and not style & HIDDEN:
                 ink = mask(symbol, span, style & (BOLD | ITALIC | UNDERLINE | CROSSED_OUT))
                 if ink is not None:
-                    image.paste(fg, box, ink)
+                    image.paste((0, 0, 0) if lit else fg, box, ink)
             # As in repair_wide, the leading cell paints over the continuation cell.
             x += cells
     return image

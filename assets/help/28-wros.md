@@ -132,5 +132,5 @@ The battery panel opens the night light preview. Each panel links to Settings.
 Esc or a click outside closes it. Find anything opens them by name too: Wi-Fi, Sound,
 Battery and brightness, and Date and calendar.
 The lower bar shows project progress, today's words and messages. When no
-message is fresh, the playing track scrolls there. Focus mode hides the top bar
-and keeps one line at the bottom for location, today's words and warnings.
+message is fresh, the playing track scrolls there. Focus mode shows only the page;
+a line appears at the bottom only for a failed save, a conflict or a low-battery sleep.

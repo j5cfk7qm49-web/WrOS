@@ -92,7 +92,7 @@ fn the_bar_has_eight_titles_in_order() {
     assert_eq!(letters.len(), 8, "each title its own letter");
     let d = Desk::open(book("bar-line", true), 80, 24);
     assert!(
-        d.rows()[0].starts_with(" [W][r][O][S] │ File  Edit  View  Project  Tools  Settings  Help"),
+        d.rows()[0].starts_with(" W r O S │ File  Edit  View  Project  Tools  Settings  Help"),
         "{:?}",
         d.rows()[0]
     );

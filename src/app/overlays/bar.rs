@@ -6,7 +6,7 @@ use super::*;
 use crate::app::outline::DeskView;
 use crate::app::shell::Category;
 use crate::palette::{Side, Title};
-use crate::ui::{TILE_LEFT, TILE_LETTERS, TILE_POWER, TILE_RIGHT};
+use crate::ui::{TILE_POWER, TILE_POWER_LIT, TILES, TILES_LIT};
 use ratatui::style::Color;
 
 /// No dropdown is taller than this many rows; a short screen scrolls them.
@@ -862,13 +862,13 @@ pub fn draw_bar_line(f: &mut Frame, app: &App, area: Rect, t: &Theme, show_marks
         Style::default().fg(t.text)
     };
     let (power, power_width) = if app.tile_glyphs {
-        (
-            vec![Span::styled(
-                String::from_iter([TILE_LEFT, TILE_POWER, TILE_RIGHT]),
-                power_style,
-            )],
-            3_u16,
-        )
+        // Lit, the power tile fills its square with the highlight, as the current view's does.
+        let (pair, style) = if lit == Some(Title::Power) {
+            (TILE_POWER_LIT, Style::default().fg(t.accent))
+        } else {
+            (TILE_POWER, Style::default().fg(t.text))
+        };
+        (vec![Span::styled(String::from_iter(pair), style)], 2_u16)
     } else {
         (
             vec![
@@ -883,8 +883,7 @@ pub fn draw_bar_line(f: &mut Frame, app: &App, area: Rect, t: &Theme, show_marks
     let power_x = area.right() - power_width;
     let power_area = Rect::new(power_x, area.y, power_width, 1);
 
-    // The tile frames and divider use the border colour as their ink. On the
-    // band, give them a different ground so the lines are visible.
+    // On the band, give the tiles a different ground so their lines are visible.
     let base = if crate::ui::bar_band(t, app.linux_console).is_some() {
         Style::default().bg(t.sel)
     } else {
@@ -894,44 +893,50 @@ pub fn draw_bar_line(f: &mut Frame, app: &App, area: Rect, t: &Theme, show_marks
     let mut x = area.x.saturating_add(1).min(power_x);
     let mut hits = app.bar_hits.borrow_mut();
     hits.retain(|(_, h)| !matches!(h, BarHit::Tile(_) | BarHit::Title(_)));
-    for (view, glyph) in DeskView::ALL.into_iter().zip(TILE_LETTERS) {
-        let due = view == DeskView::Study && app.commonplace.study.all_due > 0;
-        let width = 3;
+    // Each tile is two cells: in the native renderer a square around the letter (rc31), in text
+    // the letter and a space. The current view is filled; cards due turn the S red.
+    for (n, view) in DeskView::ALL.into_iter().enumerate() {
+        let width = 2;
         if width > power_x - x {
             break;
         }
-        let (frame, letter) = if view == app.desk_view {
-            let filled = Style::default().fg(Color::Black).bg(t.accent);
-            (filled, filled)
-        } else {
-            // Cards due: the whole S tile in the warning colour. A cell has one ink, so the letter
-            // cell's share of the box would turn red anyway; the frame follows it.
-            if due {
-                (base.fg(t.warn), base.fg(t.warn))
+        let current = view == app.desk_view;
+        let due = view == DeskView::Study && app.commonplace.study.all_due > 0;
+        let ink = if due { t.warn } else { t.dim };
+        let selected = tile == Some(view);
+        if app.tile_glyphs {
+            let (pair, style) = if current {
+                (TILES_LIT[n], base.fg(t.accent))
             } else {
-                (base.fg(t.border), base.fg(t.dim))
-            }
-        };
-        let letter = if tile == Some(view) {
-            letter.add_modifier(Modifier::UNDERLINED | Modifier::BOLD)
+                (TILES[n], base.fg(ink))
+            };
+            let style = if selected {
+                style.add_modifier(Modifier::UNDERLINED)
+            } else {
+                style
+            };
+            spans.push(Span::styled(String::from_iter(pair), style));
         } else {
-            letter
-        };
-        let (left, symbol, right) = if app.tile_glyphs {
-            (TILE_LEFT, glyph, TILE_RIGHT)
-        } else {
-            ('[', view.label().chars().next().unwrap(), ']')
-        };
-        spans.push(Span::styled(left.to_string(), frame));
-        spans.push(Span::styled(symbol.to_string(), letter));
-        spans.push(Span::styled(right.to_string(), frame));
+            let ground = if current {
+                Style::default().fg(Color::Black).bg(t.accent)
+            } else {
+                base.fg(ink)
+            };
+            let letter = if selected {
+                ground.add_modifier(Modifier::UNDERLINED | Modifier::BOLD)
+            } else {
+                ground
+            };
+            let initial = view.label().chars().next().unwrap();
+            spans.push(Span::styled(initial.to_string(), letter));
+            spans.push(Span::styled(" ", if current { ground } else { base }));
+        }
         hits.push((Rect::new(x, area.y, width, 1), BarHit::Tile(view)));
         x += width;
     }
-    if power_x - x >= 2 {
-        spans.push(Span::raw(" "));
+    if power_x > x {
         spans.push(Span::styled("│", base.fg(t.border)));
-        x += 2;
+        x += 1;
     }
     let titles_end = if show_marks {
         crate::ui::draw_status_marks(f, app, Rect::new(x, area.y, power_x - x, 1), t)

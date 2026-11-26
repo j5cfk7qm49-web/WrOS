@@ -16,14 +16,38 @@ use unicode_width::UnicodeWidthStr;
 pub const CELL_WIDTH: usize = 8;
 pub const CELL_HEIGHT: usize = 16;
 
-/// The three-cell view tile's left and right edges, including the due-dot variant.
-pub const TILE_LEFT: char = '\u{E100}';
-pub const TILE_RIGHT: char = '\u{E101}';
-pub const TILE_RIGHT_DUE: char = '\u{E102}';
-/// The view tile's middle cells, in W, r, O, S order.
-pub const TILE_LETTERS: [char; 4] = ['\u{E110}', '\u{E111}', '\u{E112}', '\u{E113}'];
-/// The power tile's middle cell.
-pub const TILE_POWER: char = '\u{E114}';
+/// The view tiles, two cells each, in W, r, O, S order: a square frame around the letter, in
+/// the cell's ink.
+pub const TILES: [[char; 2]; 4] = [
+    ['\u{E120}', '\u{E121}'],
+    ['\u{E122}', '\u{E123}'],
+    ['\u{E124}', '\u{E125}'],
+    ['\u{E126}', '\u{E127}'],
+];
+/// The same tiles lit, for the current view: the square is filled with the cell's ink and its
+/// frame and letter are black; outside the square stays the cell's ground.
+pub const TILES_LIT: [[char; 2]; 4] = [
+    ['\u{E130}', '\u{E131}'],
+    ['\u{E132}', '\u{E133}'],
+    ['\u{E134}', '\u{E135}'],
+    ['\u{E136}', '\u{E137}'],
+];
+/// The power tile, in the same frame, and lit (its menu open).
+pub const TILE_POWER: [char; 2] = ['\u{E128}', '\u{E129}'];
+pub const TILE_POWER_LIT: [char; 2] = ['\u{E138}', '\u{E139}'];
+
+/// For a lit tile's cell: whether it is the tile's left cell.
+fn lit_tile_side(symbol: &str) -> Option<bool> {
+    let mut chars = symbol.chars();
+    let c = chars.next()? as u32;
+    (chars.next().is_none() && (0xE130..=0xE139).contains(&c)).then_some(c.is_multiple_of(2))
+}
+
+/// Is (x, y) inside a lit tile's square, in its left or right cell?
+fn in_tile_square(left: bool, x: usize, y: usize) -> bool {
+    let columns = if left { 1..8 } else { 0..7 };
+    columns.contains(&x) && (1..=14).contains(&y)
+}
 
 static DATA: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/unifont.bin"));
 
@@ -190,6 +214,7 @@ impl RasterBackend for Unifont {
             (char_width * cells).min(pixmap.width().saturating_sub(xik as usize * char_width));
         let (left, top) = (xik as usize * char_width, yik as usize * char_height);
         let ink = ink(symbol, span);
+        let lit = lit_tile_side(symbol);
         let bold = m.contains(Modifier::BOLD);
         let italic = m.contains(Modifier::ITALIC);
         for y in 0..char_height {
@@ -197,15 +222,21 @@ impl RasterBackend for Unifont {
             let lean = usize::from(italic && y < 9);
             for x in 0..span {
                 let src = x.wrapping_sub(lean);
-                let on = src < span
+                let glyph = src < span
                     && y < CELL_HEIGHT
                     && (ink(src, y)
                         // Bold is the console's overstrike: each pixel and the one to its left.
                         || bold && src > 0 && ink(src - 1, y));
-                let on = on
-                    || m.contains(Modifier::UNDERLINED) && y == char_height - 1
+                let line = m.contains(Modifier::UNDERLINED) && y == char_height - 1
                     || m.contains(Modifier::CROSSED_OUT) && y == char_height / 2;
-                pixmap.put_pixel(left + x, top + y, if on { fg } else { bg });
+                let colour = match lit {
+                    // A lit tile: black lines on a square of the ink colour.
+                    Some(_) if glyph => [0, 0, 0],
+                    Some(side) if in_tile_square(side, x, y) => fg,
+                    _ if glyph || line => fg,
+                    _ => bg,
+                };
+                pixmap.put_pixel(left + x, top + y, colour);
             }
         }
     }
@@ -287,47 +318,108 @@ mod tests {
         }
     }
 
+    /// A tile's two cells as one 16-pixel-wide row per pixel row.
+    fn slot(pair: [char; 2]) -> Vec<u16> {
+        let (l, r) = (glyph(pair[0]).unwrap(), glyph(pair[1]).unwrap());
+        assert!(!l.wide && !r.wide, "{pair:?} must be two one-cell glyphs");
+        (0..CELL_HEIGHT)
+            .map(|y| u16::from(l.rows[y]) << 8 | u16::from(r.rows[y]))
+            .collect()
+    }
+
+    /// The square's lines on each pixel row of a tile.
+    fn frame(y: usize) -> u16 {
+        match y {
+            1 | 14 => 0x7FFE,
+            2..=13 => 0x4002,
+            _ => 0,
+        }
+    }
+
     #[test]
-    fn tile_cells_have_their_frame() {
-        for c in TILE_LETTERS.into_iter().chain([TILE_POWER]) {
-            let tile = glyph(c).unwrap();
-            assert!(!tile.wide, "{c:?} must be one cell wide");
-            for y in [1, 14] {
-                assert_eq!(tile.rows[y], 0xFF, "{c:?}, row {y}");
+    fn tiles_are_14_pixel_squares_with_the_symbol_a_pixel_clear() {
+        let all = TILES
+            .into_iter()
+            .chain(TILES_LIT)
+            .chain([TILE_POWER, TILE_POWER_LIT]);
+        for pair in all {
+            for (y, row) in slot(pair).into_iter().enumerate() {
+                assert_eq!(row & frame(y), frame(y), "{pair:?}: the frame on row {y}");
+                // The symbol stays on columns 4-11 and rows 3-12: a pixel clear of the lines.
+                let symbol = row & !frame(y);
+                assert_eq!(symbol & !0x0FF0, 0, "{pair:?}: row {y} strays");
+                if !(3..=12).contains(&y) {
+                    assert_eq!(symbol, 0, "{pair:?}: row {y} must be clear");
+                }
             }
         }
-        for (c, letter) in TILE_LETTERS.into_iter().zip(['W', 'r', 'O', 'S']) {
-            let tile = glyph(c).unwrap();
+        // Unifont's own letters, raised a row so they clear the bottom line as they clear the top.
+        for (n, letter) in ['W', 'r', 'O', 'S'].into_iter().enumerate() {
             let original = glyph(letter).unwrap();
             assert!(!original.wide);
-            for y in (0..CELL_HEIGHT).filter(|&y| y != 1 && y != 14) {
-                assert_eq!(tile.rows[y], original.rows[y], "{c:?}, row {y}");
+            assert_ne!(original.rows[13], 0, "{letter:?} sits on row 13");
+            assert_eq!(slot(TILES[n]), slot(TILES_LIT[n]));
+            let rows = slot(TILES[n]);
+            for y in 2..14 {
+                assert_eq!(
+                    ((rows[y - 1] & !frame(y - 1)) >> 4) as u8,
+                    original.rows[y],
+                    "{letter:?}, row {y}"
+                );
             }
         }
+        let power = glyph('\u{E114}').unwrap();
+        assert_eq!(slot(TILE_POWER), slot(TILE_POWER_LIT));
+        let rows = slot(TILE_POWER);
+        for (y, row) in rows.iter().enumerate().take(14).skip(2) {
+            assert_eq!(
+                ((row & !frame(y)) >> 4) as u8,
+                power.rows[y],
+                "power row {y}"
+            );
+        }
+    }
 
-        let left = glyph(TILE_LEFT).unwrap();
-        let right = glyph(TILE_RIGHT).unwrap();
-        let due = glyph(TILE_RIGHT_DUE).unwrap();
-        assert!(!left.wide && !right.wide && !due.wide);
-        for y in 0..CELL_HEIGHT {
-            let left_row = if y == 1 || y == 14 {
-                0x03
-            } else if (1..=14).contains(&y) {
-                0x02
-            } else {
-                0
-            };
-            let right_row = if y == 1 || y == 14 {
-                0xC0
-            } else if (1..=14).contains(&y) {
-                0x40
-            } else {
-                0
-            };
-            assert_eq!(left.rows[y], left_row, "left row {y}");
-            assert_eq!(right.rows[y], right_row, "right row {y}");
-            let dot = if y == 3 || y == 4 { 0x18 } else { 0 };
-            assert_eq!(due.rows[y], right.rows[y] | dot, "due row {y}");
+    #[test]
+    fn a_lit_tile_fills_its_square_and_draws_its_lines_black() {
+        let (accent, ground) = ([136, 192, 208], [46, 52, 64]);
+        let mut pixels = crate::TextSize::Writing.raster(4, 1);
+        let cells: Vec<Cell> = TILES_LIT[0]
+            .into_iter()
+            .chain(TILES[0])
+            .map(|c| {
+                let mut cell = Cell::new(" ");
+                cell.set_char(c)
+                    .set_fg(Color::Rgb(accent[0], accent[1], accent[2]))
+                    .set_bg(Color::Rgb(ground[0], ground[1], ground[2]));
+                cell
+            })
+            .collect();
+        ratatui::backend::Backend::draw(
+            &mut pixels,
+            cells.iter().enumerate().map(|(x, c)| (x as u16, 0, c)),
+        )
+        .unwrap();
+        let rows = slot(TILES[0]);
+        for (y, row) in rows.iter().enumerate() {
+            for x in 0..16 {
+                let line = row & (0x8000 >> x) != 0;
+                let square = (1..=14).contains(&x) && (1..=14).contains(&y);
+                let want = if line {
+                    [0, 0, 0]
+                } else if square {
+                    accent
+                } else {
+                    ground
+                };
+                assert_eq!(pixels.rgb_pixmap.get_pixel(x, y), want, "lit {x},{y}");
+                let plain = if line { accent } else { ground };
+                assert_eq!(
+                    pixels.rgb_pixmap.get_pixel(16 + x, y),
+                    plain,
+                    "plain {x},{y}"
+                );
+            }
         }
     }
 

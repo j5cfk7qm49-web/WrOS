@@ -49,20 +49,25 @@ fn main() {
     for (cp, rows) in narrow_drawings(&narrow) {
         glyphs.insert(cp, rows);
     }
-    // The middle cells of the view tiles keep Unifont's own letters.
-    for (cp, letter) in (0xE110..=0xE113).zip(['W', 'r', 'O', 'S']) {
-        let mut rows = glyphs
-            .get(&(letter as u32))
-            .unwrap_or_else(|| panic!("Unifont tile letter {letter:?} is missing"))
+    // The view tiles (rc31): two cells each, a 14x14 square frame with Unifont's own letter (or
+    // the power symbol) centred inside. Each tile is drawn twice, from E120 and from E130: the
+    // renderer fills the E130 copy's square (the current view) and draws its lines in black.
+    let symbols = [('W', 1), ('r', 1), ('O', 1), ('S', 1), ('\u{E114}', 0)];
+    for (n, (symbol, lift)) in symbols.into_iter().enumerate() {
+        let rows = glyphs
+            .get(&(symbol as u32))
+            .unwrap_or_else(|| panic!("tile symbol {symbol:?} is missing"))
             .clone();
         assert_eq!(
             rows.len(),
             16,
-            "Unifont tile letter {letter:?} is not one cell wide"
+            "tile symbol {symbol:?} is not one cell wide"
         );
-        rows[1] = 0xFF;
-        rows[14] = 0xFF;
-        glyphs.insert(cp, rows);
+        let (left, right) = tile_halves(&rows, lift);
+        for base in [0xE120, 0xE130] {
+            glyphs.insert(base + 2 * n as u32, left.clone());
+            glyphs.insert(base + 2 * n as u32 + 1, right.clone());
+        }
     }
 
     let mut index = Vec::with_capacity(glyphs.len() * 8);
@@ -79,6 +84,34 @@ fn main() {
     out.extend(blob);
     let path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("unifont.bin");
     fs::write(path, out).expect("write unifont.bin");
+}
+
+/// A view tile's two cells: the square's lines on columns 1 and 14 and rows 1 and 14 of the
+/// 16-pixel slot, and the eight-pixel `symbol` on columns 4-11, raised `lift` rows. The symbol
+/// must keep a pixel clear of the lines.
+fn tile_halves(symbol: &[u8], lift: usize) -> (Vec<u8>, Vec<u8>) {
+    let mut slot = [0u16; 16];
+    for (y, &bits) in symbol.iter().enumerate() {
+        if bits == 0 {
+            continue;
+        }
+        let to = y
+            .checked_sub(lift)
+            .filter(|to| (3..=12).contains(to))
+            .unwrap_or_else(|| panic!("tile symbol row {y} lands outside rows 3-12"));
+        slot[to] = u16::from(bits) << 4;
+    }
+    for (y, row) in slot.iter_mut().enumerate() {
+        if y == 1 || y == 14 {
+            *row |= 0x7FFE;
+        } else if (2..=13).contains(&y) {
+            *row |= 0x4002;
+        }
+    }
+    (
+        slot.iter().map(|r| (r >> 8) as u8).collect(),
+        slot.iter().map(|r| *r as u8).collect(),
+    )
 }
 
 /// General Punctuation through Miscellaneous Symbols and Arrows: arrows,
