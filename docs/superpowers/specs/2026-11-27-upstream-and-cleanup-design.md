@@ -147,7 +147,6 @@ resolving. It also gives the commands for the next merge.
 - Which lints beyond those listed are worth turning on. Pedantic as a whole is not.
 - Where exactly the WrOS-owned modules split.
 
-## Open questions for the owner
+## Owner's answers
 
-1. **The old Debian channel.** The Pages deploy still serves it (`updates/`, rc13 machines).
-   Is any Debian WrOS laptop left? If not, the workflow and its signing steps can go.
+1. **No Debian WrOS laptop remains** (2026-11-27). The Debian channel and its workflow steps go.
