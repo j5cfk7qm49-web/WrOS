@@ -11,10 +11,21 @@
 use super::*;
 use crate::app::outline::DeskView;
 use crate::app::shell::Category;
-use crate::geometry::to_u16;
 use crate::palette::{Side, Title};
-use crate::ui::{TILE_POWER, TILE_POWER_LIT, TILES, TILES_LIT};
+use ratatui::buffer::Buffer;
 use ratatui::style::Color;
+
+mod dropdown;
+mod info;
+pub(super) mod panel;
+mod progress;
+mod tiles;
+mod top;
+
+pub(super) use dropdown::draw_dropdowns;
+pub(crate) use info::{InfoBar, focus_warning};
+pub(crate) use progress::{ProgressBar, ProgressState};
+pub(crate) use top::TopBar;
 
 /// No dropdown is taller than this many rows; a short screen scrolls them.
 pub const MAX_ROWS: usize = 12;
@@ -873,366 +884,54 @@ fn hit(r: Rect, x: u16, y: u16) -> bool {
     x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height
 }
 
-/// The view tiles, titles, marks and Power, with hit rectangles for the mouse.
-pub fn draw_bar_line(f: &mut Frame, app: &App, area: Rect, t: &Theme, show_marks: bool) {
-    if area.is_empty() {
-        return;
-    }
-    let (lit, tile) = match &app.overlay {
-        Overlay::Bar {
-            tile: Some(view), ..
-        } => (None, Some(*view)),
-        Overlay::Bar { title, .. } => (Some(*title), None),
-        Overlay::Palette {
-            under_bar: true, ..
-        } => (Some(app.bar_last), None),
-        _ => (None, None),
-    };
-    f.render_widget(Clear, area);
-    let look: wros_shell::Theme = t.into();
-    let power_style = if lit == Some(Title::Power) {
-        wros_shell::look::highlight(look).add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(t.text)
-    };
-    let (power, power_width) = if app.tile_glyphs {
-        // Lit, the power tile fills its square with the highlight, as the current view's does.
-        let (pair, style) = if lit == Some(Title::Power) {
-            (TILE_POWER_LIT, Style::default().fg(t.accent))
-        } else {
-            (TILE_POWER, Style::default().fg(t.text))
-        };
-        (vec![Span::styled(String::from_iter(pair), style)], 2_u16)
-    } else {
-        (
-            vec![
-                Span::styled("[Po", power_style),
-                Span::styled("w", power_style.add_modifier(Modifier::UNDERLINED)),
-                Span::styled("er]", power_style),
-            ],
-            7,
-        )
-    };
-    let power_width = power_width.min(area.width);
-    let power_x = area.right() - power_width;
-    let power_area = Rect::new(power_x, area.y, power_width, 1);
-
-    // On the band, give the tiles a different ground so their lines are visible.
-    let base = if crate::ui::bar_band(t, app.linux_console).is_some() {
-        Style::default().bg(t.sel)
-    } else {
-        Style::default()
-    };
-    let mut spans = vec![Span::raw(" ")];
-    let mut x = area.x.saturating_add(1).min(power_x);
-    let mut hits = app.bar_hits.borrow_mut();
-    hits.retain(|(_, h)| !matches!(h, BarHit::Tile(_) | BarHit::Title(_)));
-    // Each tile is two cells: in the native renderer a square around the letter (rc31), in text
-    // the letter and a space. The current view is filled; cards due turn the S red.
-    for (n, view) in DeskView::ALL.into_iter().enumerate() {
-        let width = 2;
-        if width > power_x - x {
-            break;
-        }
-        let current = view == app.desk_view;
-        let due = view == DeskView::Study && app.commonplace.study.all_due > 0;
-        let ink = if due { t.warn } else { t.dim };
-        let selected = tile == Some(view);
-        if app.tile_glyphs {
-            let (pair, style) = if current {
-                (TILES_LIT[n], base.fg(t.accent))
-            } else {
-                (TILES[n], base.fg(ink))
-            };
-            let style = if selected {
-                style.add_modifier(Modifier::UNDERLINED)
-            } else {
-                style
-            };
-            spans.push(Span::styled(String::from_iter(pair), style));
-        } else {
-            let ground = if current {
-                Style::default().fg(Color::Black).bg(t.accent)
-            } else {
-                base.fg(ink)
-            };
-            let letter = if selected {
-                ground.add_modifier(Modifier::UNDERLINED | Modifier::BOLD)
-            } else {
-                ground
-            };
-            let initial = view.label().chars().next().unwrap_or(' ');
-            spans.push(Span::styled(initial.to_string(), letter));
-            spans.push(Span::styled(" ", if current { ground } else { base }));
-        }
-        hits.push((Rect::new(x, area.y, width, 1), BarHit::Tile(view)));
-        x += width;
-    }
-    if power_x > x {
-        spans.push(Span::styled("│", base.fg(t.border)));
-        x += 1;
-    }
-    let titles_end = if show_marks {
-        crate::ui::draw_status_marks(f, app, Rect::new(x, area.y, power_x - x, 1), t)
-    } else {
-        power_x.saturating_sub(1).max(x)
-    };
-    for title in Title::ALL
-        .into_iter()
-        .take_while(|&title| title != Title::Power)
-    {
-        let w = to_u16(title.label().chars().count()).saturating_add(2);
-        if w > titles_end - x {
-            break;
-        }
-        hits.push((Rect::new(x, area.y, w, 1), BarHit::Title(title)));
-        x += w;
-        spans.extend(wros_shell::look::underlined_title(
-            title.label(),
-            0,
-            lit == Some(title),
-            look,
-        ));
-    }
-    f.render_widget(
-        Paragraph::new(Line::from(spans)),
-        Rect::new(area.x, area.y, x - area.x, 1),
-    );
-    f.render_widget(Paragraph::new(Line::from(power)), power_area);
-    hits.push((power_area, BarHit::Title(Title::Power)));
+/// The ground of the bars, in the same colour as the pane borders. None on the console,
+/// whose sixteen colours would turn it into a bright block.
+pub(crate) fn bar_band(t: &Theme, linux_console: bool) -> Option<Color> {
+    (!linux_console && matches!(t.border, Color::Rgb(..))).then_some(t.border)
 }
 
-/// The open menu, under its title, and a side group beside it.
-pub(super) fn draw_dropdowns(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
-    let Overlay::Bar {
-        title,
-        open: true,
-        sel,
-        side,
-        ..
-    } = &app.overlay
-    else {
+/// Lays `band` under every cell of `area` that has no ground of its own, so a lit title or a
+/// highlighted mark keeps its shade.
+fn paint_band(buf: &mut Buffer, area: Rect, t: &Theme, console: bool) {
+    let Some(band) = bar_band(t, console) else {
         return;
     };
-    let anchor = app
-        .bar_hits
-        .borrow()
-        .iter()
-        .find(|(_, h)| *h == BarHit::Title(*title))
-        .map_or(Rect::new(area.x, area.y, 1, 1), |(r, _)| *r);
-    let rows = app.bar_rows(*title);
-    let menu = draw_list(
-        f,
-        area,
-        anchor.x,
-        anchor.y + 1,
-        &rows,
-        *sel,
-        side.is_none(),
-        app.linux_console,
-        t,
-    );
-    let mut hits = app.bar_hits.borrow_mut();
-    hits.retain(|(_, h)| matches!(h, BarHit::Tile(_) | BarHit::Title(_)));
-    for (i, r) in &menu.rows {
-        hits.push((*r, BarHit::Row(*i)));
-    }
-    if let Some((group, at)) = side {
-        let side_rows = app.side_rows(*group);
-        let row_y = menu
-            .rows
-            .iter()
-            .find(|(i, _)| *i == *sel)
-            .map_or(menu.area.y, |(_, r)| r.y);
-        let w = list_width(&side_rows);
-        let x = if menu.area.right() + w <= area.right() {
-            menu.area.right()
-        } else {
-            menu.area.x.saturating_sub(w)
-        };
-        let drawn = draw_list(
-            f,
-            area,
-            x,
-            row_y,
-            &side_rows,
-            *at,
-            true,
-            app.linux_console,
-            t,
-        );
-        hits.push((drawn.area, BarHit::Cover));
-        for (i, r) in drawn.rows {
-            hits.push((r, BarHit::SideRow(i)));
-        }
-    }
-}
-
-struct Drawn {
-    area: Rect,
-    rows: Vec<(usize, Rect)>,
-}
-
-fn list_width(rows: &[BarRow]) -> u16 {
-    let label = rows
-        .iter()
-        .map(|r| r.label.chars().count())
-        .max()
-        .unwrap_or(0);
-    let key = rows
-        .iter()
-        .map(|r| r.key.chars().count())
-        .max()
-        .unwrap_or(0);
-    // Side padding, marker, label, a gap, the key, a space, side padding.
-    to_u16(1 + 2 + label + 3 + key + 1 + 1)
-}
-
-/// One dropdown box at (x, y), clamped into `area`, scrolled so row `sel`
-/// shows. `lit` draws the highlight (a menu whose side group is open keeps
-/// its row shaded but not lit).
-#[allow(clippy::too_many_arguments)]
-fn draw_list(
-    f: &mut Frame,
-    area: Rect,
-    x: u16,
-    y: u16,
-    rows: &[BarRow],
-    sel: usize,
-    lit: bool,
-    linux_console: bool,
-    t: &Theme,
-) -> Drawn {
-    let w = list_width(rows).min(area.width);
-    // The status line stays visible under a menu.
-    let y = y.min(area.bottom().saturating_sub(2)).max(area.y);
-    let room = usize::from(area.bottom().saturating_sub(1).saturating_sub(y));
-    let shown = rows.len().min(MAX_ROWS).min(room);
-    let h = to_u16(shown);
-    let x = x.min(area.right().saturating_sub(w));
-    let rect = Rect::new(x, y, w, h);
-    let (inner, band) = draw_panel(f, area, rect, linux_console, t);
-    let start = (sel + 1).saturating_sub(shown);
-    let mut drawn = vec![];
-    for (line, (i, row)) in rows.iter().enumerate().skip(start).take(shown).enumerate() {
-        let on = i == sel;
-        let base = if row.dim.is_some() {
-            Style::default().fg(t.dim)
-        } else {
-            Style::default().fg(t.text)
-        };
-        let r = Rect::new(inner.x, inner.y + to_u16(line), inner.width, 1);
-        let style = match (on, lit) {
-            (true, true) => light_panel_row(f, rect, r.y, linux_console, t),
-            (true, false) => base.bg(t.sel),
-            _ => base.bg(band),
-        };
-        let label_w = usize::from(inner.width).saturating_sub(row.key.chars().count() + 5);
-        let text = format!(
-            "{}{:<label_w$}  {} ",
-            if on && lit {
-                wros_shell::look::MARKER
-            } else {
-                "  "
-            },
-            truncate(&row.label, label_w),
-            row.key,
-        );
-        f.render_widget(Paragraph::new(Line::styled(text, style)), r);
-        drawn.push((i, r));
-    }
-    Drawn {
-        area: rect,
-        rows: drawn,
-    }
-}
-
-/// The Platinum band and shadow shared by dropdowns and widget panels.
-pub(super) fn draw_panel(
-    f: &mut Frame,
-    area: Rect,
-    rect: Rect,
-    linux_console: bool,
-    t: &Theme,
-) -> (Rect, Color) {
-    f.render_widget(Clear, rect);
-    let band = crate::ui::bar_band(t, linux_console).unwrap_or(t.sel);
-    let inner = Rect::new(
-        rect.x.saturating_add(1),
-        rect.y,
-        rect.width.saturating_sub(2),
-        rect.height,
-    );
-    for cy in rect.top()..rect.bottom() {
-        for cx in rect.left()..rect.right() {
-            let cell = &mut f.buffer_mut()[(cx, cy)];
-            cell.set_fg(t.text).set_bg(band);
-            if linux_console && (cx == rect.left() || cx + 1 == rect.right()) {
-                cell.set_symbol("│").set_fg(t.border);
+    let area = area.intersection(buf.area);
+    for y in area.top()..area.bottom() {
+        for x in area.left()..area.right() {
+            let cell = &mut buf[(x, y)];
+            if cell.bg == Color::Reset {
+                cell.set_bg(band);
             }
         }
     }
-    if !rect.is_empty() {
-        let clip = area.intersection(f.area());
-        let buf = f.buffer_mut();
-        for cy in rect.y.saturating_add(1)..rect.bottom() {
-            if rect.right() < clip.right() && cy >= clip.top() && cy < clip.bottom() {
-                shadow_cell(&mut buf[(rect.right(), cy)], t.dim);
-            }
-        }
-        if rect.bottom() < clip.bottom() {
-            for cx in rect.x.saturating_add(1)..=rect.right().min(clip.right().saturating_sub(1)) {
-                if cx >= clip.left() {
-                    shadow_cell(&mut buf[(cx, rect.bottom())], t.dim);
-                }
-            }
-        }
-    }
-    (inner, band)
 }
 
-pub(super) fn light_panel_row(
-    f: &mut Frame,
-    panel: Rect,
-    y: u16,
-    linux_console: bool,
-    t: &Theme,
-) -> Style {
-    if !linux_console {
-        for x in panel.left()..panel.right() {
-            f.buffer_mut()[(x, y)].set_fg(Color::Black).set_bg(t.accent);
-        }
-    }
-    Style::default().fg(Color::Black).bg(t.accent)
+fn ellipsis(console: bool) -> &'static str {
+    if console { "..." } else { "…" }
 }
 
-fn shadow_cell(cell: &mut ratatui::buffer::Cell, dim: ratatui::style::Color) {
-    cell.set_fg(dim);
-    if let ratatui::style::Color::Rgb(r, g, b) = cell.bg {
-        cell.set_bg(ratatui::style::Color::Rgb(r / 2, g / 2, b / 2));
+/// Shorten at a character boundary using terminal cells, including wide titles.
+fn fit_text(text: &str, width: usize, console: bool) -> String {
+    if Span::raw(text).width() <= width {
+        return text.to_owned();
     }
+    let ellipsis = ellipsis(console);
+    let Some(room) = width.checked_sub(Span::raw(ellipsis).width()) else {
+        return ".".repeat(width);
+    };
+    let end = text
+        .char_indices()
+        .map(|(i, _)| i)
+        .take_while(|&i| Span::raw(&text[..i]).width() <= room)
+        .last()
+        .unwrap_or_default();
+    format!("{}{ellipsis}", &text[..end])
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn shadow_preserves_symbols_and_darkens_only_rgb_backgrounds() {
-        use ratatui::style::Color;
-
-        let mut cell = ratatui::buffer::Cell::default();
-        cell.set_symbol("X").set_bg(Color::Rgb(101, 50, 9));
-        shadow_cell(&mut cell, Color::DarkGray);
-        assert_eq!(cell.symbol(), "X");
-        assert_eq!(cell.fg, Color::DarkGray);
-        assert_eq!(cell.bg, Color::Rgb(50, 25, 4));
-        cell.set_bg(Color::Blue);
-        shadow_cell(&mut cell, Color::Gray);
-        assert_eq!(cell.symbol(), "X");
-        assert_eq!(cell.fg, Color::Gray);
-        assert_eq!(cell.bg, Color::Blue);
-    }
 
     #[test]
     fn a_letter_jumps_round_to_the_next_row_starting_with_it() {

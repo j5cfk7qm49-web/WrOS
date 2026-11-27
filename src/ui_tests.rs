@@ -1810,7 +1810,7 @@ fn each_widget_opens_its_popup_above_it() {
         let buf = d.term.backend().buffer();
         assert_eq!(
             buf[(rect.right() - 1, y)].bg,
-            ui::bar_band(t, false).unwrap_or(t.sel)
+            crate::app::overlays::bar::bar_band(t, false).unwrap_or(t.sel)
         );
         assert_eq!(buf[(rect.right(), y)].fg, t.dim);
         assert_eq!(
@@ -1977,7 +1977,7 @@ fn dropdown_is_lifted_with_a_shadow() {
     assert_eq!(buf[(first.x, first.y)].fg, Color::Black);
     assert_eq!(
         buf[(second.x, second.y)].bg,
-        ui::bar_band(t, false).unwrap_or(t.sel)
+        crate::app::overlays::bar::bar_band(t, false).unwrap_or(t.sel)
     );
     let right = first.right() + 1;
     let bottom = last.bottom();

@@ -14,7 +14,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 
 mod about;
-mod bar;
+pub(crate) mod bar;
 mod cards;
 mod command;
 mod conflicts;
@@ -42,9 +42,9 @@ mod spelling;
 mod versions;
 mod widgets;
 
+pub use bar::BarHit;
 #[cfg(test)]
 pub(crate) use bar::BarRow;
-pub use bar::{BarHit, draw_bar_line};
 pub use details::Field as DetailField;
 pub use footnote_reader::Reader as FootnoteReader;
 pub use footnotes::FootnoteRow;

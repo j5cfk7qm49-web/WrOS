@@ -6,11 +6,11 @@
     clippy::cast_possible_wrap
 )]
 
-use super::{TYPED, bar, list_nav};
+use super::bar::panel::Panel as GaugePanel;
+use super::{TYPED, list_nav};
 use crate::app::shell::{Panel, Route, WIFI_SCAN_FAILED, path_to};
 use crate::app::{App, Key, Overlay, hit, productivity};
 use crate::gauges::{Widget, Wifi};
-use crate::geometry::to_u16;
 use crate::music::State;
 use crate::theme::Theme;
 use chrono::NaiveDate;
@@ -18,7 +18,6 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
 use wros_sys::{Request, WifiNetwork};
 
 enum Choice {
@@ -322,37 +321,12 @@ pub(super) fn draw(
         .iter()
         .find(|(_, widget)| *widget == kind)
         .map_or(info, |&(rect, _)| rect);
-    let rows = rows(app, kind, t);
-    let sel = sel.min(rows.len() - 1);
-    let right = anchor.right().min(area.right());
-    let width = rows.iter().map(|row| row.line.width()).max().unwrap_or(0) + 5;
-    let width = to_u16(width).min(right.saturating_sub(area.x));
-    let room = usize::from(anchor.y.saturating_sub(area.y));
-    let shown = rows.len().min(bar::MAX_ROWS).min(room);
-    let start = (sel + 1).saturating_sub(shown);
-    let h = to_u16(shown);
-    let panel = Rect::new(right - width, anchor.y - h, width, h);
-    app.widget_panel.set((panel, start));
-    let (inner, band) = bar::draw_panel(f, area, panel, app.linux_console, t);
-    for (offset, row) in rows.into_iter().skip(start).take(shown).enumerate() {
-        let at = Rect::new(inner.x, inner.y + to_u16(offset), inner.width, 1);
-        let mut line = row.line;
-        let marker = if start + offset == sel {
-            let style = bar::light_panel_row(f, panel, at.y, app.linux_console, t);
-            line.style = style;
-            for span in &mut line.spans {
-                span.style = span.style.patch(style);
-            }
-            if app.linux_console {
-                "> "
-            } else {
-                wros_shell::look::MARKER
-            }
-        } else {
-            line.style = Style::default().fg(t.text).bg(band);
-            "  "
-        };
-        line.spans.insert(0, Span::raw(marker));
-        f.render_widget(Paragraph::new(line), at);
-    }
+    let lines = rows(app, kind, t).into_iter().map(|row| row.line).collect();
+    let mut hit = (Rect::default(), 0);
+    f.render_stateful_widget(
+        GaugePanel::new(lines, anchor, sel, app.linux_console, t),
+        area,
+        &mut hit,
+    );
+    app.widget_panel.set(hit);
 }
