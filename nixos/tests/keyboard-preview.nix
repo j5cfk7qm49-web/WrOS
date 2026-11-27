@@ -24,18 +24,11 @@ pkgs.testers.runNixOSTest {
         assert re.search(r"= *\+?(0x[0-9a-f]*|U\+00)" + code + r"(?![0-9a-f])", line), line
 
     # 1. Build encrypted disk starting with qwerty layout and boot it
-    disk_img = build_encrypted_disk(
-        installer,
-        keyboard_layout="qwerty",
-        luks_passphrase="colemak-passphrase",
-        username="writer",
-        user_password="writer-secret-password",
-    )
-    prepare_installed_disk(installed, disk_img)
+    boot_installed_disk(installed, "${encryptedDisk.installedDisk}", "${nodes.installed.system.build.toplevel}")
 
     installed.start(allow_reboot=True)
     wait_for_disk_prompt(installed)
-    installed.send_chars("colemak-passphrase")
+    installed.send_chars("writer-disk-passphrase")
     installed.send_key("ret")
     installed.wait_for_unit("multi-user.target")
     installed.wait_for_unit("wros-keyboard.service")
@@ -72,7 +65,7 @@ pkgs.testers.runNixOSTest {
     #    is active at the pre-mount LUKS passphrase prompt (T3).
     restart(installed)
     wait_for_disk_prompt(installed)
-    installed.send_chars(colemak_keys("colemak-passphrase"))
+    installed.send_chars(colemak_keys("writer-disk-passphrase"))
     installed.send_key("ret")
     installed.wait_for_unit("multi-user.target")
     installed.wait_for_unit("greetd.service")

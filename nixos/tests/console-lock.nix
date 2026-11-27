@@ -17,18 +17,11 @@ pkgs.testers.runNixOSTest {
     import os
 
     # 1. Build and boot the encrypted disk with qwerty layout
-    disk_img = build_encrypted_disk(
-        installer,
-        keyboard_layout="qwerty",
-        luks_passphrase="writer-lock-passphrase",
-        username="writer",
-        user_password="writer-lock-password",
-    )
-    prepare_installed_disk(installed, disk_img)
+    boot_installed_disk(installed, "${encryptedDisk.installedDisk}", "${nodes.installed.system.build.toplevel}")
 
     installed.start()
     wait_for_disk_prompt(installed)
-    installed.send_chars("writer-lock-passphrase")
+    installed.send_chars("writer-disk-passphrase")
     installed.send_key("ret")
     installed.wait_for_unit("multi-user.target")
     installed.wait_for_unit("greetd.service")
@@ -48,7 +41,7 @@ pkgs.testers.runNixOSTest {
     # 3. Log in as writer on tty1 via wros-greeter and open the writing editor
     # The console session draws the editor as text on tty1, which is what the screen
     # checks below read (the default session draws on DRM, which tty text cannot see).
-    log_in(installed, "writer", "writer-lock-password", colemak=False, console=True)
+    log_in(installed, "writer", "writer-secret-password", colemak=False, console=True)
     installed.wait_until_tty_matches("1", "File  Edit  View")
 
     # 4. Settings -> System -> Battery and power -> Lock writing session, the way rc13's own VM
@@ -112,7 +105,7 @@ pkgs.testers.runNixOSTest {
     installed.screenshot("lock-screen-after-wrong-password")
 
     # 7. Type the right password to unlock and return to tty1
-    installed.send_chars("writer-lock-password\n")
+    installed.send_chars("writer-secret-password\n")
     installed.wait_until_succeeds("[ $(fgconsole) = 1 ]")
     installed.wait_until_fails("pgrep -f '^[^ ]*wros-lock-screen --user'")
     installed.succeed("pgrep -u writer grimoire")
@@ -120,7 +113,7 @@ pkgs.testers.runNixOSTest {
     # 8. Confirm keys typed while locked never reached tty1 or any manuscript file
     tty1_text = installed.get_tty_text("1")
     assert "LEAKED_WHILE_LOCKED" not in tty1_text, tty1_text
-    assert "writer-lock-password" not in tty1_text, tty1_text
+    assert "writer-secret-password" not in tty1_text, tty1_text
     installed.fail("grep -rn 'LEAKED_WHILE_LOCKED' /home/writer")
 
     # 9. Killing the lock screen never unlocks: the lock fails and the writing session closes
@@ -148,7 +141,7 @@ pkgs.testers.runNixOSTest {
         print(f"{name}: {share:.4f} lit")
         return share, rgb
     installed.succeed("rm -f /home/writer/.config/wros/session.json")
-    log_in(installed, "writer", "writer-lock-password", colemak=False)
+    log_in(installed, "writer", "writer-secret-password", colemak=False)
     app = installed.succeed("pgrep -u writer -x grimoire -o").strip()
     assert "WROS_SESSION=drm" in installed.succeed(f"tr '\\0' '\\n' < /proc/{app}/environ")
     def sketch(name):
@@ -203,7 +196,7 @@ pkgs.testers.runNixOSTest {
     installed.succeed("[ $(fgconsole) = 8 ]")
     assert installed.succeed("pgrep -f '^[^ ]*wros-lock-screen --user'").strip() == locker
     assert min(samples) > 0.02, f"the lock screen went dark after a wrong password: {samples}"
-    installed.send_chars("writer-lock-password\n")
+    installed.send_chars("writer-secret-password\n")
     installed.wait_until_succeeds("[ $(fgconsole) = 1 ]")
     installed.wait_until_fails("pgrep -f '^[^ ]*wros-lock-screen --user'")
     time.sleep(5)

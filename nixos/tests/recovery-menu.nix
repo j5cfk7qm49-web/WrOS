@@ -16,18 +16,11 @@ pkgs.testers.runNixOSTest {
     ${encryptedDisk.pythonPreamble}
 
     # 1. Build and boot the encrypted disk
-    disk_img = build_encrypted_disk(
-        installer,
-        keyboard_layout="qwerty",
-        luks_passphrase="recovery-disk-passphrase",
-        username="writer",
-        user_password="writer-recovery-password",
-    )
-    prepare_installed_disk(installed, disk_img)
+    boot_installed_disk(installed, "${encryptedDisk.installedDisk}", "${nodes.installed.system.build.toplevel}")
 
     installed.start(allow_reboot=True)
     wait_for_disk_prompt(installed)
-    installed.send_chars("recovery-disk-passphrase")
+    installed.send_chars("writer-disk-passphrase")
     installed.send_key("ret")
     installed.wait_for_unit("multi-user.target")
 
@@ -51,7 +44,7 @@ pkgs.testers.runNixOSTest {
     restart(installed)
 
     installed.wait_for_console_text("Please enter passphrase for disk")
-    installed.send_chars("recovery-disk-passphrase\n")
+    installed.send_chars("writer-disk-passphrase\n")
     installed.wait_for_unit("wros-recovery.target")
     installed.wait_for_unit("wros-recovery.service")
 
@@ -61,7 +54,7 @@ pkgs.testers.runNixOSTest {
     installed.send_chars("wrong-recovery-password\n")
     installed.wait_until_tty_matches("1", "That password did not match")
 
-    installed.send_chars("writer-recovery-password\n")
+    installed.send_chars("writer-secret-password\n")
     installed.wait_until_tty_matches("1", "1  Repair system packages")
     installed.wait_until_tty_matches("1", "2  Restore a project from a backup")
     installed.wait_until_tty_matches("1", "3  Show what happened")

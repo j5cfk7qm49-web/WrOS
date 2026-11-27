@@ -124,15 +124,7 @@ pkgs.testers.runNixOSTest {
         threading.Thread(target=run, daemon=True).start()
         return done
 
-    disk_img = build_encrypted_disk(
-        installer,
-        keyboard_layout="qwerty",
-        luks_passphrase="seams-passphrase",
-        username="writer",
-        user_password="writer-secret-password",
-        hostname="wros-book",
-    )
-    prepare_installed_disk(installed, disk_img)
+    boot_installed_disk(installed, "${encryptedDisk.installedDisk}", "${nodes.installed.system.build.toplevel}")
 
     with subtest("a wrong password ends in the text prompt, readable and not echoing"):
         installed.start(allow_reboot=True)
@@ -150,7 +142,7 @@ pkgs.testers.runNixOSTest {
         text = installed.get_screen_text()
         print(f"screen at the text prompt: {text!r}")
         assert "passphrase" in text.lower(), "the text prompt is not on screen"
-        installed.send_chars("seams-passphrase")
+        installed.send_chars("writer-disk-passphrase")
         time.sleep(2)
         text = installed.get_screen_text()
         assert "seams" not in text.lower(), f"the typed password is shown: {text!r}"
@@ -172,7 +164,7 @@ pkgs.testers.runNixOSTest {
         assert before[-1][2] == unlock_screen, "the unlock screen never came"
         # Filmed from just after Enter: the unlock → progress hand-over and the switch to the
         # installed system come within seconds of it.
-        installed.send_chars("seams-passphrase")
+        installed.send_chars("writer-disk-passphrase")
         installed.send_key("ret")
         time.sleep(0.5)
         def to_login():

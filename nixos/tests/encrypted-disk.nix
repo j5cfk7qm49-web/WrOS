@@ -253,5 +253,37 @@ rec {
         target_vm.state_dir.mkdir(mode=0o700, exist_ok=True)
         for candidate in (f"{target_vm.name}.qcow2", "installed.qcow2", "machine.qcow2", "empty0.qcow2"):
             shutil.copyfile(disk_img, target_vm.state_dir / candidate)
+
+    def boot_installed_disk(target_vm, made: str, toplevel: str) -> None:
+        # A copy of installedDisk (below) for this test's VM, which must be the system it holds.
+        made_for = (Path(made) / "toplevel").read_text().strip()
+        assert made_for == toplevel, f"installedDisk holds {made_for}, this test boots {toplevel}"
+        prepare_installed_disk(target_vm, Path(made) / "disk.qcow2")
   '';
+
+  # rc31: most VM tests boot the same installed system (mkInstalledNode {}), and each used to
+  # install it again first (installer VM + wros-install-core, about 110 s). This installs it once,
+  # with qwerty, the disk passphrase "writer-disk-passphrase" and the writer "writer" with
+  # password "writer-secret-password"; Nix keeps it until the installed system changes. A test
+  # uses it with boot_installed_disk(installed, "${installedDisk}", "${toplevel}"), and keeps an
+  # installer node like this one's so that its installed node (whose /etc/hosts lists every
+  # node) is the same system. install-encrypted still checks the installer on its own.
+  installedDisk = pkgs.testers.runNixOSTest {
+    name = "wros-installed-disk";
+    nodes = {
+      installer = { nodes, ... }: { imports = [ (mkInstallerNode nodes.installed.system.build.toplevel) ]; };
+      installed = mkInstalledNode { };
+    };
+    testScript = { nodes, ... }: ''
+      ${pythonPreamble}
+      disk_img = build_encrypted_disk(
+          installer,
+          keyboard_layout="qwerty",
+          luks_passphrase="writer-disk-passphrase",
+          user_password="writer-secret-password",
+      )
+      shutil.copyfile(disk_img, installer.out_dir / "disk.qcow2")
+      (installer.out_dir / "toplevel").write_text("${nodes.installed.system.build.toplevel}\n")
+    '';
+  };
 }

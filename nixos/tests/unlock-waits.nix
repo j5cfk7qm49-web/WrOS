@@ -18,20 +18,12 @@ pkgs.testers.runNixOSTest {
   testScript = { nodes, ... }: ''
     ${encryptedDisk.pythonPreamble}
 
-    disk_img = build_encrypted_disk(
-        installer,
-        keyboard_layout="qwerty",
-        luks_passphrase="patient-passphrase",
-        username="writer",
-        user_password="writer-secret-password",
-        hostname="wros-book",
-    )
-    prepare_installed_disk(installed, disk_img)
+    boot_installed_disk(installed, "${encryptedDisk.installedDisk}", "${nodes.installed.system.build.toplevel}")
 
     installed.start(allow_reboot=True)
     wait_for_disk_prompt(installed)
     time.sleep(330)  # host-side: nobody touches the prompt
-    unlock_at_prompt(installed, "patient-passphrase")
+    unlock_at_prompt(installed, "writer-disk-passphrase")
     installed.wait_for_unit("multi-user.target")
     installed.wait_for_unit("greetd.service")
   '';

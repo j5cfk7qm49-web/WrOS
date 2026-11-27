@@ -23,7 +23,7 @@ pkgs.testers.runNixOSTest {
     installed = encryptedDisk.mkInstalledNode {};
   };
 
-  testScript = ''
+  testScript = { nodes, ... }: ''
     ${encryptedDisk.pythonPreamble}
 
     home = "/home/writer"
@@ -136,11 +136,10 @@ pkgs.testers.runNixOSTest {
                             Path(paths[0]).name), paths
         return paths[0]
 
-    disk_img = build_encrypted_disk(installer, keyboard_layout="qwerty")
-    prepare_installed_disk(installed, disk_img)
+    boot_installed_disk(installed, "${encryptedDisk.installedDisk}", "${nodes.installed.system.build.toplevel}")
     installed.start(allow_reboot=True)
     wait_for_disk_prompt(installed)
-    unlock_at_prompt(installed, "colemak-passphrase")
+    unlock_at_prompt(installed, "writer-disk-passphrase")
     installed.wait_for_unit("multi-user.target", timeout=300)
     installed.wait_for_unit("wros-boot-ok.service", timeout=300)
 

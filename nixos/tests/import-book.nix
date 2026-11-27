@@ -42,7 +42,7 @@ pkgs.testers.runNixOSTest {
     };
   };
 
-  testScript = ''
+  testScript = { nodes, ... }: ''
     ${encryptedDisk.pythonPreamble}
 
     def wait_screen(pattern, timeout=300):
@@ -65,7 +65,7 @@ pkgs.testers.runNixOSTest {
         if from_dashboard:
             to_editor(installed)
         installed.send_key("esc")
-        installed.send_chars(colemak_keys("f"))
+        installed.send_chars("f")
         wait_screen("Open another project")
         enter_row(r"^Open another project")
         wait_screen("YOUR PROJECTS")
@@ -73,11 +73,10 @@ pkgs.testers.runNixOSTest {
         wait_screen("A folder on this laptop")
 
     try:
-        disk_img = build_encrypted_disk(installer)
-        prepare_installed_disk(installed, disk_img)
+        boot_installed_disk(installed, "${encryptedDisk.installedDisk}", "${nodes.installed.system.build.toplevel}")
         installed.start(allow_reboot=True)
         wait_for_disk_prompt(installed)
-        unlock_at_prompt(installed, colemak_keys("colemak-passphrase"))
+        unlock_at_prompt(installed, "writer-disk-passphrase")
         installed.wait_for_unit("multi-user.target", timeout=300)
         installed.wait_for_unit("wros-boot-ok.service", timeout=300)
         installed.wait_until_succeeds("test -b /dev/disk/by-label/BOOKS", timeout=300)
@@ -102,7 +101,7 @@ pkgs.testers.runNixOSTest {
             "chown -R writer:users " + shlex.quote(drive) + " " + shlex.quote(backup_state)
         )
 
-        log_in(installed, "writer", "writer-secret-password", colemak=True, console=True)
+        log_in(installed, "writer", "writer-secret-password", colemak=False, console=True)
         wait_screen("Resume writing|GRIMOIRE")
 
         with subtest("import a book from the BOOKS USB stick"):
