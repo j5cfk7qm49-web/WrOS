@@ -68,3 +68,19 @@ cargo test --workspace --locked
 
 Pipe none of these into another command when the result decides a commit: a
 pipe hides the exit code.
+
+## In WrOS
+
+This checkout is WrOS, a fork of Grimoire. Everything above holds, with these differences
+(details in `docs/UPSTREAM.md`):
+
+- **Words:** WrOS says *project* where upstream says *book* (help topic `26-your-projects.md`,
+  not `26-your-books.md`). The menu is WrOS's own (`src/app/overlays/bar.rs`), so menu paths read
+  *Project › This project › …*.
+- **Ownership:** a file that also exists upstream is shared. It gets bug fixes and small local
+  changes only, never restructuring, because each change there is a conflict at the next merge.
+- **Before a commit:** WrOS builds and tests in NixOS-WSL with the flake's pinned toolchain
+  (`rc14-argon/nixos-wsl/README.md` in the WrOS work folder). Nix CI runs the same checks plus
+  the repository gates (`tools/nix-gates.sh`).
+- **README and site:** the README is WrOS's, and the site under `site/` is upstream's, left
+  untouched.

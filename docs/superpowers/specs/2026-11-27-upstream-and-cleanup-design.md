@@ -84,8 +84,8 @@ posting.
 | Upstream change | WrOS | Why |
 |---|---|---|
 | 0.8.0–0.8.3 fixes and small features: caret in boxes, empty the Trash, one match at a time, read-aloud speed, menu clicks, Template Sheets, taught words, corkboard chapter, flicker fix | Take | Bugs that affect writers, and features that fit. |
-| 0.9 one books folder | Adapt | `shelf::home()` returns WrOS's `~/Documents/Grimoire` (`books::default_root()`), not `Documents/Grimoire Books`. |
-| 0.9 save a copy / open a copy (`.zip`) | Take, in WrOS's folder | Copies go in `~/Documents/Grimoire/Copies`. |
+| 0.9 one books folder | Adapt | `shelf::home()` returns WrOS's projects folder `~/Documents` (`books::documents()`), not `Documents/Grimoire Books`. *(Corrected during Task 3: `~/Documents/Grimoire` is WrOS's first project, not a folder of projects.)* |
+| 0.9 save a copy / open a copy (`.zip`) | Take, in WrOS's folder | Copies go in `~/Documents/Copies`. |
 | 0.9 "Where this book is kept" | Take, adapted | Shows WrOS's facts: the folder, backup and Drive state where WrOS knows them. Says "project", as all WrOS text does since rc22. |
 | 0.9 move a book home | Take | Into WrOS's folder. |
 | 0.9.1 first start makes *My First Book* | Decline | WrOS's first start is its own (the live session, the tutorial, the projects folder). |
