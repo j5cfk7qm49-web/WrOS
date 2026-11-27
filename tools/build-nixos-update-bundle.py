@@ -156,6 +156,8 @@ def thin_out(staging, cache_files, upstream, toplevel, keep):
     narinfo_items = [i for i in cache_files if i['path'].endswith('.narinfo')
                      and i.get('store_path') and i['store_path'] != toplevel]
     moved = {}
+    # Byte-identical packages share one archive on cache.nixos.org: fetch it once.
+    archives = {}
     for item in narinfo_items:
         local = narinfo_fields((staging / item['path']).read_text(encoding='utf-8'))
         name = Path(item['path']).name
@@ -166,12 +168,16 @@ def thin_out(staging, cache_files, upstream, toplevel, keep):
         if remote.get('NarHash') != local.get('NarHash') or not NAR_REL_RE.fullmatch(remote.get('URL', '')):
             continue
         nar_rel = remote['URL']
-        archive = fetch(upstream + nar_rel, 1536 * 1024 * 1024)
-        if archive is None:
-            continue
-        algo, _, digest = local['NarHash'].partition(':')
-        if algo != 'sha256' or hashlib.sha256(decompress(nar_rel, archive)).digest() != nix32_decode(digest):
-            raise BuildError(f'cache.nixos.org\'s archive for {name} does not unpack to its NAR hash')
+        if nar_rel in archives:
+            archive = archives[nar_rel]
+        else:
+            archive = fetch(upstream + nar_rel, 1536 * 1024 * 1024)
+            if archive is None:
+                continue
+            algo, _, digest = local['NarHash'].partition(':')
+            if algo != 'sha256' or hashlib.sha256(decompress(nar_rel, archive)).digest() != nix32_decode(digest):
+                raise BuildError(f'cache.nixos.org\'s archive for {name} does not unpack to its NAR hash')
+            archives[nar_rel] = archive
         moved[item['path']] = (item['store_path'], name, remote_bytes, nar_rel, archive)
     if not moved:
         return cache_files, False
@@ -188,10 +194,15 @@ def thin_out(staging, cache_files, upstream, toplevel, keep):
             (staging / item['path']).unlink(missing_ok=True)
             continue
         kept.append(item)
+    # As in a delta, a shared archive is listed once, credited to the first package that names it.
+    listed = {item['path'] for item in kept}
     for rel, (store_path, name, remote_bytes, nar_rel, archive) in moved.items():
         (staging / rel).unlink(missing_ok=True)
         for path, data, url in ((rel, remote_bytes, UPSTREAM + name),
                                 ('cache/' + nar_rel, archive, UPSTREAM + nar_rel)):
+            if path in listed:
+                continue
+            listed.add(path)
             target = Path(keep) / path
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)

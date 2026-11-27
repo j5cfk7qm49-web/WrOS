@@ -152,6 +152,27 @@ class Thin(unittest.TestCase):
             self.assertIn(f'cache/nar/{key}.nar.zst', by_path, key)
             self.assertFalse(by_path[f'cache/nar/{key}.nar.zst'].get('url'), key)
 
+    def test_two_packages_with_one_archive_on_the_cache_list_it_once(self):
+        # rc32: two store paths with byte-identical contents share one cache.nixos.org archive;
+        # listing it twice made the engine refuse the manifest (duplicate cache file).
+        import hashlib
+        twin = '/nix/store/' + 'e' * 32 + '-mpv-twin'
+        nar = b'mpv nar'
+        nar_hash = 'sha256:' + nix32(hashlib.sha256(nar).digest())
+        name = Path(twin).name.split('-', 1)[0]
+        (self.staging / f'cache/{name}.narinfo').write_text(
+            f'StorePath: {twin}\nURL: nar/mpv.nar.zst\nNarHash: {nar_hash}\n')
+        self.files.append({'path': f'cache/{name}.narinfo', 'store_path': twin})
+        archive = 'nar/' + 'q' * 52 + '.nar.xz'
+        (self.cache / f'{name}.narinfo').write_text(
+            f'StorePath: {twin}\nURL: {archive}\nCompression: xz\nNarHash: {nar_hash}\n')
+        kept, thin = self.thin()
+        self.assertTrue(thin)
+        paths = [item['path'] for item in kept]
+        self.assertEqual(paths.count('cache/' + archive), 1, paths)
+        self.assertEqual(len(paths), len(set(paths)), paths)
+        self.assertIn(f'cache/{name}.narinfo', paths)
+
     def test_nothing_on_the_cache_leaves_the_bundle_whole(self):
         for f in self.cache.glob('*.narinfo'):
             f.unlink()
