@@ -989,6 +989,7 @@ fn page_entries(app: &App, route: Route) -> Vec<Entry> {
                 ],
             );
             rows.push(Entry::new("Focus mode", Choice::Action(Action::FocusMode)));
+            rows.extend(setting_rows(app, &[Action::TaughtWords]));
             rows
         }
         Route::WritingManuscript => {

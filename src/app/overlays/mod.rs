@@ -24,6 +24,7 @@ mod footnote_reader;
 mod footnotes;
 mod help;
 pub(crate) mod import;
+mod line;
 mod looks;
 mod marks;
 mod menu;
@@ -54,18 +55,78 @@ pub use sources::SourceDialog;
 pub(super) use sources::catalogue_row;
 
 impl App {
+    /// Whether the box that's up has somewhere for typed words to go. A
+    /// paste only ever goes into one of those: pasted over a list, every
+    /// letter would run as a key ("Tuesday" on the corkboard sends a scene
+    /// to the Trash and answers yes).
+    pub fn overlay_takes_text(&self) -> bool {
+        match &self.overlay {
+            Overlay::NewBook { .. }
+            | Overlay::Create { .. }
+            | Overlay::Rename { .. }
+            | Overlay::Marks { .. }
+            | Overlay::Sprint { .. }
+            | Overlay::Palette { .. }
+            | Overlay::Find { .. }
+            | Overlay::Author { .. }
+            | Overlay::DeleteBook { .. }
+            | Overlay::PinCategory { .. }
+            | Overlay::ProductivityInput { .. }
+            | Overlay::Deck(crate::app::wros::Page::KeyboardTest { .. }) => true,
+            Overlay::Details { fields, sel, .. } => fields.get(*sel).is_some_and(|field| {
+                matches!(
+                    field,
+                    details::Field::Pov
+                        | details::Field::Synopsis
+                        | details::Field::Target
+                        | details::Field::Aliases
+                )
+            }),
+            Overlay::Goals { sel, .. } => *sel < 2,
+            Overlay::Custom { field, .. } => *field < crate::theme::ROLES.len(),
+            Overlay::FindBook { confirm, .. } => !confirm,
+            Overlay::Help { reading, .. } => !reading,
+            Overlay::Cork { typing, .. } => typing.is_some(),
+            Overlay::Player { typing, .. } => *typing,
+            _ => false,
+        }
+    }
+
+    pub(crate) fn paste_overlay(&mut self, text: &str) {
+        for c in text.chars().map(|c| if c == '\t' { ' ' } else { c }) {
+            if !self.overlay_takes_text() {
+                break;
+            }
+            if !c.is_control() {
+                self.on_overlay_key(Key::Char(c));
+            }
+        }
+    }
+
     /// A key while an overlay is up goes to that overlay alone.
     pub fn on_overlay_key(&mut self, key: Key) {
+        let was = std::mem::discriminant(&self.overlay);
         let shell_panel = self.deck.shell.external;
         self.route_overlay_key(key);
+        // A different box starts with its caret at the end of its words.
+        if std::mem::discriminant(&self.overlay) != was {
+            self.caret = None;
+        }
         if shell_panel {
             self.return_to_settings();
         }
+        if !matches!(self.overlay, Overlay::Create { .. } | Overlay::Help { .. }) {
+            self.from_sheet = None;
+        }
         // A card named, renamed or deleted from the corkboard: back to it.
+        // (Help opened over one of those questions is still that question.)
         if self.cork_back.is_some()
             && !matches!(
                 self.overlay,
-                Overlay::Create { .. } | Overlay::Rename { .. } | Overlay::Confirm { .. }
+                Overlay::Create { .. }
+                    | Overlay::Rename { .. }
+                    | Overlay::Confirm { .. }
+                    | Overlay::Help { .. }
             )
         {
             self.back_to_cork(None);
@@ -119,6 +180,7 @@ impl App {
             Overlay::Goals { .. } => self.on_goals_key(key),
             Overlay::Details { .. } => self.on_details_key(key),
             Overlay::Voices { .. } => self.on_voices_key(key),
+            Overlay::Taught { .. } => self.on_taught_key(key),
             Overlay::Progress => match key {
                 Key::Char('g') => self.run_action(Action::Goals),
                 Key::Esc | Key::Enter | Key::Char('q' | ' ') => self.overlay = Overlay::None,
@@ -277,6 +339,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, info: Rect, t: &Theme) {
         Overlay::Goals { .. } => progress::draw_goals(f, app, area, t),
         Overlay::Details { .. } => details::draw_details(f, app, area, t),
         Overlay::Voices { .. } => reading::draw_voices(f, app, area, t),
+        Overlay::Taught { .. } => spelling::draw_taught(f, app, area, t),
         Overlay::Player { .. } => player::draw_player(f, app, area, t),
         Overlay::Create { .. } => naming::draw_create(f, app, area, t),
         Overlay::Rename { .. } => naming::draw_rename(f, app, area, t),

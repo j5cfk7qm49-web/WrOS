@@ -20,18 +20,19 @@ impl App {
         let groups = cork::board(&self.project, scope_idx);
         let cards: Vec<cork::Card> = groups.iter().flat_map(|g| g.cards.clone()).collect();
         if cards.is_empty() {
+            // The last card here went to the Trash: say why the board closed.
             self.overlay = Overlay::None;
+            self.msg = "no scenes left on that board · n in the outline adds one".into();
             return;
         }
         *sel = (*sel).min(cards.len() - 1);
         let card = cards[*sel].clone();
 
         if let Some((field, buf)) = typing {
+            if line::edit(buf, &mut self.caret, key, 200, |_| true) {
+                return;
+            }
             match key {
-                Key::Char(c) if !c.is_control() && buf.chars().count() < 200 => buf.push(c),
-                Key::Backspace => {
-                    buf.pop();
-                }
                 Key::Enter => {
                     let (field, value) = (*field, buf.clone());
                     *typing = None;
@@ -57,14 +58,21 @@ impl App {
             Key::Char('[') | Key::Char(']') => {
                 let parts = cork::parts(&self.project);
                 if let Some(at) = scope_idx.and_then(|s| parts.iter().position(|&p| p == s)) {
+                    // The next one that has scenes to show: a board with no
+                    // cards has nothing to stand on.
+                    let has_cards =
+                        |n: &usize| !cork::board(&self.project, Some(parts[*n])).is_empty();
                     let next = if key == Key::Char('[') {
-                        at.checked_sub(1)
+                        (0..at).rev().find(has_cards)
                     } else {
-                        (at + 1 < parts.len()).then_some(at + 1)
+                        (at + 1..parts.len()).find(has_cards)
                     };
-                    if let Some(n) = next {
-                        *scope = Some(self.project.nodes[parts[n]].path.clone());
-                        *sel = 0;
+                    match next {
+                        Some(n) => {
+                            *scope = Some(self.project.nodes[parts[n]].path.clone());
+                            *sel = 0;
+                        }
+                        None => self.msg = "no more scenes that way".into(),
                     }
                 }
             }
@@ -100,14 +108,16 @@ impl App {
             }
             // Cards come and go like scenes do in the outline: a new one at
             // the end of this card's chapter, renamed, or to the Trash, each
-            // asking first, then back to the board.
-            Key::Char('n') | Key::Char('r') | Key::Char('d') => {
-                self.cork_back = Some(self.overlay.clone());
+            // asking first, then back to the board. `c` is a new chapter
+            // at the end of the part, and then its first scene.
+            Key::Char('n') | Key::Char('r') | Key::Char('d') | Key::Char('c') => {
+                self.cork_back = Some((self.overlay.clone(), self.focus));
                 self.overlay = Overlay::None;
                 self.focus = Focus::Tree;
                 self.reveal(card.idx);
                 match key {
                     Key::Char('n') => self.start_create(New::Scene),
+                    Key::Char('c') => self.start_create(New::Chapter),
                     Key::Char('r') => self.start_rename(),
                     _ => self.start_delete(),
                 }
@@ -117,12 +127,15 @@ impl App {
             }
             // Rearranging: the card, and its scene, one place earlier or later.
             Key::Char('<') | Key::Char('>') | Key::Char(',') | Key::Char('.') => {
-                let board = self.overlay.clone();
+                let (board, was) = (self.overlay.clone(), self.focus);
                 self.overlay = Overlay::None;
                 self.focus = Focus::Tree;
                 self.reveal(card.idx);
                 self.move_selected(matches!(key, Key::Char('<') | Key::Char(',')));
                 self.overlay = board;
+                // The board borrowed the outline to do it; whoever was
+                // writing gets the page back when the board closes.
+                self.focus = was;
                 // A move renumbers files, but the outline's highlight goes
                 // with the scene.
                 if let Some(moved) = self.visible.get(self.sel).copied() {
@@ -137,7 +150,7 @@ impl App {
 
     /// Return to the selected card, or highlight a card just created.
     pub(in crate::app) fn back_to_cork(&mut self, path: Option<&Path>) {
-        let Some(mut board) = self.cork_back.take() else {
+        let Some((mut board, was)) = self.cork_back.take() else {
             return;
         };
         if let Overlay::Cork { scope, sel, .. } = &mut board {
@@ -148,6 +161,7 @@ impl App {
             *sel = (*sel).min(count.saturating_sub(1));
         }
         self.overlay = board;
+        self.focus = was;
         if let Some(path) = path {
             self.cork_select(|n| n.path == path);
         }
@@ -191,7 +205,9 @@ pub(super) fn draw_cork(
     };
     f.render_widget(Clear, box_area);
     let part = app.cork_scope(scope);
-    let groups = cork::board(&app.project, part);
+    // Drawn with its empty chapters too; the cards and the keys count only
+    // scenes, and both number them the same way.
+    let groups = cork::board_all(&app.project, part);
     let where_ = part
         .map(|i| app.project.nodes[i].title.to_uppercase())
         .unwrap_or_else(|| "THE PROJECT".into());
@@ -225,7 +241,7 @@ pub(super) fn draw_cork(
         ));
     }
     if povs.is_empty() {
-        legend.push(Span::styled("none set yet — v on a card sets one", dim));
+        legend.push(Span::styled("none set yet · v on a card sets one", dim));
     }
     f.render_widget(
         Paragraph::new(Line::from(legend)),
@@ -372,7 +388,7 @@ pub(super) fn draw_cork(
         // No synopsis yet: the scene's own first line stands in, dimmed.
         let (synopsis, standin) = match typing {
             Some((crate::app::CardField::Synopsis, buf)) if editing_here => {
-                (format!("{buf}█"), false)
+                (line::marked(buf, app.caret), false)
             }
             _ => match card.synopsis.as_deref().filter(|s| !s.trim().is_empty()) {
                 Some(s) => (s.to_string(), false),
@@ -393,7 +409,7 @@ pub(super) fn draw_cork(
         if let Some((crate::app::CardField::Pov, buf)) = typing.filter(|_| editing_here) {
             lines[0] = Line::from(vec![
                 Span::styled("POV ▸ ", Style::default().fg(t.accent)),
-                Span::styled(format!("{buf}█"), Style::default().fg(t.text)),
+                Span::styled(line::marked(buf, app.caret), Style::default().fg(t.text)),
             ]);
         }
         let bar_w = w.saturating_sub(6).max(4);
@@ -420,7 +436,7 @@ pub(super) fn draw_cork(
         " type   ↵ save   esc cancel".to_string()
     } else {
         format!(
-            " ↵ open  n new  r rename  d delete  < > move card  s status  e synopsis  v POV  p POV filter{}  esc close",
+            " ↵ open  n new  c chapter  r rename  d delete  < > move  s status  e synopsis  v POV  p POV filter{}  esc close",
             if cork::parts(&app.project).len() > 1 {
                 format!("  [ ] other {}s", app.project.meta.part_noun())
             } else {

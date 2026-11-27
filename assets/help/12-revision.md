@@ -4,11 +4,11 @@ Tools for going back over a draft.
 
 ## Next scene still in draft
 
-*Next scene still in draft*, in *Tools › Revision* or `Ctrl-K`, opens the next scene in project order whose status isn't *revised* or *done* — empty scenes are skipped, and it goes round to the start when it reaches the end. Work through a revision pass by setting each scene's status as you finish it (`s` on the corkboard steps it, or edit `status:` in the frontmatter).
+*Next scene still in draft*, in *Tools › Revision* or `Ctrl-K`, opens the next scene in project order whose status isn't *revised* or *done*. Empty scenes are skipped, and it goes round to the start when it reaches the end. Work through a revision pass by setting each scene's status as you finish it (`s` on the corkboard steps it, or edit `status:` in the frontmatter).
 
 ## Echo words
 
-*Echo words* lights up a word you've used again within about forty words of the last time — the "the lamp… the lamp" that's easy to miss. Common little words and your characters' names are left out. Turn it on and off from *Tools › Revision* or `Ctrl-K`. It's off to begin with, and it only marks the page: nothing in the scene changes until you do.
+*Echo words* lights up a word you've used again within about forty words of the last time, like the "the lamp… the lamp" that's easy to miss. Common little words and your characters' names are left out. Turn it on and off from *Tools › Revision* or `Ctrl-K`. It's off to begin with, and it only marks the page: nothing in the scene changes until you do.
 
 ## Read aloud
 
@@ -18,6 +18,7 @@ Hearing your prose catches what the eye skips: the missing word, the sentence th
 - `←` and `→` go back or forward a sentence; `↑` and `↓` do too.
 - `Esc` stops. The cursor stays where it stopped, so you can fix what you heard.
 - `m` marks the sentence in Revision notes.
+- `-` and `+` slow down or speed up by a tenth, from 0.5× to 2.0×. WrOS remembers the pace.
 - With Read chapter aloud or Read manuscript aloud, `n` and `p` move between queued scenes.
 
 Notes (`%% … %%`) are never read out, and neither are the `*` and `_` around italics.

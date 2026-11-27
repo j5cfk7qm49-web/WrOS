@@ -291,20 +291,22 @@ pub struct Reader {
     tx: Sender<Cmd>,
     rx: Receiver<Event>,
     pub paused: bool,
+    worker: Option<std::thread::JoinHandle<()>>,
 }
 
 impl Reader {
-    pub fn start(engine: Engine, texts: Vec<String>, from: usize) -> Reader {
+    /// `speed` is how fast to read: 1.0 is the voice's own pace.
+    pub fn start(engine: Engine, texts: Vec<String>, from: usize, speed: f32) -> Reader {
         let (tx, cmds) = mpsc::channel();
         let (events, rx) = mpsc::channel();
-        std::thread::spawn(move || {
+        let worker = std::thread::spawn(move || {
             let result = match engine {
                 Engine::Silent => silent(&texts, from, &cmds, &events),
                 Engine::Piper { program, model } => {
-                    piper(&program, &model, &texts, from, &cmds, &events)
+                    piper(&program, &model, &texts, from, speed, &cmds, &events)
                 }
-                Engine::Windows => windows(&texts, from, &cmds, &events),
-                other => one_at_a_time(&other, &texts, from, &cmds, &events),
+                Engine::Windows => windows(&texts, from, speed, &cmds, &events),
+                other => one_at_a_time(&other, &texts, from, speed, &cmds, &events),
             };
             if let Err(e) = result {
                 let _ = events.send(Event::Failed(e));
@@ -314,6 +316,7 @@ impl Reader {
             tx,
             rx,
             paused: false,
+            worker: Some(worker),
         }
     }
 
@@ -334,8 +337,21 @@ impl Reader {
 }
 
 impl Drop for Reader {
+    /// Stops the voice and gives it a moment to hush and clear its files
+    /// away, so quitting mid-sentence leaves nothing talking and no audio of
+    /// the book in the temp folder. Never waits long: a voice that won't
+    /// answer mustn't hold up closing.
     fn drop(&mut self) {
         let _ = self.tx.send(Cmd::Stop);
+        if let Some(worker) = self.worker.take() {
+            let until = std::time::Instant::now() + Duration::from_millis(600);
+            while !worker.is_finished() && std::time::Instant::now() < until {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            if worker.is_finished() {
+                let _ = worker.join();
+            }
+        }
     }
 }
 
@@ -370,20 +386,32 @@ fn one_at_a_time(
     engine: &Engine,
     texts: &[String],
     from: usize,
+    speed: f32,
     cmds: &Receiver<Cmd>,
     events: &Sender<Event>,
 ) -> Result<(), String> {
     let spawn = |text: &str| -> Result<Child, String> {
         let mut c = match engine {
-            Engine::Say => Command::new("say"),
+            // Each voice counts its pace its own way: words a minute for
+            // `say` and espeak-ng, -100 to 100 for Speech Dispatcher.
+            Engine::Say => {
+                let mut c = Command::new("say");
+                c.args(["-r", &format!("{:.0}", 175.0 * speed)]);
+                c
+            }
             Engine::SpeechDispatcher => {
                 let mut c = Command::new("spd-say");
                 c.args(["-w", "-e"]);
+                c.args([
+                    "-r",
+                    &format!("{:.0}", ((speed - 1.0) * 100.0).clamp(-100.0, 100.0)),
+                ]);
                 c
             }
             _ => {
                 let mut c = Command::new("espeak-ng");
                 c.arg("--stdin");
+                c.args(["-s", &format!("{:.0}", 175.0 * speed)]);
                 c
             }
         };
@@ -421,6 +449,9 @@ fn one_at_a_time(
                 Cmd::Jump(j) => {
                     hush(&mut child);
                     i = j;
+                    if paused && j < texts.len() {
+                        let _ = events.send(Event::Reading(j));
+                    }
                 }
                 Cmd::Stop => {
                     hush(&mut child);
@@ -451,11 +482,17 @@ fn one_at_a_time(
 fn windows(
     texts: &[String],
     from: usize,
+    speed: f32,
     cmds: &Receiver<Cmd>,
     events: &Sender<Event>,
 ) -> Result<(), String> {
-    const SCRIPT: &str = "Add-Type -AssemblyName System.Speech; \
-        $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; \
+    // The Windows voice counts its pace from -10 to 10, 0 being its own.
+    let rate = ((speed - 1.0) * 10.0).round().clamp(-10.0, 10.0) as i32;
+    let script = format!(
+        "Add-Type -AssemblyName System.Speech; \
+        $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Rate = {rate}; {LOOP}"
+    );
+    const LOOP: &str = "\
         while ($null -ne ($l = [Console]::In.ReadLine())) { $s.Speak($l); [Console]::Out.WriteLine('done'); [Console]::Out.Flush() }";
     struct Voice {
         child: Child,
@@ -464,7 +501,7 @@ fn windows(
     }
     let open = || -> Result<Voice, String> {
         let mut child = Command::new("powershell")
-            .args(["-NoProfile", "-NonInteractive", "-Command", SCRIPT])
+            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -503,6 +540,9 @@ fn windows(
                     close(&mut voice);
                     speaking = false;
                     i = j;
+                    if paused && j < texts.len() {
+                        let _ = events.send(Event::Reading(j));
+                    }
                 }
                 Cmd::Stop => {
                     close(&mut voice);
@@ -535,6 +575,32 @@ fn windows(
     }
 }
 
+/// A window that was closed, or a crash, mid-sentence leaves that reading's
+/// audio behind. Anything of ours over half a day old goes.
+#[cfg(feature = "audio")]
+fn sweep_stale_voice_dirs() {
+    let old = Duration::from_secs(12 * 60 * 60);
+    for entry in std::fs::read_dir(std::env::temp_dir())
+        .into_iter()
+        .flatten()
+        .flatten()
+    {
+        let ours = entry
+            .file_name()
+            .to_str()
+            .is_some_and(|n| n.starts_with("grimoire-voice-"));
+        let stale = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|at| at.elapsed().ok())
+            .is_some_and(|age| age > old);
+        if ours && stale && entry.path().is_dir() {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
 /// Piper, kept running with the voice loaded, writes each line it's given
 /// to a WAV file of its own in a folder; Grimoire plays them in order. After
 /// each sentence it's also given a word to say that's never played: its file
@@ -545,9 +611,16 @@ fn piper(
     model: &Path,
     texts: &[String],
     from: usize,
+    speed: f32,
     cmds: &Receiver<Cmd>,
     events: &Sender<Event>,
 ) -> Result<(), String> {
+    // The speakers first: with none (a remote shell, say) nothing has been
+    // started yet that would need stopping.
+    let device = rodio::DeviceSinkBuilder::open_default_sink()
+        .map_err(|e| format!("no audio output available ({e})"))?;
+    let player = rodio::Player::connect_new(device.mixer());
+    sweep_stale_voice_dirs();
     let dir = std::env::temp_dir().join(format!(
         "grimoire-voice-{}-{}",
         std::process::id(),
@@ -556,20 +629,31 @@ fn piper(
             .map_or(0, |d| d.as_nanos())
     ));
     std::fs::create_dir_all(&dir).map_err(|e| format!("couldn't make room for the voice ({e})"))?;
-    let mut child = Command::new(program)
+    let mut child = match Command::new(program)
         .arg("-m")
         .arg(model)
         .arg("-d")
         .arg(&dir)
+        // Piper stretches each sound: under 1 is quicker, over 1 slower.
+        .arg("--length-scale")
+        .arg(format!("{:.2}", 1.0 / speed.clamp(0.5, 2.0)))
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|e| format!("couldn't start Piper ({e})"))?;
-    let mut input = child.stdin.take().ok_or("no input to Piper")?;
-    let device = rodio::DeviceSinkBuilder::open_default_sink()
-        .map_err(|e| format!("no audio output available ({e})"))?;
-    let player = rodio::Player::connect_new(device.mixer());
+    {
+        Ok(child) => child,
+        Err(e) => {
+            let _ = std::fs::remove_dir_all(&dir);
+            return Err(format!("couldn't start Piper ({e})"));
+        }
+    };
+    let Some(mut input) = child.stdin.take() else {
+        let _ = child.kill();
+        let _ = child.wait();
+        let _ = std::fs::remove_dir_all(&dir);
+        return Err("no input to Piper".to_string());
+    };
 
     let files = |dir: &Path| -> Vec<PathBuf> {
         let mut v: Vec<(u128, PathBuf)> = std::fs::read_dir(dir)
@@ -605,6 +689,9 @@ fn piper(
                         player.clear();
                         playing = None;
                         i = j;
+                        if paused && j < texts.len() {
+                            let _ = events.send(Event::Reading(j));
+                        }
                     }
                     Cmd::Stop => return Ok(()),
                 }
@@ -657,6 +744,7 @@ fn piper(
     _model: &Path,
     _texts: &[String],
     _from: usize,
+    _speed: f32,
     _cmds: &Receiver<Cmd>,
     _events: &Sender<Event>,
 ) -> Result<(), String> {
@@ -762,6 +850,7 @@ fn piper_reads_every_sentence_in_order() {
         },
         texts,
         0,
+        1.0,
     );
     let mut seen = Vec::new();
     let give_up = std::time::Instant::now() + Duration::from_secs(60);

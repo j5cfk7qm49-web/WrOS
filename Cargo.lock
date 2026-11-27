@@ -3180,7 +3180,7 @@ dependencies = [
 
 [[package]]
 name = "grimoire-app"
-version = "0.7.5"
+version = "0.8.3"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3191,7 +3191,7 @@ dependencies = [
 
 [[package]]
 name = "grimoire-brain"
-version = "0.7.5"
+version = "0.8.3"
 dependencies = [
  "automerge",
  "chrono",
@@ -3207,7 +3207,7 @@ dependencies = [
 
 [[package]]
 name = "grimoire-core"
-version = "0.7.5"
+version = "0.8.3"
 dependencies = [
  "anyhow",
  "biblatex",
@@ -3236,7 +3236,7 @@ dependencies = [
 
 [[package]]
 name = "grimoire-tui"
-version = "0.7.5"
+version = "0.8.3"
 dependencies = [
  "anyhow",
  "chrono",

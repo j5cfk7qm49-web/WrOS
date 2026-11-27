@@ -236,7 +236,18 @@ impl App {
                 }
                 rows.extend([
                     BarRow::new("Rename…", "r", Action::Rename),
-                    BarRow::new("Delete…", "d", Action::Delete),
+                    BarRow::new(
+                        if self.visible.get(self.sel).is_some_and(|&i| {
+                            self.project.nodes[i].path
+                                == grimoire_core::project::trash_dir(&self.project.root)
+                        }) {
+                            "Empty the Trash…"
+                        } else {
+                            "Delete…"
+                        },
+                        "d",
+                        Action::Delete,
+                    ),
                 ]);
                 if self.selection_in_trash() {
                     rows.push(BarRow::new("Restore from the Trash", "u", Action::Restore));

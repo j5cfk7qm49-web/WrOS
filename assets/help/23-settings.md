@@ -13,8 +13,9 @@ The *Settings* menu opens Settings on one of its six groups, in a box over the p
 - **Music** in *Settings › Music* cycles sources and signs in to your Jellyfin or Plex server. The Music view in the clearing does the same (see *Music*).
 - **Turn spellcheck on / off**.
 - **Spelling**: American, British, Canadian or Australian English (see *Spelling*).
+- **Words spellcheck was taught…** is under *Editor*. Press `d` on a word to take it back.
 - **Turn tree icons on / off**: a small symbol beside each row of the outline.
-- **Line width**: how wide the prose runs — 60, 72, 80 or 100 columns, or the whole pane.
+- **Line width**: how wide the prose runs: 60, 72, 80 or 100 columns, or the whole pane.
 - **Turn typewriter scrolling on / off**: in focus mode, keep the line you're writing mid-screen (see *Focus mode*).
 - **Reading voice…**: the voice for *Read aloud* (see *Revision*).
 - **Manuscript look…**: the submission manuscript's format (see *Compile*).

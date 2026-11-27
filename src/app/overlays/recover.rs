@@ -14,11 +14,18 @@ impl App {
             (Key::Enter, 0) => {
                 let items = std::mem::take(items);
                 self.overlay = Overlay::None;
-                let mut restored = 0;
+                let (mut restored, mut orphans) = (0, 0);
+                let root = self.project.root.clone();
                 let mut left = 0;
                 for it in &items {
                     let Some(idx) = self.project.nodes.iter().position(|n| n.path == it.scene)
                     else {
+                        // Its scene is gone (deleted or renamed elsewhere):
+                        // the words are kept as a file in the Trash, to
+                        // read, copy from, or restore.
+                        if grimoire_core::recovery::keep_orphan(&root, it).is_ok() {
+                            orphans += 1;
+                        }
                         continue;
                     };
                     if self.project.nodes[idx].read_only || self.project.nodes[idx].never_read() {
@@ -32,17 +39,32 @@ impl App {
                     self.mark_changed(idx);
                     restored += 1;
                 }
-                if self.commit_saves() && self.project.dirty_count() == 0 {
-                    self.msg = if left > 0 {
-                        format!(
-                            "restored {restored}; {left} unreadable/non-UTF-8 draft(s) left in recovery, not overwritten"
-                        )
-                    } else {
-                        format!(
-                            "restored {restored} scene{} — the saved version is in its history",
-                            if restored == 1 { "" } else { "s" }
-                        )
+                let saved = self.commit_saves();
+                if saved && self.project.dirty_count() == 0 {
+                    if orphans > 0 {
+                        let _ = self.reload_tree();
+                    }
+                    self.msg = match (restored, orphans) {
+                        (0, n) if n > 0 => format!(
+                            "kept the words of {n} scene{} that {} gone · they're in the Trash",
+                            if n == 1 { "" } else { "s" },
+                            if n == 1 { "is" } else { "are" }
+                        ),
+                        (r, 0) => format!(
+                            "restored {r} scene{} · the saved version is in its history",
+                            if r == 1 { "" } else { "s" }
+                        ),
+                        (r, n) => format!(
+                            "restored {r} scene{} · {n} more whose scene is gone {} in the Trash",
+                            if r == 1 { "" } else { "s" },
+                            if n == 1 { "is" } else { "are" }
+                        ),
                     };
+                    if left > 0 {
+                        self.msg.push_str(&format!(
+                            " · {left} unreadable/non-UTF-8 draft(s) left in recovery, not overwritten"
+                        ));
+                    }
                 }
             }
             (Key::Enter, 1) => {
@@ -60,17 +82,17 @@ impl App {
                     self.msg = format!("couldn't re-read the tree: {e}");
                 } else if failed > 0 {
                     self.msg = format!(
-                        "kept the saved versions — {failed} recovered cop{} couldn't be moved and will be offered again",
+                        "kept the saved versions · {failed} recovered cop{} couldn't be moved and will be offered again",
                         if failed == 1 { "y" } else { "ies" }
                     );
                 } else {
                     self.msg =
-                        "kept the saved versions — the recovered words are in the trash".into();
+                        "kept the saved versions · the recovered words are in the trash".into();
                 }
             }
             (Key::Enter, _) | (Key::Esc, _) => {
                 self.overlay = Overlay::None;
-                self.msg = "left for now — offered again next time".into();
+                self.msg = "left for now · offered again next time".into();
             }
             _ => {}
         }
@@ -104,12 +126,22 @@ pub(super) fn draw_recover(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             Span::styled(" · ", Style::default().fg(t.dim)),
             Span::styled(it.title.clone(), Style::default().fg(t.accent)),
             Span::styled(
-                format!(
-                    "  {} words kept, {} in the saved version{}",
-                    thousands(it.recovered_words),
-                    thousands(it.saved_words),
-                    when.unwrap_or_default()
-                ),
+                if it.scene.exists() {
+                    format!(
+                        "  {} words kept, {} in the saved version{}",
+                        thousands(it.recovered_words),
+                        thousands(it.saved_words),
+                        when.unwrap_or_default()
+                    )
+                } else {
+                    // Deleted or renamed since: there's no saved version
+                    // to weigh these against.
+                    format!(
+                        "  {} words kept, and its scene is gone{}",
+                        thousands(it.recovered_words),
+                        when.unwrap_or_default()
+                    )
+                },
                 dim,
             ),
         ]));

@@ -661,9 +661,13 @@ fn stage_all(root: &Path, index: Option<&Path>) -> Result<()> {
 /// Commit what's staged. A name and email are supplied only for whichever of
 /// the two git has no setting for, so a writer's own identity always wins.
 pub(crate) fn commit(root: &Path, message: &str) -> Result<()> {
-    git_with_identity(root, &["commit", "-q", "-m", message])?
-        .stdout()
-        .map(drop)
+    // A signing setup meant for code must never stop a writing session being kept.
+    git_with_identity(
+        root,
+        &["-c", "commit.gpgsign=false", "commit", "-q", "-m", message],
+    )?
+    .stdout()
+    .map(drop)
 }
 
 pub(crate) fn git_with_identity(root: &Path, command: &[&str]) -> Result<Git> {
@@ -951,6 +955,9 @@ pub(crate) struct Tally {
     /// Words in the changed manuscript scenes, before and after.
     words_before: usize,
     words_after: usize,
+    /// A changed scene sat inside a part (`manuscript/part/chapter/scene`),
+    /// so the top-level names are parts; otherwise they are chapters.
+    in_parts: bool,
 }
 
 impl Tally {
@@ -959,6 +966,7 @@ impl Tally {
             if is_scene(path) {
                 self.acts
                     .insert(rest.split('/').next().unwrap_or(rest).to_string());
+                self.in_parts |= rest.matches('/').count() >= 2;
             }
         } else if NOTEBOOK.iter().any(|d| path.starts_with(d)) {
             self.notes = true;
@@ -974,7 +982,9 @@ pub(crate) fn label(when: NaiveDateTime, tally: &Tally, part_noun: &str) -> Stri
         parts.push(match titles.as_slice() {
             [one] => one.clone(),
             [a, b] => format!("{a} and {b}"),
-            many => format!("{} {part_noun}s", many.len()),
+            // A book with no parts has chapters at the top.
+            many if tally.in_parts => format!("{} {part_noun}s", many.len()),
+            many => format!("{} chapters", many.len()),
         });
         parts.push(match tally.words_after.cmp(&tally.words_before) {
             Ordering::Greater => words(tally.words_after - tally.words_before),
@@ -1758,6 +1768,56 @@ pub(crate) mod tests {
         cleanup(&[&a, &b, &repo_a, &repo_b]);
     }
 
+    #[test]
+    fn a_signing_setup_never_stops_a_session_being_kept() {
+        let Some(d) = book("rv-gpgsign") else { return };
+        enable(&d).unwrap();
+        let repo = outside_dir(&d);
+        // A writer who signs their code commits, with the signer missing.
+        run(&d, &["config", "commit.gpgsign", "true"]);
+        run(
+            &d,
+            &["config", "gpg.program", "grimoire-test-no-such-signer"],
+        );
+        write(&d, A1, &scene(25));
+        assert!(commit_session(&d, tuesday_evening()).unwrap().is_some());
+        assert_eq!(sessions(&d, 10).unwrap().len(), 2);
+        match repo {
+            Some(r) => cleanup(&[&d, &r]),
+            None => cleanup(&[&d]),
+        }
+    }
+
+    #[test]
+    fn a_book_without_parts_counts_chapters() {
+        let Some(d) = book("rv-chapters-noun") else {
+            return;
+        };
+        enable(&d).unwrap();
+        let repo = outside_dir(&d);
+        // No parts here: chapters sit straight under the manuscript.
+        for (i, ch) in ["01-Chapter-One", "02-Chapter-Two", "03-Chapter-Three"]
+            .iter()
+            .enumerate()
+        {
+            write(&d, &format!("manuscript/{ch}/01-Scene.md"), &scene(i + 1));
+        }
+        let got = pending_label(&d, tuesday_evening()).unwrap().unwrap();
+        commit_session(&d, tuesday_evening()).unwrap();
+        assert_eq!(got, "Tuesday evening · 3 chapters · 6 words");
+        // And the part label still names parts when there are parts.
+        write(&d, A1, &scene(11));
+        write(&d, A2, &scene(1));
+        write(&d, A3, &scene(1));
+        let got = pending_label(&d, tuesday_evening()).unwrap().unwrap();
+        commit_session(&d, tuesday_evening()).unwrap();
+        assert_eq!(got, "Tuesday evening · 3 acts · 3 words");
+        match repo {
+            Some(r) => cleanup(&[&d, &r]),
+            None => cleanup(&[&d]),
+        }
+    }
+
     /// A fixed local time; the label reads the wall clock, so no time zone
     /// can change what these tests expect.
     fn at(month: u32, day: u32, hour: u32, minute: u32) -> DateTime<Local> {
@@ -1797,6 +1857,7 @@ pub(crate) mod tests {
             notes,
             words_before: before,
             words_after: after,
+            in_parts: true,
         }
     }
 

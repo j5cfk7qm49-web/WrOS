@@ -3,7 +3,7 @@ name = "grimoire-tui"
 version.workspace = true
 edition = "2024"
 description = "A terminal writing desk for novels"
-authors = ["Josh King"]
+authors = ["Catfinity Studios"]
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/kelsierbot/GrimoireTUI"
@@ -18,7 +18,7 @@ path = "src/main.rs"
 
 [dependencies]
 grimoire-brain = { path = "crates/grimoire-brain", features = ["runtime"] }
-grimoire-core = { path = "crates/grimoire-core", version = "0.7" }
+grimoire-core = { path = "crates/grimoire-core", version = "0.8" }
 wros-sys = { path = "crates/wros-sys" }
 wros-shell = { path = "crates/wros-shell" }
 anyhow = "1.0.104"
@@ -62,7 +62,7 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_
 [package.metadata.deb]
 name = "grimoire"
 maintainer = "Catfinity Studios"
-copyright = "Josh King, Catfinity Studios"
+copyright = "Catfinity Studios LLC"
 section = "editors"
 priority = "optional"
 extended-description = """\
@@ -139,4 +139,4 @@ crossterm = { path = "crates/crossterm-upstream" }
 
 # One version for the terminal app and the crates under it; bump it here.
 [workspace.package]
-version = "0.7.5"
+version = "0.8.3"

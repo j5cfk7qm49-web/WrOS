@@ -2,6 +2,10 @@
 
 The notebook is the project's sections for things that aren't the story: **Characters**, **Places**, **Notes** and **Research**. Each note is a Markdown file, like a scene.
 
+## Starting from a form
+
+**Template Sheets**, near the bottom of the outline, holds blank forms: a Character Sketch and a Setting Sketch. Highlight one and press `f`: you name the new note, and it opens in Characters or Places as a copy of the form, ready to fill in. The sheet itself stays blank for next time. Change a sheet, or add your own, and `f` copies that.
+
 ## Names light up
 
 The title of every note in the notebook is a **name**: as you write, names appear in the accent colour. A note can have other names too, with `aliases:` in its frontmatter:
@@ -19,7 +23,7 @@ Put the cursor on a name and press `Ctrl-O` (*Open the note for the name under t
 
 ## Names that drift
 
-*Tools › Revision › Check names…* (or *Check names for near-miss spellings* in `Ctrl-K`) finds spellings one or two letters away from a name in your notebook — "Kaelan" where the note says "Kaelen" — with where each one is.
+*Tools › Revision › Check names…* (or *Check names for near-miss spellings* in `Ctrl-K`) finds spellings one or two letters away from a name in your notebook ("Kaelan" where the note says "Kaelen"), with where each one is.
 
 - `Enter` goes to the first place it's used.
 - `f` fixes it everywhere in the manuscript at once.

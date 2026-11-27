@@ -19,6 +19,8 @@ Under the suggestions are three ways to stop a word being called a mistake:
 - **Always ignore — this project**: added to `dictionary.txt` in the project's folder, so it travels with the project.
 - **Always ignore — every project**: added to your own list in `~/.config/grimoire/dictionary.txt`.
 
+Taught it a word by mistake? *Settings › Writing › Editor › Words spellcheck was taught…* lists every one, this project's and your own. `d` on a word takes it back, and it's underlined again.
+
 The underline disappears everywhere the word appears, straight away.
 
 Spellcheck can be turned off and on in *Settings › Writing › Editor*.

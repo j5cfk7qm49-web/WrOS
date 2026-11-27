@@ -12,7 +12,7 @@ A project is an ordinary folder you can open, copy and back up without WrOS.
 | `characters/`, `places/` | the notebook |
 | `notes/`, `research/` | more of the notebook |
 | `front-matter/`, `back-matter/` | pages before and after the story, by edition |
-| `template-sheets/` | Character and Setting sketches to copy |
+| `template-sheets/` | Character and Setting sketches to copy (`f` on one in the outline) |
 | `dictionary.txt` | words spellcheck accepts in this project |
 | `cover.jpg` | the EPUB's cover, if you add one |
 | `exports/` | what Export writes |
@@ -35,10 +35,10 @@ Both are in `Ctrl-K`:
 
 The lines between `---` at the top of a scene:
 
-- `title` — its name in the outline.
-- `pov`, `status`, `synopsis` — shown on the corkboard. Statuses are idea, outline, draft, revised and done.
-- `target` — the scene's word target.
-- `compile: false` — keep it in the outline but out of exports.
+- `title`: its name in the outline.
+- `pov`, `status`, `synopsis`: shown on the corkboard. Statuses are idea, outline, draft, revised and done.
+- `target`: the scene's word target.
+- `compile: false`: keep it in the outline but out of exports.
 
 A note can have `aliases` too. WrOS only changes the one line it means to, so Obsidian and anything else can keep fields of their own there.
 

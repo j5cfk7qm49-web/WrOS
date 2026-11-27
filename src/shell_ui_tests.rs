@@ -2738,7 +2738,7 @@ fn power_waits_for_missing_sources_and_failed_document_claims_then_allows_explic
                 .contains("Retain this original while storage is unavailable.")
         );
         desk.key(KeyCode::Esc);
-        desk.key(KeyCode::Esc);
+        assert_eq!(desk.app.overlay, Overlay::None);
         desk.ctrl('z');
         assert_ne!(
             desk.app.editor.text(),

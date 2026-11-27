@@ -553,19 +553,27 @@ impl Node {
 
     /// The scene as it belongs on disk: its frontmatter block, untouched, then
     /// the prose.
+    /// A file that came with CRLF line endings goes back with them.
     pub fn file_text(&self) -> String {
+        let eol = match &self.front {
+            Some(f) if f.contains('\n') => eol_of(f),
+            _ => eol_of(&self.body),
+        };
         let mut out = String::new();
         if let Some(f) = &self.front {
-            out.push_str("---\n");
+            out.push_str("---");
+            out.push_str(eol);
             out.push_str(f);
             if !f.ends_with('\n') {
-                out.push('\n');
+                out.push_str(eol);
             }
-            out.push_str("---\n\n");
+            out.push_str("---");
+            out.push_str(eol);
+            out.push_str(eol);
         }
         out.push_str(&self.body);
         if !out.ends_with('\n') {
-            out.push('\n');
+            out.push_str(eol);
         }
         out
     }
@@ -794,7 +802,7 @@ impl Project {
             }
             entries.push((name, path, false));
         }
-        entries.sort_by(|a, b| a.0.cmp(&b.0));
+        entries.sort_by(|a, b| order_names(&a.0.to_string_lossy(), &b.0.to_string_lossy()));
         // Conflict copies are told from the files beside them: "Part (1)" is
         // a copy only where "Part" is there too.
         let stems: std::collections::HashSet<String> = entries
@@ -1331,7 +1339,9 @@ pub fn write_atomic(path: &Path, text: &str) -> Result<()> {
     crate::atomic::write_text(path, text)
 }
 
-/// Split a `---` fenced YAML frontmatter block off the front of a file.
+/// Split a `---` fenced YAML frontmatter block off the front of a file. The
+/// fences may end in CRLF (a Windows checkout); the block keeps its own line
+/// endings, so writing it back changes nothing.
 pub fn split_frontmatter(raw: &str) -> (Option<String>, String) {
     let s = raw.strip_prefix("\u{feff}").unwrap_or(raw);
     let Some(rest) = s
@@ -1346,14 +1356,33 @@ pub fn split_frontmatter(raw: &str) -> (Option<String>, String) {
         let trimmed = line.trim_end_matches(['\n', '\r']);
         if trimmed == "---" {
             let front = rest[..offset].to_string();
-            let body = rest[offset + line.len()..]
-                .trim_start_matches(['\r', '\n'])
-                .to_string();
+            let body = trim_blank_lines(&rest[offset + line.len()..]).to_string();
             return (Some(front), body);
         }
         offset += line.len();
     }
     (None, s.to_string())
+}
+
+/// `s` without the empty lines at its start, LF or CRLF.
+fn trim_blank_lines(mut s: &str) -> &str {
+    loop {
+        if let Some(r) = s.strip_prefix('\n') {
+            s = r;
+        } else if let Some(r) = s.strip_prefix("\r\n") {
+            s = r;
+        } else {
+            return s;
+        }
+    }
+}
+
+/// The line ending `text` uses, judged by its first line: CRLF or LF.
+fn eol_of(text: &str) -> &'static str {
+    match text.find('\n') {
+        Some(i) if text[..i].ends_with('\r') => "\r\n",
+        _ => "\n",
+    }
 }
 
 /// Pull a scalar value out of a raw frontmatter block. Deliberately naive —
@@ -1364,7 +1393,8 @@ fn front_get(front: &str, key: &str) -> Option<String> {
             continue;
         };
         if k.trim() == key {
-            let v = v.trim().trim_matches('"').trim_matches('\'').trim();
+            let v = unquote(v.trim());
+            let v = v.trim();
             if v.is_empty() {
                 return None;
             }
@@ -1372,6 +1402,42 @@ fn front_get(front: &str, key: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// A YAML scalar as written: one surrounding pair of quotes taken off, and
+/// what [`set_front`] escaped inside double quotes (`\"`, `\\`) put back.
+/// Quotes that belong to the value itself stay.
+fn unquote(v: &str) -> String {
+    let pair = |q: char| v.len() >= 2 && v.starts_with(q) && v.ends_with(q);
+    if pair('"') {
+        let inner = &v[1..v.len() - 1];
+        let mut out = String::with_capacity(inner.len());
+        let mut chars = inner.chars();
+        while let Some(c) = chars.next() {
+            if c == '\\' {
+                match chars.next() {
+                    Some(e @ ('"' | '\\')) => out.push(e),
+                    Some(other) => {
+                        out.push('\\');
+                        out.push(other);
+                    }
+                    None => out.push('\\'),
+                }
+            } else {
+                out.push(c);
+            }
+        }
+        out
+    } else if pair('\'') {
+        v[1..v.len() - 1].replace("''", "'")
+    } else {
+        v.to_string()
+    }
+}
+
+/// [`front_get`] for the rest of the crate.
+pub(crate) fn front_scalar(front: &str, key: &str) -> Option<String> {
+    front_get(front, key)
 }
 
 /// Set `key: value` in a frontmatter block. The first line for that key is
@@ -1394,6 +1460,7 @@ pub fn set_front(front: Option<&str>, key: &str, value: &str) -> String {
     } else {
         format!("{key}: {value}")
     };
+    let eol = eol_of(front.unwrap_or(""));
     let mut out = String::new();
     let mut done = false;
     for l in front.unwrap_or("").lines() {
@@ -1405,11 +1472,11 @@ pub fn set_front(front: Option<&str>, key: &str, value: &str) -> String {
         } else {
             out.push_str(l);
         }
-        out.push('\n');
+        out.push_str(eol);
     }
     if !done {
         out.push_str(&line);
-        out.push('\n');
+        out.push_str(eol);
     }
     out
 }
@@ -1418,6 +1485,7 @@ pub fn set_front(front: Option<&str>, key: &str, value: &str) -> String {
 /// the key), replacing the key and any list that was under it. An empty list
 /// takes the key out.
 pub fn set_front_list(front: Option<&str>, key: &str, items: &[String]) -> String {
+    let eol = eol_of(front.unwrap_or(""));
     let mut out = String::new();
     let mut skipping = false;
     let mut placed = false;
@@ -1425,9 +1493,9 @@ pub fn set_front_list(front: Option<&str>, key: &str, items: &[String]) -> Strin
         if items.is_empty() {
             return String::new();
         }
-        let mut b = format!("{key}:\n");
+        let mut b = format!("{key}:{eol}");
         for i in items {
-            b.push_str(&format!("  - {}\n", i.replace('\n', " ")));
+            b.push_str(&format!("  - {}{eol}", i.replace(['\r', '\n'], " ")));
         }
         b
     };
@@ -1448,7 +1516,7 @@ pub fn set_front_list(front: Option<&str>, key: &str, items: &[String]) -> Strin
             continue;
         }
         out.push_str(l);
-        out.push('\n');
+        out.push_str(eol);
     }
     if !placed {
         out.push_str(&block());
@@ -1769,16 +1837,17 @@ pub fn scaffold_with(root: &Path, title: Option<&str>, shape: &Shape) -> Result<
 
     let title = scaffold_title(root, title);
     let quoted = |t: &str| t.replace('"', "'");
+    // A TOML string, escaped as TOML wants (a `\` in a title would otherwise
+    // leave a project.toml that can't be read).
+    let toml_title = toml::Value::String(title.clone()).to_string();
 
     write_new(
         &project_files::new_path(root, FileKind::Settings),
         &format!(
-            "title = \"{}\"\nauthor = \"\"\ndraft = \"1\"\ntarget_words = {}\ndaily_target = {}\n\n\
+            "title = {}\nauthor = \"\"\ndraft = \"1\"\ntarget_words = {}\ndaily_target = {}\n\n\
              # What this project calls its largest division: Part, Act, Book…\n\
              part_label = \"Part\"\n",
-            quoted(&title),
-            shape.target_words,
-            shape.daily_target
+            toml_title, shape.target_words, shape.daily_target
         ),
     )?;
 
@@ -2073,7 +2142,7 @@ The starter pages stay out of exports until you want them: each begins with \
 the line compile: false, and changing it to compile: true puts it in.\n\n\
 NOTES and RESEARCH are for everything else you gather. Sample Output, in \
 Research, is a place to keep exports you want to compare.\n\n\
-TEMPLATE SHEETS are blank forms. Copy one into Characters or Places to fill in.\n\n\
+TEMPLATE SHEETS are blank forms. In the tree, f on one makes a copy in Characters or Places to fill in.\n\n\
 TRASH keeps whatever you delete until you delete it from there too.\n";
 
     pub const CHARACTER_SKETCH: &str = "---\ntitle: \"Character Sketch\"\n---\n\n\
@@ -2170,6 +2239,7 @@ pub fn rename(path: &Path, name: &str) -> Result<PathBuf> {
     let ext = if folder { "" } else { ".md" };
     let file = crate::names::fit(parent, &prefix, &crate::names::stem(name), ext);
     let target = parent.join(&file);
+    let mut renamed: Vec<(PathBuf, PathBuf)> = Vec::new();
     if target != path {
         // Capitals or accents apart from a neighbour is still a collision on
         // a Mac, on Windows and in Box; only this item's own name may change
@@ -2187,6 +2257,7 @@ pub fn rename(path: &Path, name: &str) -> Result<PathBuf> {
         };
         crate::review_notes::tracked_rename(path, &target)
             .with_context(|| format!("renaming {}", path.display()))?;
+        renamed.push((path.to_path_buf(), target.clone()));
         // Its conflict copies follow it under the new name.
         let new_stem = target
             .file_stem()
@@ -2194,8 +2265,8 @@ pub fn rename(path: &Path, name: &str) -> Result<PathBuf> {
             .unwrap_or_default();
         for (copy, c) in copies {
             let to = parent.join(format!("{new_stem}{}.md", c.suffix));
-            if !to.exists() {
-                let _ = fs::rename(&copy, &to);
+            if !to.exists() && fs::rename(&copy, &to).is_ok() {
+                renamed.push((copy, to));
             }
         }
     }
@@ -2206,7 +2277,24 @@ pub fn rename(path: &Path, name: &str) -> Result<PathBuf> {
     {
         write_atomic(&target, &updated)?;
     }
+    // `[[links]]` to it follow, as they do for a move; renaming it back
+    // brings them back.
+    if !renamed.is_empty()
+        && let Some(root) = book_root(parent)
+    {
+        rewrite_links(&root, &renamed);
+    }
     Ok(target)
+}
+
+/// The book `dir` is in: the nearest folder above it (or it) with a
+/// settings file or a manuscript folder.
+fn book_root(dir: &Path) -> Option<PathBuf> {
+    dir.ancestors()
+        .find(|a| {
+            project_files::path(a, FileKind::Settings).is_file() || a.join("manuscript").is_dir()
+        })
+        .map(Path::to_path_buf)
 }
 
 /// Why a name can't be used: `file` would be the same file as `other` to a
@@ -2224,6 +2312,7 @@ fn clash_message(file: &str, other: &Path) -> String {
 fn retitle(raw: &str, name: &str) -> Option<String> {
     let (front, body) = split_frontmatter(raw);
     let front = front?;
+    let eol = eol_of(raw.strip_prefix('\u{feff}').unwrap_or(raw));
     let mut done = false;
     let mut out = String::new();
     for line in front.lines() {
@@ -2232,14 +2321,14 @@ fn retitle(raw: &str, name: &str) -> Option<String> {
                 .split_once(':')
                 .is_some_and(|(k, _)| k.trim() == "title")
         {
-            out.push_str(&format!("title: \"{}\"\n", name.replace('"', "'")));
+            out.push_str(&format!("title: \"{}\"{eol}", name.replace('"', "'")));
             done = true;
         } else {
             out.push_str(line);
-            out.push('\n');
+            out.push_str(eol);
         }
     }
-    done.then(|| format!("---\n{out}---\n\n{body}"))
+    done.then(|| format!("---{eol}{out}---{eol}{eol}{body}"))
 }
 
 /// Move something out of the tree rather than destroying it. `.grimoire/` is
@@ -2269,14 +2358,20 @@ pub fn trash(root: &Path, path: &Path) -> Result<PathBuf> {
         .with_context(|| format!("moving {} to the trash", path.display()))?;
     // Where it came from, so Restore can put it back there. A hidden file,
     // so the Trash section never shows it.
-    if let (Ok(rel), Some(went)) = (path.strip_prefix(root), target.file_name()) {
+    note_trash_origin(root, &target, path);
+    Ok(target)
+}
+
+/// Remember that `went` (at the top of the Trash) came from `from`, so
+/// Restore can put it back there.
+pub(crate) fn note_trash_origin(root: &Path, went: &Path, from: &Path) {
+    if let (Ok(rel), Some(went)) = (from.strip_prefix(root), went.file_name()) {
         let line = format!("{}\t{}\n", went.to_string_lossy(), rel.to_string_lossy());
-        let origins = dir.join(ORIGINS);
+        let origins = trash_dir(root).join(ORIGINS);
         let mut text = fs::read_to_string(&origins).unwrap_or_default();
         text.push_str(&line);
         let _ = crate::atomic::write_text(&origins, &text);
     }
-    Ok(target)
 }
 
 /// The Trash's record of where each thing in it came from.
@@ -2285,11 +2380,23 @@ const ORIGINS: &str = ".origins";
 /// Where something in the Trash was before it was deleted, if the Trash
 /// remembers (things deleted before 0.7.3 have no record).
 pub fn trashed_from(root: &Path, trashed: &Path) -> Option<PathBuf> {
-    let name = trashed.file_name()?.to_string_lossy().to_string();
+    // Something inside a deleted folder was wherever that folder was.
+    let inside = trashed.strip_prefix(trash_dir(root)).ok()?;
+    let mut parts = inside.components();
+    let name = parts.next()?.as_os_str().to_string_lossy().to_string();
+    let rest = parts.as_path();
     let text = fs::read_to_string(trash_dir(root).join(ORIGINS)).ok()?;
     text.lines().rev().find_map(|l| {
         let (went, from) = l.split_once('\t')?;
-        (went == name).then(|| root.join(from))
+        (went == name).then(|| {
+            let was = root.join(from);
+            // (Joining an empty path would add a trailing slash.)
+            if rest.as_os_str().is_empty() {
+                was
+            } else {
+                was.join(rest)
+            }
+        })
     })
 }
 
@@ -2298,6 +2405,14 @@ pub fn trashed_from(root: &Path, trashed: &Path) -> Option<PathBuf> {
 /// name has been taken since. With no record of where it was, it goes to the
 /// end of the manuscript. Returns where it went.
 pub fn restore(root: &Path, trashed: &Path) -> Result<PathBuf> {
+    restore_with_note(root, trashed).map(|(to, _)| to)
+}
+
+/// [`restore`], plus a word for the writer when it couldn't go exactly where
+/// it was: a scene taken out of a deleted chapter whose folder is gone goes to
+/// the top of the manuscript (or notes) instead, and the note says so.
+pub fn restore_with_note(root: &Path, trashed: &Path) -> Result<(PathBuf, Option<String>)> {
+    let top = trashed.parent() == Some(trash_dir(root).as_path());
     let name = trashed
         .file_name()
         .context("there is nothing there to restore")?
@@ -2306,18 +2421,36 @@ pub fn restore(root: &Path, trashed: &Path) -> Result<PathBuf> {
     // "1727380000-01-Scene-One.md" and "1727380000-2-01-Scene-One.md" were
     // both "01-Scene-One.md": a time stamp, then a count if two went in the
     // same second.
+    // Only things at the top of the Trash wear a stamp; what's inside a
+    // deleted folder keeps its own name.
     let digits = |h: &str| !h.is_empty() && h.chars().all(|c| c.is_ascii_digit());
     let after_stamp = match name.split_once('-') {
-        Some((h, t)) if h.len() >= 9 && digits(h) => t,
+        Some((h, t)) if top && h.len() >= 9 && digits(h) => t,
         _ => name.as_str(),
     };
     let original_name = match after_stamp.split_once('-') {
-        Some((h, t)) if h.len() == 1 && digits(h) => t,
+        Some((h, t)) if top && h.len() == 1 && digits(h) => t,
         _ => after_stamp,
     }
     .to_string();
-    let wanted =
+    let mut wanted =
         trashed_from(root, trashed).unwrap_or_else(|| root.join("manuscript").join(&original_name));
+    let mut note = None;
+    // From inside a deleted folder whose old home is gone: rather than
+    // building a folder nobody asked for, the top of its section, in view.
+    if !top && wanted.parent().is_some_and(|p| !p.is_dir()) {
+        let section = wanted
+            .strip_prefix(root)
+            .ok()
+            .and_then(|r| r.components().next())
+            .map(|c| c.as_os_str().to_string_lossy().to_string())
+            .filter(|s| root.join(s).is_dir() && !s.starts_with('.'))
+            .unwrap_or_else(|| "manuscript".into());
+        wanted = root.join(&section).join(&original_name);
+        note = Some(format!(
+            "its old folder is gone, so it's at the top of {section} now"
+        ));
+    }
     let dir = wanted
         .parent()
         .context("nowhere to put it back")?
@@ -2339,7 +2472,12 @@ pub fn restore(root: &Path, trashed: &Path) -> Result<PathBuf> {
     }
     crate::review_notes::tracked_rename(trashed, &target)
         .with_context(|| format!("moving {} out of the trash", trashed.display()))?;
+    // The record belongs to what was deleted; a scene out of a deleted
+    // chapter leaves the chapter's record for the rest of it.
     let origins = trash_dir(root).join(ORIGINS);
+    if !top {
+        return Ok((target, note));
+    }
     if let Ok(text) = fs::read_to_string(&origins) {
         let kept: String = text
             .lines()
@@ -2348,7 +2486,7 @@ pub fn restore(root: &Path, trashed: &Path) -> Result<PathBuf> {
             .collect();
         let _ = crate::atomic::write_text(&origins, &kept);
     }
-    Ok(target)
+    Ok((target, note))
 }
 
 /// Remove something for good. Only ever reached for what is already in the
@@ -2392,13 +2530,38 @@ fn tree_entries(dir: &Path) -> Vec<PathBuf> {
                 sync::copy_of(&s.to_string_lossy(), &|x| stems.contains(x), hint).is_none()
             })
     });
-    v.sort_by_key(|p| p.file_name().map(|n| n.to_os_string()));
+    v.sort_by(|a, b| {
+        let name = |p: &PathBuf| {
+            p.file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string()
+        };
+        order_names(&name(a), &name(b))
+    });
     v
 }
 
+/// The order of things in a folder, everywhere the book decides it: by the
+/// leading number as a number (so `100-` comes after `99-`, not after `10-`),
+/// then by name. Anything without a number comes after the numbered ones.
+pub fn order_names(a: &str, b: &str) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
+    let number = |s: &str| -> Option<u128> {
+        let end = s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len());
+        s[..end].parse().ok()
+    };
+    match (number(a), number(b)) {
+        (Some(x), Some(y)) => x.cmp(&y).then_with(|| a.cmp(b)),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => a.cmp(b),
+    }
+}
+
 /// A scene that moves or is renamed takes its conflict copies with it,
-/// renamed to follow ("01-Scene-One (Josh's conflicted copy).md" becomes
-/// "02-Scene-One (Josh's conflicted copy).md"), so a copy is never left
+/// renamed to follow ("01-Scene-One (Ada's conflicted copy).md" becomes
+/// "02-Scene-One (Ada's conflicted copy).md"), so a copy is never left
 /// behind under a number that now belongs to something else.
 fn with_copies(renames: &[(PathBuf, PathBuf)]) -> Vec<(PathBuf, PathBuf)> {
     let mut out = renames.to_vec();
@@ -2508,11 +2671,13 @@ pub fn move_item(root: &Path, path: &Path, up: bool) -> Result<Moved> {
         let (b_num, b_w, b_rest) = split_number(&n)
             .context("its neighbour has no number, so there's nothing to swap with")?;
         let (a_num, b_num) = if a_num == b_num {
-            // Same number (it happens): order by name, so just nudge.
+            // Same number (it happens): order by name, so just nudge. The
+            // mover takes `b_num`; going up it keeps the number and the one
+            // above steps down a place, going down it steps down itself.
             if up {
-                (a_num, a_num + 1)
-            } else {
                 (a_num + 1, a_num)
+            } else {
+                (a_num, a_num + 1)
             }
         } else {
             (a_num, b_num)
@@ -4444,6 +4609,228 @@ mod tests {
         // and renaming it keeps its bytes
         let renamed = rename(&odd, "Bistro").unwrap();
         assert_eq!(fs::read(&renamed).unwrap(), bytes);
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    // ---- review fixes -----------------------------------------------------
+
+    #[test]
+    fn a_title_with_a_backslash_makes_a_book_that_opens() {
+        let d = temp_dir("rv-toml-title");
+        let book = d.join("book");
+        fs::create_dir_all(&book).unwrap();
+        let title = r#"Ada's "Back\Slash" Book"#;
+        scaffold_with(&book, Some(title), &Shape::novel()).unwrap();
+        let toml_text = fs::read_to_string(book.join("project.toml")).unwrap();
+        let table: toml::Table = toml::from_str(&toml_text).expect("project.toml parses");
+        assert_eq!(table["title"].as_str(), Some(title), "kept exactly");
+        assert!(toml_text.contains("part_label = \"Part\""));
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn a_scene_from_a_deleted_chapter_goes_back_to_that_chapter() {
+        let d = temp_dir("rv-restore-nested");
+        let ch = d.join("manuscript/01-Act-One/02-Chapter-Two");
+        fs::create_dir_all(&ch).unwrap();
+        fs::write(ch.join("01-Dawn.md"), "Ada wakes.").unwrap();
+        fs::write(ch.join("02-Dusk.md"), "Ada sleeps.").unwrap();
+        let gone = trash(&d, &ch).unwrap();
+        let dawn = gone.join("01-Dawn.md");
+        assert_eq!(trashed_from(&d, &dawn), Some(ch.join("01-Dawn.md")));
+
+        // Its chapter is back (made again by hand): the scene goes home.
+        fs::create_dir_all(&ch).unwrap();
+        let (to, note) = restore_with_note(&d, &dawn).unwrap();
+        assert_eq!(to, ch.join("01-Dawn.md"));
+        assert_eq!(note, None);
+        assert_eq!(fs::read_to_string(&to).unwrap(), "Ada wakes.");
+        assert!(
+            trashed_from(&d, &gone).is_some(),
+            "the chapter's record stays"
+        );
+
+        // Its chapter is gone for good: somewhere safe, and it says where.
+        fs::remove_dir_all(&ch).unwrap();
+        let (to, note) = restore_with_note(&d, &gone.join("02-Dusk.md")).unwrap();
+        assert_eq!(to, d.join("manuscript/02-Dusk.md"));
+        let note = note.expect("says where it went");
+        assert!(note.contains("manuscript"), "{note}");
+        assert!(!note.contains('\u{2014}'), "{note}");
+        assert_eq!(fs::read_to_string(&to).unwrap(), "Ada sleeps.");
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn renaming_keeps_links_and_renaming_back_restores_them() {
+        let d = temp_dir("rv-rename-links");
+        fs::write(d.join("project.toml"), "title = \"Links\"\n").unwrap();
+        let ch = d.join("manuscript/01-Chapter-One");
+        let notes = d.join("notes/01-Characters");
+        fs::create_dir_all(&ch).unwrap();
+        fs::create_dir_all(&notes).unwrap();
+        let scene = ch.join("01-Opening.md");
+        let text = "---\ntitle: Opening\n---\n\nAda sees [[notes/01-Characters/01-Wren]] \
+                    and [[01-Wren|the boy]]. Back in [[manuscript/01-Chapter-One/01-Opening#Top]].\n";
+        fs::write(&scene, text).unwrap();
+        let wren = notes.join("01-Wren.md");
+        fs::write(&wren, "---\ntitle: Wren\n---\n\nSee [[01-Opening]].\n").unwrap();
+
+        let kestrel = rename(&wren, "Kestrel").unwrap();
+        assert_eq!(kestrel, notes.join("01-Kestrel.md"));
+        let now = fs::read_to_string(&scene).unwrap();
+        assert!(now.contains("[[notes/01-Characters/01-Kestrel]]"), "{now}");
+        assert!(now.contains("[[01-Kestrel|the boy]]"), "{now}");
+
+        // A folder: links through it follow.
+        let ch2 = rename(&ch, "The Start").unwrap();
+        let scene2 = ch2.join("01-Opening.md");
+        let now = fs::read_to_string(&scene2).unwrap();
+        assert!(
+            now.contains("[[manuscript/01-The-Start/01-Opening#Top]]"),
+            "{now}"
+        );
+
+        // Undo, in reverse: every link is as it was.
+        let ch_back = rename(&ch2, "Chapter One").unwrap();
+        assert_eq!(ch_back, ch);
+        rename(&kestrel, "Wren").unwrap();
+        assert_eq!(fs::read_to_string(&scene).unwrap(), text);
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn two_with_one_number_really_swap_places() {
+        let d = temp_dir("rv-nudge");
+        let ch = d.join("manuscript/01-Chapter-One");
+        fs::create_dir_all(&ch).unwrap();
+        fs::write(ch.join("02-Bar.md"), "bar").unwrap();
+        fs::write(ch.join("02-Foo.md"), "foo").unwrap();
+        let order = || -> Vec<String> {
+            tree_entries(&ch)
+                .iter()
+                .map(|p| fs::read_to_string(p).unwrap())
+                .collect()
+        };
+        assert_eq!(order(), ["bar", "foo"]);
+        move_item(&d, &ch.join("02-Foo.md"), true).unwrap();
+        assert_eq!(order(), ["foo", "bar"], "up puts it first");
+        let foo = tree_entries(&ch)[0].clone();
+        move_item(&d, &foo, false).unwrap();
+        assert_eq!(order(), ["bar", "foo"], "and down puts it back");
+        // The same number again, moving the first one down.
+        for p in tree_entries(&ch) {
+            fs::remove_file(p).unwrap();
+        }
+        fs::write(ch.join("02-Bar.md"), "bar").unwrap();
+        fs::write(ch.join("02-Foo.md"), "foo").unwrap();
+        move_item(&d, &ch.join("02-Bar.md"), false).unwrap();
+        assert_eq!(order(), ["foo", "bar"], "down puts it second");
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn the_hundredth_chapter_comes_after_the_ninety_ninth() {
+        let d = temp_dir("rv-hundred");
+        let ms = d.join("manuscript");
+        for name in [
+            "100-Ch", "09-Ch", "10-Ch", "11-Ch", "99-Ch", "101-Ch", "Loose",
+        ] {
+            fs::create_dir_all(ms.join(name)).unwrap();
+        }
+        let want = [
+            "09-Ch", "10-Ch", "11-Ch", "99-Ch", "100-Ch", "101-Ch", "Loose",
+        ];
+        let names = |v: Vec<PathBuf>| -> Vec<String> {
+            v.iter()
+                .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
+                .collect()
+        };
+        assert_eq!(names(tree_entries(&ms)), want);
+        let p = Project::load(&d).unwrap();
+        let tree: Vec<PathBuf> = p
+            .manuscript()
+            .iter()
+            .map(|&i| p.nodes[i].path.clone())
+            .collect();
+        assert_eq!(names(tree), want);
+        // Moving the 99th down swaps it with the 100th, not with the 10th.
+        let moved = move_item(&d, &ms.join("99-Ch"), false).unwrap();
+        assert_eq!(moved.target, ms.join("100-Ch"));
+        assert!(ms.join("099-Ch").is_dir(), "padded to match the 100th");
+        assert_eq!(names(tree_entries(&ms))[3..5], ["099-Ch", "100-Ch"]);
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn quoted_values_round_trip_through_two_saves() {
+        for value in [
+            "\"Run,\" she said.",
+            "C:\\Books\\Ada: notes",
+            "'Tis \"odd\" \\ true",
+            "#1 \"\"",
+        ] {
+            let once = set_front(Some("title: Gravel\n"), "synopsis", value);
+            assert_eq!(
+                front_get(&once, "synopsis").as_deref(),
+                Some(value),
+                "{once}"
+            );
+            let read = front_get(&once, "synopsis").unwrap();
+            let twice = set_front(Some(&once), "synopsis", &read);
+            assert_eq!(twice, once, "a second save changes nothing");
+            assert_eq!(front_get(&twice, "synopsis").as_deref(), Some(value));
+        }
+        // Plain values and other apps' quoting read as before.
+        assert_eq!(front_get("pov: Wren\n", "pov").as_deref(), Some("Wren"));
+        assert_eq!(front_get("pov: 'Wren'\n", "pov").as_deref(), Some("Wren"));
+        assert_eq!(
+            front_get("pov: 'It''s Ada'\n", "pov").as_deref(),
+            Some("It's Ada")
+        );
+        assert_eq!(
+            front_get("title: \"Gravel\"\n", "title").as_deref(),
+            Some("Gravel")
+        );
+    }
+
+    #[test]
+    fn crlf_frontmatter_is_frontmatter_and_stays_crlf() {
+        let raw = "---\r\ntitle: Gravel\r\ncompile: false\r\n---\r\n\r\nThe lot was empty.\r\n";
+        let (front, body) = split_frontmatter(raw);
+        assert_eq!(
+            front.as_deref(),
+            Some("title: Gravel\r\ncompile: false\r\n")
+        );
+        assert_eq!(body, "The lot was empty.\r\n");
+
+        let d = temp_dir("rv-crlf");
+        let ch = d.join("manuscript/01-Act-One");
+        fs::create_dir_all(&ch).unwrap();
+        let scene = ch.join("01-Gravel.md");
+        fs::write(&scene, raw).unwrap();
+        let mut p = Project::load(&d).unwrap();
+        let i = p.nodes.iter().position(|n| n.path == scene).unwrap();
+        let n = &mut p.nodes[i];
+        assert!(!n.compile, "compile: false is read");
+        assert_eq!(n.title, "Gravel");
+        assert_eq!(n.words(), 4, "the YAML isn't prose");
+        assert_eq!(n.file_text(), raw, "untouched, it writes back as it was");
+        n.set_meta("synopsis", "Ada waits.");
+        assert_eq!(
+            n.file_text(),
+            "---\r\ntitle: Gravel\r\ncompile: false\r\nsynopsis: Ada waits.\r\n---\r\n\r\nThe lot was empty.\r\n",
+            "one block, still CRLF"
+        );
+        n.set_meta_list("aliases", &["Lot".into()]);
+        assert!(!n.file_text().replace("\r\n", "").contains('\n'));
+
+        let renamed = rename(&scene, "Gravel Lot").unwrap();
+        let text = fs::read_to_string(&renamed).unwrap();
+        assert_eq!(
+            text,
+            "---\r\ntitle: \"Gravel Lot\"\r\ncompile: false\r\n---\r\n\r\nThe lot was empty.\r\n"
+        );
         fs::remove_dir_all(&d).unwrap();
     }
 }

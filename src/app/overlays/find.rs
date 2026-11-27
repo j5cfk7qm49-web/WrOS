@@ -15,24 +15,23 @@ impl App {
         };
         let (q, from_pos) = (query.clone(), *from);
         match key {
-            Key::Char(c) if !c.is_control() => {
+            // The box's own keys: typing, and mending what's typed.
+            Key::Char(_)
+            | Key::Backspace
+            | Key::Delete
+            | Key::Left
+            | Key::Right
+            | Key::Home
+            | Key::End => {
                 if *on_with {
-                    with.get_or_insert_with(String::new).push(c);
+                    let w = with.get_or_insert_with(String::new);
+                    line::edit(w, &mut self.caret, key, 200, |_| true);
                 } else {
-                    query.push(c);
-                    let q = query.clone();
-                    self.find_step(&q, true, Some(from_pos));
-                }
-            }
-            Key::Backspace => {
-                if *on_with {
-                    if let Some(w) = with {
-                        w.pop();
+                    line::edit(query, &mut self.caret, key, 200, |_| true);
+                    if *query != q {
+                        let q = query.clone();
+                        self.find_step(&q, true, Some(from_pos));
                     }
-                } else {
-                    query.pop();
-                    let q = query.clone();
-                    self.find_step(&q, true, Some(from_pos));
                 }
             }
             Key::Tab | Key::BackTab => {
@@ -40,6 +39,7 @@ impl App {
                     *with = Some(String::new());
                 }
                 *on_with = !*on_with;
+                self.caret = None;
             }
             Key::Enter if *on_with => {
                 let w = with.clone().unwrap_or_default();
@@ -80,22 +80,15 @@ impl App {
         }
         let mut changed = false;
         match key {
-            Key::Char(c) if !c.is_control() => {
+            // Home and End stay with the list of matches underneath.
+            Key::Char(_) | Key::Backspace | Key::Delete | Key::Left | Key::Right => {
                 if *on_with {
-                    with.get_or_insert_with(String::new).push(c);
+                    let w = with.get_or_insert_with(String::new);
+                    line::edit(w, &mut self.caret, key, 200, |_| true);
                 } else {
-                    query.push(c);
-                    changed = true;
-                }
-            }
-            Key::Backspace => {
-                if *on_with {
-                    if let Some(w) = with {
-                        w.pop();
-                    }
-                } else {
-                    query.pop();
-                    changed = true;
+                    let before = query.clone();
+                    line::edit(query, &mut self.caret, key, 200, |_| true);
+                    changed = *query != before;
                 }
             }
             Key::Tab | Key::BackTab => {
@@ -103,11 +96,16 @@ impl App {
                     *with = Some(String::new());
                 }
                 *on_with = !*on_with;
+                self.caret = None;
             }
             k if list_nav(k, sel, hits.len(), TYPED) => {}
+            // Like the bar in a scene: Enter in the replace box changes the
+            // highlighted match and leaves the rest (Ctrl-R is all of them).
             Key::Enter if *on_with => {
-                if !hits.is_empty() && with.is_some() {
-                    *confirm = true;
+                if let (Some(h), Some(w)) = (hits.get(*sel).cloned(), with.clone()) {
+                    let q = query.clone();
+                    self.replace_hit(&h, &q, &w);
+                    changed = true;
                 }
             }
             Key::Enter => {
@@ -115,16 +113,29 @@ impl App {
                     self.go_to_hit(&h.path, h.line, h.start, h.end);
                 }
             }
-            Key::Esc => self.overlay = Overlay::None,
+            Key::Esc => {
+                self.overlay = Overlay::None;
+                self.book_find = None;
+            }
             _ => {}
         }
         if changed
             && let Overlay::FindBook {
-                query, hits, sel, ..
+                query,
+                hits,
+                sel,
+                on_with,
+                ..
             } = &mut self.overlay
         {
             *hits = search::book(&self.project, &self.parents, query, self.find_opts);
-            *sel = 0;
+            // A new search starts at the top; after changing one match the
+            // highlight stays, on the next one down.
+            *sel = if *on_with {
+                (*sel).min(hits.len().saturating_sub(1))
+            } else {
+                0
+            };
         }
     }
 }
@@ -155,17 +166,26 @@ pub(super) fn draw_find(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let inner = block.inner(bar);
     f.render_widget(block, bar);
     let field = |label: &str, text: &str, active: bool| {
-        vec![
-            Span::styled(
-                format!(" {label:>7} ▸ "),
-                Style::default().fg(if active { t.accent } else { t.dim }),
-            ),
-            Span::styled(text.to_string(), Style::default().fg(t.text)),
-            Span::styled(
-                if active { "█" } else { " " },
-                Style::default().fg(t.accent),
-            ),
-        ]
+        let mut spans = vec![Span::styled(
+            format!(" {label:>7} ▸ "),
+            Style::default().fg(if active { t.accent } else { t.dim }),
+        )];
+        if active {
+            let room = text.chars().count() + 1;
+            spans.extend(line::spans(
+                text,
+                app.caret,
+                room,
+                Style::default().fg(t.text),
+                t,
+            ));
+        } else {
+            spans.push(Span::styled(
+                format!("{text} "),
+                Style::default().fg(t.text),
+            ));
+        }
+        spans
     };
     let m = app.mod_label();
     let mut first = field("find", query, !*on_with);
@@ -235,17 +255,26 @@ pub(super) fn draw_find_book(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let iw = inner.width as usize;
     let dim = Style::default().fg(t.dim);
     let field = |label: &str, text: &str, active: bool| {
-        Line::from(vec![
-            Span::styled(
-                format!(" {label:>7} ▸ "),
-                Style::default().fg(if active { t.accent } else { t.dim }),
-            ),
-            Span::styled(text.to_string(), Style::default().fg(t.text)),
-            Span::styled(
-                if active { "█" } else { " " },
-                Style::default().fg(t.accent),
-            ),
-        ])
+        let mut spans = vec![Span::styled(
+            format!(" {label:>7} ▸ "),
+            Style::default().fg(if active { t.accent } else { t.dim }),
+        )];
+        if active {
+            let room = text.chars().count() + 1;
+            spans.extend(line::spans(
+                text,
+                app.caret,
+                room,
+                Style::default().fg(t.text),
+                t,
+            ));
+        } else {
+            spans.push(Span::styled(
+                format!("{text} "),
+                Style::default().fg(t.text),
+            ));
+        }
+        Line::from(spans)
     };
     let mut lines = vec![field("find", query, !*on_with)];
     if let Some(w) = with {
@@ -331,7 +360,7 @@ pub(super) fn draw_find_book(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                     .concat(),
                 )
             } else if with.is_some() {
-                hint_line(&format!(" ↑↓ choose   ↵ go to it   Tab switch field   ↵ in replace (or {m}R) replaces all   esc close"), t)
+                hint_line(&format!(" ↑↓ choose   ↵ go to it, or in replace: change this one   Tab switch   {m}R all   esc close"), t)
             } else {
                 hint_line(" ↑↓ choose   ↵ go to it   Tab replace   esc close", t)
             });

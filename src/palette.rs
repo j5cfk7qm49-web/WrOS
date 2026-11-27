@@ -159,6 +159,7 @@ pub enum Action {
     Restore,
     /// Which voice reads aloud.
     Voices,
+    TaughtWords,
     OpenBookAt(std::path::PathBuf),
 }
 
@@ -477,6 +478,11 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
             format!("Spelling: {} (change)", app.spell_lang.name()),
             "",
             Action::SpellingLanguage,
+        ),
+        Entry::new(
+            "Words spellcheck was taught (take one back)",
+            "",
+            Action::TaughtWords,
         ),
         Entry::new(
             "Spelling suggestions for this word",

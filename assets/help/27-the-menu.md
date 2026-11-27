@@ -51,6 +51,7 @@ The mouse works everywhere on the bar: click a view tile to switch views, click 
 
 - **New scene…** (`n`), **New chapter…** (`c`), **New part…** (`p`) and **New folder…** (`N`). If your project calls its parts acts, the row says so.
 - **Rename…** (`r`) and **Delete…** (`d`): the file is renamed to match; deleting moves it to the Trash and asks first.
+- **Empty the Trash…** replaces Delete when the Trash itself is selected. It asks before permanently removing the contents.
 - **Restore from the Trash** (`u`): with something in the Trash selected.
 - **Move up** (`K`) and **Move down** (`J`): you can also drag rows with the mouse.
 - Switch to Write to move, rename, restore or delete a selected project item.

@@ -387,7 +387,7 @@ pub fn export(p: &Project, opts: &ExportOptions) -> Result<Exported> {
     };
     let dir = p.root.join("exports");
     std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
-    let stem = slug(book.title);
+    let stem = slug(book.name);
     let manuscript = manuscript_stem(&book, opts.parts.is_some(), opts.scope);
 
     let mut files = Vec::new();
@@ -475,7 +475,7 @@ pub fn export(p: &Project, opts: &ExportOptions) -> Result<Exported> {
 /// with what a sample holds after it. Safe on every system (names rules).
 fn manuscript_stem(b: &Book, some_parts: bool, scope: Scope) -> String {
     let name = crate::names::stem(surname(b.author));
-    let title = crate::names::stem(b.title);
+    let title = crate::names::stem(b.name);
     let mut stem = if surname(b.author).is_empty() {
         format!("{title}_Manuscript")
     } else {
@@ -503,7 +503,10 @@ fn manuscript_stem(b: &Book, some_parts: bool, scope: Scope) -> String {
 
 /// The manuscript as it will be read: what's in, in order, numbered.
 pub(crate) struct Book<'a> {
-    pub title: &'a str,
+    /// With book typography, as are the part and chapter titles.
+    pub title: Cow<'a, str>,
+    /// The title as typed, for the names of the files.
+    pub name: &'a str,
     /// The byline.
     pub author: &'a str,
     /// The title page's contact block.
@@ -537,14 +540,14 @@ pub(crate) struct Book<'a> {
 
 pub(crate) enum Piece<'a> {
     Part {
-        title: &'a str,
+        title: Cow<'a, str>,
         depth: usize,
     },
     /// `number` is the chapter's place in the whole book, not in this export;
     /// `None` for a chapter that takes no number (a Prologue, an Epilogue).
     Chapter {
         number: Option<usize>,
-        title: &'a str,
+        title: Cow<'a, str>,
         depth: usize,
         scenes: Vec<Cow<'a, str>>,
     },
@@ -778,8 +781,10 @@ pub(crate) fn book<'a>(p: &'a Project, parts: Option<&[usize]>, scope: Scope) ->
 
     let m = &p.meta;
     let title = m.title.trim();
+    let name = if title.is_empty() { "Untitled" } else { title };
     let mut b = Book {
-        title: if title.is_empty() { "Untitled" } else { title },
+        title: typeset::line(name, m.manuscript.spaced_hyphen),
+        name,
         author: m.author.trim(),
         contact: &m.contact,
         look: &m.manuscript,
@@ -1034,6 +1039,7 @@ fn sample(items: Vec<Item<'_>>, scope: Scope) -> Vec<Item<'_>> {
 /// The kept items as the book's pieces, counted; a part left with nothing in
 /// it goes too.
 fn finish<'a>(p: &'a Project, b: &mut Book<'a>, items: Vec<Item<'a>>) {
+    let hyphen = p.meta.manuscript.spaced_hyphen;
     let has_content_after = |i: usize| {
         items[i + 1..]
             .iter()
@@ -1049,7 +1055,10 @@ fn finish<'a>(p: &'a Project, b: &mut Book<'a>, items: Vec<Item<'a>>) {
             continue;
         }
         match it {
-            Item::Part { title, depth } => b.pieces.push(Piece::Part { title, depth }),
+            Item::Part { title, depth } => b.pieces.push(Piece::Part {
+                title: typeset::line(title, hyphen),
+                depth,
+            }),
             Item::Chapter(c) => {
                 b.chapters += 1;
                 b.scenes += c.scenes.len();
@@ -1060,7 +1069,7 @@ fn finish<'a>(p: &'a Project, b: &mut Book<'a>, items: Vec<Item<'a>>) {
                 }
                 b.pieces.push(Piece::Chapter {
                     number: c.number,
-                    title: c.title,
+                    title: typeset::line(c.title, hyphen),
                     depth: c.depth,
                     scenes: c.scenes.into_iter().map(|(t, _, _)| t).collect(),
                 });
@@ -1228,13 +1237,13 @@ fn keyword(title: &str) -> String {
         .unwrap_or_else(|| "UNTITLED".into())
 }
 
-/// `King / ARCHIVE / ` — the page number follows. The keyword is the
+/// `Quill / ARCHIVE / ` — the page number follows. The keyword is the
 /// manuscript setting's, or the title's first real word.
 fn header_text(b: &Book) -> String {
     let name = surname(b.author);
     let set = b.look.header_keyword.trim();
     let key = if set.is_empty() {
-        keyword(b.title)
+        keyword(&b.title)
     } else {
         set.to_string()
     };
@@ -1430,6 +1439,49 @@ pub(crate) fn xml_escape(s: &str) -> String {
 
 // ── Shunn Markdown ───────────────────────────────────────────────────
 
+/// A scene's text with a blank line between its paragraphs. In a scene one
+/// line is one paragraph; Markdown needs a blank line to see that, and joins
+/// lines without one. Blank lines already there count as that one.
+fn md_paragraphs(s: &str) -> String {
+    use pulldown_cmark::{Event, Options, Parser, Tag};
+
+    // A newline inside a Markdown block is part of that block's source.
+    let blocks = Parser::new_ext(s, Options::ENABLE_FOOTNOTES | Options::ENABLE_TABLES)
+        .into_offset_iter()
+        .filter_map(|(event, range)| {
+            matches!(
+                event,
+                Event::Start(
+                    Tag::CodeBlock(_)
+                        | Tag::BlockQuote(_)
+                        | Tag::HtmlBlock
+                        | Tag::FootnoteDefinition(_)
+                        | Tag::List(_)
+                        | Tag::Table(_)
+                )
+            )
+            .then_some(range)
+        });
+    let mut paragraphs = Vec::new();
+    let mut end = 0;
+    for block in blocks.chain(std::iter::once(s.len()..s.len())) {
+        if block.start < end {
+            continue;
+        }
+        paragraphs.extend(
+            s[end..block.start]
+                .lines()
+                .map(str::trim_end)
+                .filter(|line| !line.trim().is_empty()),
+        );
+        if !block.is_empty() {
+            paragraphs.push(s[block.start..block.end].trim_end_matches(['\r', '\n']));
+        }
+        end = block.end;
+    }
+    paragraphs.join("\n\n")
+}
+
 /// The manuscript as one Markdown file — the text `grimoire compile` writes.
 pub(crate) fn markdown(b: &Book) -> String {
     let mut out = String::new();
@@ -1451,6 +1503,7 @@ pub(crate) fn markdown(b: &Book) -> String {
         let _ = writeln!(out, "\nabout {count} words\n");
     }
 
+    let mut last: Option<&Piece> = None;
     for piece in &b.pieces {
         match piece {
             Piece::Part { title, .. } => {
@@ -1473,13 +1526,19 @@ pub(crate) fn markdown(b: &Book) -> String {
                     if i > 0 {
                         let _ = writeln!(out, "\n\\#\n");
                     }
-                    let _ = writeln!(out, "{s}");
+                    let _ = writeln!(out, "{}", md_paragraphs(s));
                 }
             }
             Piece::Scene(s) => {
-                let _ = writeln!(out, "{s}");
+                // Two loose scenes side by side are two scenes, and get the
+                // break a chapter's scenes do.
+                if matches!(last, Some(Piece::Scene(_))) {
+                    let _ = writeln!(out, "\n\\#\n");
+                }
+                let _ = writeln!(out, "{}", md_paragraphs(s));
             }
         }
+        last = Some(piece);
     }
     if let Some(end) = b.look.ending.text().filter(|_| b.to_the_end) {
         let _ = writeln!(out, "\n{end}");
@@ -1839,7 +1898,9 @@ fn docx(b: &Book) -> Result<(Vec<u8>, usize)> {
     // A part heading shares its first chapter's page (Shunn): the part a
     // third of the way down, the chapter heading halfway.
     let mut under_part = false;
+    let mut last: Option<&Piece> = None;
     for piece in &b.pieces {
+        let prev = last.replace(piece);
         let start = body.len();
         match piece {
             Piece::Part { title, .. } => {
@@ -1884,6 +1945,12 @@ fn docx(b: &Book) -> Result<(Vec<u8>, usize)> {
             Piece::Scene(s) => {
                 under_part = false;
                 let mut first = false;
+                // Two loose scenes side by side are two scenes, and get the
+                // break a chapter's scenes do.
+                if matches!(prev, Some(Piece::Scene(_))) {
+                    body.push(Para::new("SceneBreak", docx_text("#")));
+                    first = true;
+                }
                 docx_blocks(s, false, &look, &mut first, &mut body, &mut footnotes)?;
             }
         }
@@ -1913,7 +1980,7 @@ fn docx(b: &Book) -> Result<(Vec<u8>, usize)> {
     );
 
     let header = page_header(&header_text(b));
-    docx_package(b.title, b.author, doc, header, &look, footnotes, false)
+    docx_package(&b.title, b.author, doc, header, &look, footnotes, false)
 }
 
 fn page_header(text: &str) -> String {
@@ -2336,6 +2403,19 @@ fn epub(b: &Book) -> Result<Vec<u8>> {
     )
 }
 
+/// `id`, or `id-2`, `id-3`… if a page already has that name: two files of
+/// one name would stop the EPUB being written at all.
+fn unique_id<T, U>(docs: &[(String, String, T, U)], id: String) -> String {
+    let taken = |id: &str| docs.iter().any(|(_, have, _, _)| have == id);
+    if !taken(&id) {
+        return id;
+    }
+    (2..)
+        .map(|n| format!("{id}-{n}"))
+        .find(|c| !taken(c))
+        .unwrap_or(id)
+}
+
 fn epub_with(b: &Book, x: &Extras) -> Result<Vec<u8>> {
     let mut footnotes = epub_footnotes::Footnotes::default();
     let lang = xml_escape(x.meta.language());
@@ -2352,12 +2432,12 @@ fn epub_with(b: &Book, x: &Extras) -> Result<Vec<u8>> {
     if let Some((href, _, _)) = &cover {
         let body = format!(
             "<section class=\"cover\" epub:type=\"cover\">\n<img src=\"{href}\" alt=\"{}\"/>\n</section>",
-            xml_escape(b.title)
+            xml_escape(&b.title)
         );
         docs.push((
             "cover.xhtml".into(),
             "cover".into(),
-            page(b.title, &body),
+            page(&b.title, &body),
             "",
         ));
     }
@@ -2365,7 +2445,7 @@ fn epub_with(b: &Book, x: &Extras) -> Result<Vec<u8>> {
 
     if b.front.is_empty() {
         let mut body = String::from("<div class=\"titlepage\" epub:type=\"titlepage\">\n");
-        let _ = writeln!(body, "<h1 class=\"title\">{}</h1>", xml_escape(b.title));
+        let _ = writeln!(body, "<h1 class=\"title\">{}</h1>", xml_escape(&b.title));
         if !b.author.is_empty() {
             let _ = writeln!(body, "<p class=\"byline\">{}</p>", xml_escape(b.author));
         }
@@ -2373,7 +2453,7 @@ fn epub_with(b: &Book, x: &Extras) -> Result<Vec<u8>> {
         docs.push((
             "title.xhtml".into(),
             "title".into(),
-            page(b.title, &body),
+            page(&b.title, &body),
             "",
         ));
     } else {
@@ -2385,7 +2465,7 @@ fn epub_with(b: &Book, x: &Extras) -> Result<Vec<u8>> {
             docs.push((
                 format!("front-{}.xhtml", i + 1),
                 format!("front-{}", i + 1),
-                page(b.title, &body),
+                page(&b.title, &body),
                 "",
             ));
         }
@@ -2404,7 +2484,7 @@ fn epub_with(b: &Book, x: &Extras) -> Result<Vec<u8>> {
         match piece {
             Piece::Part { title, depth } => {
                 part_no += 1;
-                let id = format!("part-{part_no:02}");
+                let id = unique_id(&docs, format!("part-{part_no:02}"));
                 let body = format!(
                     "<div class=\"part\" epub:type=\"part\">\n<h1>{}</h1>\n</div>",
                     html_inline(title)
@@ -2469,10 +2549,22 @@ fn epub_with(b: &Book, x: &Extras) -> Result<Vec<u8>> {
                 };
                 // Numbered chapters keep the book's number in their file name,
                 // even in an export of one part.
+                // An unnumbered chapter is named for its own first word
+                // ("interlude-02") and its place among all the chapters, so
+                // it can't take a numbered chapter's name.
                 let id = match number {
                     Some(n) => format!("chapter-{n:02}"),
-                    None => format!("{kind}-{chapter_no:02}"),
+                    None => {
+                        let word = slug(first.trim_end_matches(':'));
+                        let word = if word.starts_with(|c: char| c.is_ascii_alphabetic()) {
+                            word
+                        } else {
+                            "section".into()
+                        };
+                        format!("{word}-{chapter_no:02}")
+                    }
                 };
+                let id = unique_id(&docs, id);
                 let file = format!("{id}.xhtml");
                 toc_insert(
                     &mut toc,
@@ -2487,12 +2579,22 @@ fn epub_with(b: &Book, x: &Extras) -> Result<Vec<u8>> {
             }
             Piece::Scene(s) => {
                 text_no += 1;
-                let id = format!("text-{text_no:02}");
+                let id = unique_id(&docs, format!("text-{text_no:02}"));
                 let body = format!(
                     "<div class=\"text\">\n{}</div>",
                     footnotes.scene(s, b.look.spaced_hyphen)?
                 );
-                docs.push((format!("{id}.xhtml"), id, page(b.title, &body), ""));
+                let file = format!("{id}.xhtml");
+                // A book of loose scenes alone has no headings to list, so
+                // its contents point to where the story starts.
+                if text_no == 1 && !b.pieces.iter().any(|p| !matches!(p, Piece::Scene(_))) {
+                    toc.push(Toc {
+                        label: plain(&b.title),
+                        href: file.clone(),
+                        kids: Vec::new(),
+                    });
+                }
+                docs.push((file, id, page(&b.title, &body), ""));
             }
         }
     }
@@ -2531,8 +2633,8 @@ fn epub_with(b: &Book, x: &Extras) -> Result<Vec<u8>> {
     );
     let back_at = back_at + 1;
 
-    let id = book_id(b.title, b.author);
-    let title = xml_escape(b.title);
+    let id = book_id(b.name, b.author);
+    let title = xml_escape(&b.title);
     let modified = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
     let m = x.meta;
 
@@ -2731,7 +2833,7 @@ mod tests {
         put(
             &d,
             "novel.toml",
-            "title = \"The Archive\"\nauthor = \"Josh King\"\npart_label = \"Act\"\n",
+            "title = \"The Archive\"\nauthor = \"Ada Quill\"\npart_label = \"Act\"\n",
         );
         put(
             &d,
@@ -3082,6 +3184,15 @@ mod tests {
         assert!(md.contains("`\"quoted -- code\"`"));
         assert_eq!(fs::read_to_string(d.join(scene)).unwrap(), source);
         fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn markdown_paragraph_spacing_preserves_code_and_footnote_blocks() {
+        let source = "First line.\nSecond line.[^note]\n\n```text\nalpha\nbeta\n```\n\n\
+                      [^note]: first\n    continued\n";
+        let expected = "First line.\n\nSecond line.[^note]\n\n```text\nalpha\nbeta\n```\n\n\
+                        [^note]: first\n    continued";
+        assert_eq!(md_paragraphs(source), expected);
     }
 
     #[test]
@@ -3585,7 +3696,7 @@ mod tests {
 
     #[test]
     fn the_running_header_is_surname_and_keyword() {
-        assert_eq!(surname("Josh King"), "King");
+        assert_eq!(surname("Ada Quill"), "Quill");
         assert_eq!(surname("Martin Luther King Jr."), "King");
         assert_eq!(surname(""), "");
         assert_eq!(keyword("The Archive"), "ARCHIVE");
@@ -3604,8 +3715,8 @@ mod tests {
 
     #[test]
     fn book_identifiers_are_stable_and_distinct() {
-        let a = book_id("The Archive", "Josh King");
-        assert_eq!(a, book_id("The Archive", "Josh King"));
+        let a = book_id("The Archive", "Ada Quill");
+        assert_eq!(a, book_id("The Archive", "Ada Quill"));
         assert_ne!(a, book_id("The Archive", "Someone Else"));
         assert_ne!(book_id("ab", "c"), book_id("a", "bc"));
         assert!(
@@ -3620,7 +3731,7 @@ mod tests {
         let p = Project::load(&d).unwrap();
         let out = export(&p, &all_options()).unwrap();
         assert_eq!(out.files.len(), 3);
-        let docx_path = d.join("exports/King_The-Archive_Manuscript.docx");
+        let docx_path = d.join("exports/Quill_The-Archive_Manuscript.docx");
         assert!(
             out.files.contains(&docx_path),
             "Lastname_Title: {:?}",
@@ -3647,12 +3758,12 @@ mod tests {
         let paras = docx_paragraphs(doc);
         let has = |style: &str, text: &str| paras.iter().any(|(s, t)| s == style && t == text);
         assert!(
-            paras[0].1.starts_with("Josh King") && paras[0].1.ends_with("about 0 words"),
+            paras[0].1.starts_with("Ada Quill") && paras[0].1.ends_with("about 100 words"),
             "{:?}",
             paras[0]
         );
         assert!(has("Title", "The Archive"), "title case, as typed");
-        assert!(has("Centered", "by Josh King"));
+        assert!(has("Centered", "by Ada Quill"));
         assert!(has("Heading1", "Act One") && has("Heading1", "Act Two"));
         assert!(
             has("Heading2", "Chapter One")
@@ -3715,7 +3826,7 @@ mod tests {
         assert!(doc.contains("<w:headerReference w:type=\"default\" r:id=\"rIdHeader\"/>"));
         assert!(doc.contains("<w:pgNumType w:start=\"1\"/>"));
         let header = entry(&files, "word/header1.xml");
-        assert!(header.contains("King / ARCHIVE / "));
+        assert!(header.contains("Quill / ARCHIVE / "));
         assert!(header.contains(" PAGE "));
         assert!(entry(&files, "word/styles.xml").contains("Times New Roman"));
 
@@ -3764,7 +3875,7 @@ mod tests {
             }
         }
         let opf = entry(&files, "OEBPS/content.opf");
-        let id = book_id("The Archive", "Josh King");
+        let id = book_id("The Archive", "Ada Quill");
         assert!(opf.contains(&format!(
             "<dc:identifier id=\"book-id\">{id}</dc:identifier>"
         )));
@@ -3866,7 +3977,7 @@ mod tests {
 
         let out = export(&p, &all_options()).unwrap();
         assert_eq!(out.tks.len(), 1, "the export says so too");
-        let docx = unzip(&fs::read(d.join("exports/King_The-Archive_Manuscript.docx")).unwrap());
+        let docx = unzip(&fs::read(d.join("exports/Quill_The-Archive_Manuscript.docx")).unwrap());
         let doc = entry(&docx, "word/document.xml");
         let paras = docx_paragraphs(doc);
         let text: String = paras
@@ -3927,7 +4038,7 @@ mod tests {
         );
 
         let docx_file =
-            unzip(&fs::read(d.join("exports/King_The-Archive_Manuscript_Act-Two.docx")).unwrap());
+            unzip(&fs::read(d.join("exports/Quill_The-Archive_Manuscript_Act-Two.docx")).unwrap());
         let paras = docx_paragraphs(entry(&docx_file, "word/document.xml"));
         let headings: Vec<&str> = paras
             .iter()
@@ -3975,7 +4086,7 @@ mod tests {
         put(
             &d,
             "front-matter/01-title.md",
-            "Josh King\n\n# The Archive\n\nA *novel*\n",
+            "Ada Quill\n\n# The Archive\n\nA *novel*\n",
         );
         put(&d, "front-matter/02-dedication.md", "For Wren.\n");
         let p = Project::load(&d).unwrap();
@@ -3988,7 +4099,7 @@ mod tests {
             !paras.iter().any(|(s, _)| s == "Title"),
             "no generated title"
         );
-        assert_eq!(paras[0].1, "about 0 words");
+        assert_eq!(paras[0].1, "about 100 words");
         assert!(
             paras
                 .iter()
@@ -4051,7 +4162,7 @@ mod tests {
         let d = book_dir("compile");
         let p = Project::load(&d).unwrap();
         let expected = concat!(
-            "Josh King  \n\nabout 0 words\n\n# The Archive\n\nby Josh King\n\n",
+            "Ada Quill  \n\nabout 100 words\n\n# The Archive\n\nby Ada Quill\n\n",
             "\n# ACT ONE\n\n",
             "\n## Chapter One\n\n",
             "The building had *no* windows on the north face.\n\n“Wait — **now**,” she said, & meant <it>.\n",
@@ -4102,8 +4213,8 @@ mod tests {
         let d = book_dir("titlepage");
         set_look(
             &d,
-            "\n[contact]\nlegal_name = \"Joshua King\"\naddress = [\"12 Harbour Road\", \"Kokomo\"]\n\
-             phone = \"555-0100\"\nemail = \"josh@example.com\"\nagent = [\"Sam Lee, Lee Literary\"]\n",
+            "\n[contact]\nlegal_name = \"Adaline Quill\"\naddress = [\"12 Harbour Road\", \"Seaport\"]\n\
+             phone = \"555-0100\"\nemail = \"ada@example.com\"\nagent = [\"Sam Lee, Lee Literary\"]\n",
         );
         let (paras, doc, styles, header) = docx_of(&d, &all_options());
         let lines: Vec<&str> = paras
@@ -4114,11 +4225,11 @@ mod tests {
         assert_eq!(
             lines,
             [
-                "Joshua Kingabout 0 words",
+                "Adaline Quillabout 100 words",
                 "12 Harbour Road",
-                "Kokomo",
+                "Seaport",
                 "555-0100",
-                "josh@example.com",
+                "ada@example.com",
                 "",
                 "Sam Lee, Lee Literary"
             ],
@@ -4126,7 +4237,7 @@ mod tests {
         );
         let title = paras.iter().position(|(s, _)| s == "Title").unwrap();
         assert_eq!(paras[title].1, "The Archive", "title case, as typed");
-        assert_eq!(paras[title + 1], ("Centered".into(), "by Josh King".into()));
+        assert_eq!(paras[title + 1], ("Centered".into(), "by Ada Quill".into()));
         // Halfway down: the space before the title makes up what the block
         // above didn't take (4.5 inches from the top margin in all).
         assert!(
@@ -4138,7 +4249,10 @@ mod tests {
         assert!(styles.contains("w:line=\"480\""));
         assert!(styles.contains("<w:ind w:firstLine=\"720\"/>"));
         assert!(doc.contains("<w:pgSz w:w=\"12240\" w:h=\"15840\"/>"));
-        assert!(header.contains("King / ARCHIVE / "), "the byline's surname");
+        assert!(
+            header.contains("Quill / ARCHIVE / "),
+            "the byline's surname"
+        );
         fs::remove_dir_all(&d).unwrap();
     }
 
@@ -4172,7 +4286,7 @@ mod tests {
         let ch1 = paras.iter().position(|(_, t)| t == "CHAPTER ONE").unwrap();
         assert_eq!(paras[ch1 + 1].0, "Unindented", "flush after the heading");
         assert_eq!(paras.last().unwrap().1, "THE END");
-        assert!(header.contains("King / Archive Book / "));
+        assert!(header.contains("Quill / Archive Book / "));
         fs::remove_dir_all(&d).unwrap();
     }
 
@@ -4302,8 +4416,8 @@ mod tests {
         .unwrap();
         assert!(
             out.files.iter().any(
-                |f| f.ends_with("King_The-Archive_Manuscript_Chapters-1-1.docx")
-                    || f.ends_with("King_The-Archive_Manuscript_Chapter-1.docx")
+                |f| f.ends_with("Quill_The-Archive_Manuscript_Chapters-1-1.docx")
+                    || f.ends_with("Quill_The-Archive_Manuscript_Chapter-1.docx")
             ),
             "{:?}",
             out.files
@@ -4359,7 +4473,7 @@ mod tests {
         put(
             &d,
             "back-matter/02-Ebook/01-About.md",
-            "---\ncompile: true\n---\n\n# About the Author\n\nJosh lives by the sea.\n",
+            "---\ncompile: true\n---\n\n# About the Author\n\nAda lives by the sea.\n",
         );
         put(
             &d,
@@ -4369,7 +4483,7 @@ mod tests {
         put(
             &d,
             "back-matter/03-Also-By.md",
-            "---\ncompile: true\n---\n\n# Also by Josh King\n\nThe Tide.\n",
+            "---\ncompile: true\n---\n\n# Also by Ada Quill\n\nThe Tide.\n",
         );
         put(
             &d,
@@ -4445,7 +4559,7 @@ mod tests {
             .iter()
             .map(|id| text_of(&files, &format!("OEBPS/{id}.xhtml")))
             .collect();
-        assert!(back_text.contains("About the Author") && back_text.contains("Also by Josh King"));
+        assert!(back_text.contains("About the Author") && back_text.contains("Also by Ada Quill"));
         assert!(!back_text.contains("Colophon") && !back_text.contains("Never ships"));
         assert!(back_text.contains("epub:type=\"backmatter\""));
         assert!(page.contains(">About the Author</a>"));
@@ -4620,10 +4734,10 @@ mod tests {
         assert!(styles.contains("w:styleId=\"Body\"") && styles.contains("<w:jc w:val=\"both\"/>"));
         assert!(styles.contains("<w:lang w:val=\"en-GB\""));
         assert!(text_of(&files, "word/header-title.xml").contains("The Archive"));
-        assert!(text_of(&files, "word/header-author.xml").contains("Josh King"));
+        assert!(text_of(&files, "word/header-author.xml").contains("Ada Quill"));
         // Scene breaks are the ornament; the paperback's back matter only.
         assert!(doc.contains("⁂"));
-        assert!(doc.contains("Colophon") && doc.contains("Also by Josh King"));
+        assert!(doc.contains("Colophon") && doc.contains("Also by Ada Quill"));
         assert!(!doc.contains("About the Author"));
 
         // The PDF's document: right-hand-only openers, heads left and right.
@@ -4746,6 +4860,313 @@ mod tests {
         let (fodt, pdf) = out.paperback_document.expect("left for the caller to make");
         assert!(fodt.contains("\u{201c}archive\u{201d}"));
         assert!(pdf.to_string_lossy().ends_with("_Paperback.pdf"));
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    /// A small flat book, no parts: each (folder, scene text) is one chapter.
+    fn flat_book(tag: &str, chapters: &[(&str, &str)]) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("grimoire-export-{tag}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&d);
+        put(
+            &d,
+            "novel.toml",
+            "title = \"The Lantern\"\nauthor = \"Ada Quill\"\n",
+        );
+        for (i, (folder, text)) in chapters.iter().enumerate() {
+            put(
+                &d,
+                &format!("manuscript/{:02}-{folder}/01-Scene.md", i + 1),
+                text,
+            );
+        }
+        d
+    }
+
+    #[test]
+    fn every_epub_chapter_gets_its_own_file_even_unnumbered_ones() {
+        let d = flat_book(
+            "epub-ids",
+            &[
+                ("Chapter-One", "First words.\n"),
+                ("Interlude", "A pause.\n"),
+                ("Chapter-Two", "Second words.\n"),
+                ("Coda", "The end of it.\n"),
+                ("Chapter-Three", "Third words.\n"),
+            ],
+        );
+        let p = Project::load(&d).unwrap();
+        let bytes = epub(&book(&p, None, Scope::Whole).unwrap()).expect("the EPUB builds");
+        let files = unzip_bytes(&bytes);
+        let mut names: Vec<&str> = files.iter().map(|(n, _)| n.as_str()).collect();
+        let all = names.len();
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), all, "no two files share a name");
+        let text: String = files
+            .iter()
+            .map(|(_, b)| String::from_utf8_lossy(b).to_string())
+            .collect();
+        for words in [
+            "First words.",
+            "A pause.",
+            "Second words.",
+            "The end of it.",
+            "Third words.",
+        ] {
+            assert!(text.contains(words), "{words} is in the book");
+        }
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    /// An act that opens with one loose scene and then holds its chapters:
+    /// every word of it reaches every format, in order.
+    #[test]
+    fn a_part_with_a_loose_scene_keeps_its_chapters() {
+        let d = std::env::temp_dir().join(format!(
+            "grimoire-export-loose-and-chapters-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&d);
+        put(
+            &d,
+            "novel.toml",
+            "title = \"The Lantern\"\nauthor = \"Ada Quill\"\npart_label = \"Act\"\n",
+        );
+        put(
+            &d,
+            "manuscript/01-Act-One/00-Overture.md",
+            "Loose opening words.\n",
+        );
+        put(
+            &d,
+            "manuscript/01-Act-One/01-Chapter-One/01-Scene.md",
+            "First chapter words.\n",
+        );
+        put(
+            &d,
+            "manuscript/01-Act-One/02-Chapter-Two/01-Scene.md",
+            "Second chapter words.\n",
+        );
+        let p = Project::load(&d).unwrap();
+        let b = book(&p, None, Scope::Whole).unwrap();
+        assert_eq!(b.words, 9, "every word is counted");
+        assert_eq!(b.chapters, 2);
+        assert_eq!(b.scenes, 3);
+        let md = markdown(&b);
+        let at = |s: &str| md.find(s).unwrap_or_else(|| panic!("{s} is missing"));
+        assert!(at("ACT ONE") < at("Loose opening"));
+        assert!(at("Loose opening") < at("## Chapter One"));
+        assert!(at("First chapter") < at("## Chapter Two"));
+        assert!(at("Second chapter") > at("## Chapter Two"));
+
+        let (paras, ..) = docx_of(&d, &all_options());
+        let text: Vec<&str> = paras.iter().map(|(_, t)| t.as_str()).collect();
+        for words in [
+            "Loose opening words.",
+            "First chapter words.",
+            "Second chapter words.",
+        ] {
+            assert!(text.contains(&words), "{words} is in the DOCX");
+        }
+        let files = unzip_bytes(&epub(&b).unwrap());
+        let all: String = files
+            .iter()
+            .map(|(_, b)| String::from_utf8_lossy(b).to_string())
+            .collect();
+        for words in [
+            "Loose opening words.",
+            "First chapter words.",
+            "Second chapter words.",
+        ] {
+            assert!(all.contains(words), "{words} is in the EPUB");
+        }
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    /// A book of loose scenes, no chapters: one scene file each.
+    fn loose_book(tag: &str, scenes: &[&str]) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("grimoire-export-{tag}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&d);
+        put(
+            &d,
+            "novel.toml",
+            "title = \"The Lantern\"\nauthor = \"Ada Quill\"\n",
+        );
+        for (i, text) in scenes.iter().enumerate() {
+            put(&d, &format!("manuscript/{:02}-Scene.md", i + 1), text);
+        }
+        d
+    }
+
+    #[test]
+    fn an_ebook_of_loose_scenes_still_has_something_in_its_contents() {
+        let d = loose_book("loose-contents", &["The first scene.\n", "The second.\n"]);
+        let p = Project::load(&d).unwrap();
+        let files = unzip_bytes(&epub(&book(&p, None, Scope::Whole).unwrap()).unwrap());
+        let contents = text_of(&files, "OEBPS/contents.xhtml");
+        assert!(
+            contents.contains("<a href=\"text-01.xhtml\">The Lantern</a>"),
+            "the story is listed: {contents}"
+        );
+        let nav = text_of(&files, "OEBPS/nav.xhtml");
+        assert!(nav.contains("href=\"text-01.xhtml\""), "{nav}");
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn loose_scenes_side_by_side_have_a_scene_break_between() {
+        let d = loose_book(
+            "loose-breaks",
+            &["The first scene.\n", "The second scene.\n"],
+        );
+        let p = Project::load(&d).unwrap();
+        let md = markdown(&book(&p, None, Scope::Whole).unwrap());
+        assert!(
+            md.contains("The first scene.\n\n\\#\n\nThe second scene."),
+            "a break in the Markdown: {md}"
+        );
+        let (paras, ..) = docx_of(&d, &all_options());
+        let one = paras
+            .iter()
+            .position(|(_, t)| t == "The first scene.")
+            .unwrap();
+        let two = paras
+            .iter()
+            .position(|(_, t)| t == "The second scene.")
+            .unwrap();
+        assert_eq!(
+            paras[one + 1..two]
+                .iter()
+                .filter(|(s, _)| s == "SceneBreak")
+                .count(),
+            1,
+            "a break in the DOCX"
+        );
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn the_compiled_markdown_keeps_each_line_its_own_paragraph() {
+        let d = flat_book(
+            "md-paragraphs",
+            &[(
+                "Chapter-One",
+                "First line.\nSecond line.\n\n\nThird line.\n",
+            )],
+        );
+        let p = Project::load(&d).unwrap();
+        let md = markdown(&book(&p, None, Scope::Whole).unwrap());
+        assert!(
+            md.contains("First line.\n\nSecond line.\n\nThird line.\n"),
+            "one blank line between paragraphs, never two: {md}"
+        );
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    /// Where the text starts and stops on each master page of the paperback,
+    /// from the page layouts LibreOffice reads: the page margin, plus the
+    /// header or footer and its gap when the page has one.
+    #[test]
+    fn every_paperback_page_has_the_same_text_margins() {
+        let d = reader_book("paperback-margins");
+        let p = Project::load(&d).unwrap();
+        let (_, fodt) = paperback_files(&p, None);
+        let doc = xml_doc(&fodt).expect("the FODT is well-formed");
+        const STYLE: &str = "urn:oasis:names:tc:opendocument:xmlns:style:1.0";
+        const FO: &str = "urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0";
+        let inches = |v: &str| -> f64 { v.trim_end_matches("in").parse().unwrap() };
+        let band = |layout: roxmltree::Node, tag: &str, gap: &str| -> f64 {
+            layout
+                .children()
+                .find(|n| n.has_tag_name((STYLE, tag)))
+                .and_then(|n| n.first_element_child())
+                .map_or(0.0, |props| {
+                    inches(props.attribute((FO, "min-height")).unwrap())
+                        + inches(props.attribute((FO, gap)).unwrap())
+                })
+        };
+        let mut seen = Vec::new();
+        for master in doc
+            .descendants()
+            .filter(|n| n.has_tag_name((STYLE, "master-page")))
+        {
+            let name = master.attribute((STYLE, "name")).unwrap();
+            let layout_name = master.attribute((STYLE, "page-layout-name")).unwrap();
+            let layout = doc
+                .descendants()
+                .find(|n| {
+                    n.has_tag_name((STYLE, "page-layout"))
+                        && n.attribute((STYLE, "name")) == Some(layout_name)
+                })
+                .unwrap();
+            let props = layout
+                .children()
+                .find(|n| n.has_tag_name((STYLE, "page-layout-properties")))
+                .unwrap();
+            let has = |tag: &str| master.children().any(|n| n.has_tag_name((STYLE, tag)));
+            let top = inches(props.attribute((FO, "margin-top")).unwrap())
+                + if has("header") {
+                    band(layout, "header-style", "margin-bottom")
+                } else {
+                    0.0
+                };
+            let bottom = inches(props.attribute((FO, "margin-bottom")).unwrap())
+                + if has("footer") {
+                    band(layout, "footer-style", "margin-top")
+                } else {
+                    0.0
+                };
+            seen.push((
+                name.to_string(),
+                (top * 100.0).round(),
+                (bottom * 100.0).round(),
+            ));
+        }
+        assert_eq!(seen.len(), 5, "{seen:?}");
+        let body = seen.iter().find(|(n, ..)| n == "Body").unwrap().clone();
+        for page in &seen {
+            assert_eq!(
+                (page.1, page.2),
+                (body.1, body.2),
+                "{} has the body's margins: {seen:?}",
+                page.0
+            );
+        }
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn titles_get_the_same_typography_as_the_prose() {
+        let d = std::env::temp_dir().join(format!(
+            "grimoire-export-title-typography-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&d);
+        put(
+            &d,
+            "novel.toml",
+            "title = \"Don't Look -- Yet\"\nauthor = \"Ada Quill\"\n",
+        );
+        put(
+            &d,
+            "manuscript/01-Ada's-Road/01-Chapter-One--The-'Lantern'/01-Scene.md",
+            "\"Go,\" she said.\n",
+        );
+        let p = Project::load(&d).unwrap();
+        let b = book(&p, None, Scope::Whole).unwrap();
+        let md = markdown(&b);
+        for t in [
+            "# Don’t Look—Yet",
+            "ADA’S ROAD",
+            "## Chapter One\n\n*The ‘Lantern’*",
+            "“Go,”",
+        ] {
+            assert!(md.contains(t), "{t} in the Markdown: {md}");
+        }
+        let (paras, ..) = docx_of(&d, &all_options());
+        let all: String = paras.iter().map(|(_, t)| t.as_str()).collect();
+        assert!(all.contains("‘Lantern’"), "{paras:?}");
+        assert!(!all.contains('\''), "no straight quote left: {paras:?}");
         fs::remove_dir_all(&d).unwrap();
     }
 }

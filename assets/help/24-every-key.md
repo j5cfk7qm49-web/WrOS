@@ -6,7 +6,7 @@
 
 | Key | Does |
 |---|---|
-| `Esc` | the menu — or first, closes a note or scene beside, or lets go of a selection |
+| `Esc` | the menu, or first, closes a note or scene beside, or lets go of a selection |
 | `F1` | this help, on the topic for where you are |
 | `?` | this help too, wherever you aren't typing; on the page it's a question mark |
 | `Ctrl-K` | find anything: actions, scenes, notes, themes |
@@ -104,13 +104,14 @@ each answer line in a child note.
 | `p` | new part |
 | `N` | new folder |
 | `r` | rename |
-| `d` | delete, to the Trash |
+| `d` | delete to the Trash, or empty it if the Trash itself is selected |
 | `u` | restore from the Trash |
 | `i` | the scene's or note's details |
 | `K` | move up; `J` down |
 | `H` | the scene's history |
 | `b` | the corkboard |
 | `v` | show the scene beside |
+| `f` | on a Template Sheet: a new note that starts as a copy of it |
 | `/` | find in the whole project |
 | `t` | themes |
 | `q` | quit |
@@ -121,11 +122,16 @@ each answer line in a child note.
 |---|---|
 | `Home` | start of the line; `End` the end |
 | `PgUp` | a screenful up; `PgDn` down |
+| `Ctrl-←` | a word back; `Ctrl-→` a word on (Alt too, and Option on a Mac) |
+| `Ctrl-↑` | a paragraph up; `Ctrl-↓` down |
+| `Ctrl-Home` | the top of the scene; `Ctrl-End` the end |
+| `Shift-→` | select as you go: Shift with any arrow, Home, End, PgUp or PgDn |
+| `Ctrl-Backspace` | delete the word before the cursor; `Ctrl-Delete` the word after |
 | `Ctrl-C` | copy the selection |
 | `Ctrl-X` | cut the selection |
 | `Ctrl-Shift-Z` | redo, where the terminal can send it |
 
-Click to place the cursor, drag to select, and click or right-click an underlined word for its spellings.
+Click to place the cursor, drag to select, double-click for a word and click once more for the paragraph. Click or right-click an underlined word for its spellings.
 
 ## The find bar
 
@@ -137,6 +143,32 @@ Click to place the cursor, drag to select, and click or right-click an underline
 | `Ctrl-E` | exact case or any case (`Alt-C` too) |
 
 `Tab` moves between the find and replace boxes.
+
+## The corkboard
+
+| Key | Does |
+|---|---|
+| `c` | add a chapter and its first scene |
+
+## Read aloud
+
+| Key | Does |
+|---|---|
+| `-` / `+` | slow down or speed up |
+
+## Export results
+
+| Key | Does |
+|---|---|
+| `o` | open the exports folder |
+
+## Taught words
+
+In Settings › Writing › Editor, open **Words spellcheck was taught…**.
+
+| Key | Does |
+|---|---|
+| `d` | take back the highlighted word |
 
 ## The Pomodoro pane
 

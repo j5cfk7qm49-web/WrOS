@@ -36,15 +36,9 @@ fn look(beside: &Path, typed: &str) -> Where {
     }
 }
 
-/// Typing into a one-line box: printable keys add, Backspace takes away.
-fn edit(buf: &mut String, key: Key) {
-    match key {
-        Key::Char(c) if !c.is_control() && buf.chars().count() < 120 => buf.push(c),
-        Key::Backspace => {
-            buf.pop();
-        }
-        _ => {}
-    }
+/// Typing into a one-line box, and mending what's typed.
+fn edit(buf: &mut String, caret: &mut Option<usize>, key: Key) {
+    line::edit(buf, caret, key, 120, |_| true);
 }
 
 impl App {
@@ -139,7 +133,7 @@ impl App {
             Key::Tab => *shape = all[(at + 1) % all.len()],
             Key::BackTab => *shape = all[(at + all.len() - 1) % all.len()],
             Key::Esc => self.overlay = Overlay::None,
-            k => edit(buf, k),
+            k => edit(buf, &mut self.caret, k),
         }
     }
 
@@ -443,9 +437,11 @@ impl App {
         next.screen = self.screen;
         next.frame = self.frame;
         next.state_file = self.state_file.take();
-        if self.speller.is_some() {
+        // The dictionary that's loaded serves for the moment the new book's
+        // own is being read: its names and its dictionary.txt take over as
+        // soon as that's in (the load `App::with` started is kept).
+        if self.speller.is_some() && next.speller.is_none() {
             next.speller = self.speller.take();
-            next.speller_rx = None;
         }
         let left = std::mem::replace(self, next).project.root;
         if let Some(state) = &self.state_file {
@@ -487,7 +483,7 @@ fn typed_box(
     area: Rect,
     t: &Theme,
     (title, lead): (&str, &str),
-    buf: &str,
+    (buf, caret): (&str, Option<usize>),
     (below, keys): (Line, &str),
     extra: Vec<Line>,
 ) {
@@ -496,22 +492,22 @@ fn typed_box(
     let block = pane_block(title, true, t);
     let inner = block.inner(box_area);
     f.render_widget(block, box_area);
-    // A long path shows its end, where the typing is.
+    // A long path slides along to keep the typing in view.
     let room = (inner.width as usize).saturating_sub(5);
-    let n = buf.chars().count();
-    let shown: String = if n > room {
-        format!("…{}", buf.chars().skip(n + 1 - room).collect::<String>())
-    } else {
-        buf.to_string()
-    };
     let lines = vec![
         Line::from(Span::styled(format!(" {lead}"), Style::default().fg(t.dim))),
         Line::from(""),
-        Line::from(vec![
-            Span::styled(" ▸ ", Style::default().fg(t.accent)),
-            Span::styled(shown, Style::default().fg(t.text)),
-            Span::styled("█", Style::default().fg(t.accent)),
-        ]),
+        Line::from(
+            std::iter::once(Span::styled(" ▸ ", Style::default().fg(t.accent)))
+                .chain(line::spans(
+                    buf,
+                    caret,
+                    room,
+                    Style::default().fg(t.text),
+                    t,
+                ))
+                .collect::<Vec<_>>(),
+        ),
         Line::from(""),
         below,
     ]
@@ -605,7 +601,7 @@ pub(super) fn draw_new_book(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             "NEW PROJECT",
             "What's it called? Or a draft's path, to bring it in.",
         ),
-        buf,
+        (buf, app.caret),
         under,
         extra,
     );

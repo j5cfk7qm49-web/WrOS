@@ -1,6 +1,6 @@
 # Writing sessions
 
-Writing sessions mark your sittings like a diary — *Tuesday evening · Act Two · 1,240 words* — so you can see what changed each time you sat down.
+Writing sessions mark your sittings like a diary: *Tuesday evening · Act Two · 1,240 words*, so you can see what changed each time you sat down.
 
 ## On WrOS
 

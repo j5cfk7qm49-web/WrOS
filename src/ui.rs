@@ -116,30 +116,32 @@ pub fn draw(
         paint_band(f.buffer_mut(), info, band);
         paint_band(f.buffer_mut(), progress, band);
     }
-    if !focused {
-        crate::app::overlays::draw_bar_line(f, app, bar, &t, true);
-        if let Some(band) = band {
-            paint_band(f.buffer_mut(), bar, band);
-        }
-    } else if matches!(
-        app.overlay,
-        Overlay::Bar { .. }
-            | Overlay::Palette {
-                under_bar: true,
-                ..
-            }
-    ) {
-        let top = Rect {
+    let top = if focused
+        && matches!(
+            app.overlay,
+            Overlay::Bar { .. }
+                | Overlay::Palette {
+                    under_bar: true,
+                    ..
+                }
+        ) {
+        Rect {
             height: 1,
             ..f.area()
-        };
-        crate::app::overlays::draw_bar_line(f, app, top, &t, false);
+        }
+    } else {
+        bar
+    };
+    if !top.is_empty() {
+        crate::app::overlays::draw_bar_line(f, app, top, &t, !focused);
         if let Some(band) = band {
             paint_band(f.buffer_mut(), top, band);
         }
     }
 
-    if !matches!(app.overlay, Overlay::None) {
+    if matches!(app.overlay, Overlay::None) {
+        app.caret = None;
+    } else {
         let mut overlay_area = f.area();
         if matches!(app.overlay, Overlay::Bar { .. }) {
             overlay_area.height = info.y.saturating_sub(overlay_area.y);
@@ -157,6 +159,13 @@ pub fn draw(
             now,
         )
     });
+    // The top bar uses the selection colour as a ground for its tiles.
+    let content = Rect {
+        y: f.area().y.saturating_add(top.height),
+        height: f.area().height.saturating_sub(top.height),
+        ..f.area()
+    };
+    keep_highlights_legible(f.buffer_mut(), &t, content);
     if t.is_rainbow() {
         paint_rainbow(f.buffer_mut(), t.accent, rainbow_phase());
     }
@@ -264,6 +273,47 @@ fn paint_band(buf: &mut ratatui::buffer::Buffer, area: Rect, band: ratatui::styl
             let cell = &mut buf[(x, y)];
             if cell.bg == ratatui::style::Color::Reset {
                 cell.set_bg(band);
+            }
+        }
+    }
+}
+
+/// How far apart two colours must be for words to read on a highlight.
+pub(crate) const LEGIBLE: f32 = 3.0;
+
+/// Words on a highlighted row, or on a button, always read. A theme's quiet
+/// grey is chosen to sit on the terminal's background, and in many themes it
+/// all but vanishes on the selection colour; so does an accent word, in a
+/// few. Anything drawn on the selection or the accent that's too close to
+/// it is redrawn in the plainest colour that stands out. Done once, on the
+/// finished frame, so every list and every box gets it.
+pub(crate) fn keep_highlights_legible(buf: &mut ratatui::buffer::Buffer, t: &Theme, area: Rect) {
+    use crate::theme::contrast;
+    let area = area.intersection(buf.area);
+    for y in area.top()..area.bottom() {
+        for x in area.left()..area.right() {
+            let Some(cell) = buf.cell_mut((x, y)) else {
+                continue;
+            };
+            if (cell.bg != t.sel && cell.bg != t.accent) || cell.symbol().trim().is_empty() {
+                continue;
+            }
+            if contrast(cell.fg, cell.bg).is_none_or(|c| c >= LEGIBLE) {
+                continue;
+            }
+            let bg = cell.bg;
+            let best = [
+                t.text,
+                ratatui::style::Color::Rgb(16, 16, 20),
+                ratatui::style::Color::Rgb(250, 250, 250),
+            ]
+            .into_iter()
+            .max_by(|a, b| {
+                let (a, b) = (contrast(*a, bg), contrast(*b, bg));
+                a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Equal)
+            });
+            if let Some(best) = best {
+                cell.fg = best;
             }
         }
     }
@@ -383,11 +433,20 @@ fn draw_tree(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) {
     app.rect_tree = inner;
 
     let height = inner.height as usize;
-    if app.sel < app.tree_scroll {
-        app.tree_scroll = app.sel;
-    } else if height > 0 && app.sel >= app.tree_scroll + height {
-        app.tree_scroll = app.sel + 1 - height;
+    // The view follows the highlight when the highlight moves (or the pane
+    // changes height), not on every frame: the wheel can look further down
+    // the book without the outline snapping back.
+    if app.tree_seen != (app.sel, height) {
+        app.tree_seen = (app.sel, height);
+        if app.sel < app.tree_scroll {
+            app.tree_scroll = app.sel;
+        } else if height > 0 && app.sel >= app.tree_scroll + height {
+            app.tree_scroll = app.sel + 1 - height;
+        }
     }
+    app.tree_scroll = app
+        .tree_scroll
+        .min(app.visible.len().saturating_sub(height.max(1)));
 
     let width = inner.width as usize;
     let mut lines: Vec<Line> = Vec::new();
@@ -532,7 +591,19 @@ fn draw_create_keys(f: &mut Frame, app: &mut App, area: Rect, focused: bool, t: 
     let sel = app.visible.get(app.sel).copied();
     let mut spans = vec![Span::raw(" ")];
     let mut x = row.x + 1;
-    let offers = create::offers(&app.project, sel);
+    let offers = if let Some(n) = sel.map(|i| &app.project.nodes[i]) {
+        if n.area == Area::Templates && n.kind == Kind::Scene {
+            vec![('f', "fill in a copy".into())]
+        } else if n.path == grimoire_core::project::trash_dir(&app.project.root) {
+            vec![('d', "empty the Trash".into())]
+        } else if sel.is_some_and(|i| app.project.in_trash(i)) {
+            vec![('u', "restore".into()), ('d', "delete for good".into())]
+        } else {
+            create::offers(&app.project, sel)
+        }
+    } else {
+        create::offers(&app.project, sel)
+    };
     for (i, (key, word)) in offers.iter().enumerate() {
         let gap = if i > 0 { 2 } else { 0 };
         let width = 2 + word.chars().count() as u16;

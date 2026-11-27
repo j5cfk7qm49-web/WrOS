@@ -293,6 +293,12 @@ impl Config {
             self.youtube_search.slug(),
         );
         grimoire_core::atomic::write_text(path, &body)?;
+        // It holds the keys to the music servers: for this person only.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+        }
         Ok(())
     }
 
@@ -493,7 +499,7 @@ impl Modes {
                 .shuffle
                 .map(|s| format!("shuffle {}", if s { "on" } else { "off" })),
             Cmd::Volume(d) => self.volume.map(|v| match (v, *d > 0) {
-                (100.., true) => "volume 100 — as loud as it goes".to_string(),
+                (100.., true) => "volume 100 (as loud as it goes)".to_string(),
                 (0, false) => "volume 0".to_string(),
                 _ => format!("volume {v}"),
             }),
@@ -904,7 +910,7 @@ mod config_tests {
         assert_eq!(m.said(&Cmd::Shuffle).as_deref(), Some("shuffle off"));
         assert_eq!(
             m.said(&Cmd::Volume(10)).as_deref(),
-            Some("volume 100 — as loud as it goes")
+            Some("volume 100 (as loud as it goes)")
         );
         assert_eq!(m.said(&Cmd::Volume(-10)).as_deref(), Some("volume 100"));
         assert_eq!(m.said(&Cmd::Like).as_deref(), Some("like taken back"));

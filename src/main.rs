@@ -177,8 +177,14 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    if matches!(first.as_deref(), Some("-h") | Some("--help")) {
-        println!("grimoire — a terminal writing desk for projects\n");
+    // `grimoire help` too, unless there's a project in a folder called that.
+    let asked_for_help = match first.as_deref() {
+        Some("-h") | Some("--help") => true,
+        Some("help") => !Path::new("help").exists(),
+        _ => false,
+    };
+    if asked_for_help {
+        println!("grimoire: a terminal writing desk for projects\n");
         println!("usage:");
         println!("  grimoire                    open your current manuscript");
         println!("  grimoire <dir>              open a specific one");
@@ -189,9 +195,10 @@ fn main() -> Result<()> {
         println!("  grimoire index              refresh project.md, the project map");
         println!("  grimoire compile            assemble the manuscript");
         println!("  grimoire export [dir]       DOCX + EPUB into exports/; pick formats");
-        println!("                              with --docx --epub --paperback --md,");
-        println!("                              a trim with --trim 6x9, parts with");
-        println!("                              --parts 1,3");
+        println!("                              with --docx --pdf --epub --paperback");
+        println!("                              --md, a trim with --trim 6x9, parts");
+        println!("                              with --parts 1,3, or a sample with");
+        println!("                              --chapters 1-3 or --words 10000");
         println!("  grimoire --version          which version, and who made it");
         println!(
             "  grimoire wros help          WrOS appliance status, safe demo and local comparison (alias: writingdeck)"
@@ -254,6 +261,10 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    // A mistyped option isn't a book to open (or to offer to make).
+    if let Some(option) = first.as_deref().filter(|a| a.starts_with('-')) {
+        anyhow::bail!("there's no option '{option}' · grimoire --help lists what there is");
+    }
     let (root, opening_msg) = resolve_project(first.map(PathBuf::from))?;
     remember(&root);
 
@@ -435,7 +446,7 @@ fn export_command(mut args: impl Iterator<Item = String>) -> Result<()> {
             s if s.starts_with('-') => anyhow::bail!("unknown option '{s}'\n\n  {EXPORT_USAGE}"),
             _ if dir.is_none() => dir = Some(PathBuf::from(a)),
             _ => anyhow::bail!(
-                "one project at a time — '{a}' is a second folder\n\n  {EXPORT_USAGE}"
+                "one project at a time, and '{a}' is a second folder\n\n  {EXPORT_USAGE}"
             ),
         }
     }
@@ -454,14 +465,14 @@ fn export_command(mut args: impl Iterator<Item = String>) -> Result<()> {
             let all = export::parts(&project);
             let noun = project.meta.part_noun();
             if all.is_empty() {
-                anyhow::bail!("this project has no {noun}s to choose from — leave out --parts");
+                anyhow::bail!("this project has no {noun}s to choose from, so leave out --parts");
             }
             let mut chosen = Vec::new();
             for n in numbers {
                 match all.get(n.wrapping_sub(1)) {
                     Some((idx, _)) => chosen.push(*idx),
                     None => anyhow::bail!(
-                        "there is no {noun} {n} — this project has {}:\n{}",
+                        "there is no {noun} {n}. This project has {}:\n{}",
                         all.len(),
                         all.iter()
                             .enumerate()
@@ -601,7 +612,7 @@ fn find_project(arg: Option<PathBuf>) -> Result<(PathBuf, Option<String>)> {
         }
         if !is_project(&abs) {
             anyhow::bail!(
-                "{} is not a manuscript — no manuscript/ directory inside it\n\n  grimoire new {}   start one there",
+                "{} is not a manuscript (no manuscript/ directory inside it)\n\n  grimoire new {}   start one there",
                 pretty(&abs),
                 pretty(&p)
             );
@@ -645,6 +656,26 @@ fn cmd_is_reachable() -> bool {
     matches!(prog.as_str(), "ghostty" | "wezterm")
         || term.contains("kitty")
         || std::env::var("KITTY_WINDOW_ID").is_ok()
+}
+
+fn draw_frame(
+    terminal: &mut display::Terminal,
+    paint: impl FnOnce(&mut ratatui::Frame),
+) -> std::io::Result<()> {
+    use ratatui::crossterm::terminal::{BeginSynchronizedUpdate, EndSynchronizedUpdate};
+
+    // The graphical backend presents whole frames. On terminals, hold the
+    // update and hide the cursor while it visits the cells being repainted.
+    if display::graphical(terminal) {
+        return terminal.draw(paint).map(|_| ());
+    }
+    let mut stdout = std::io::stdout();
+    execute!(stdout, BeginSynchronizedUpdate)?;
+    let drawn = terminal
+        .hide_cursor()
+        .and_then(|()| terminal.draw(paint).map(|_| ()));
+    let ended = execute!(stdout, EndSynchronizedUpdate);
+    drawn.and(ended)
 }
 
 fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
@@ -814,7 +845,7 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
         if app.pomo.tick() {
             chime::on_phase_end(app.pomo.phase, app.pomodoro_chime, crate::chime::ring);
             app.msg = match app.pomo.phase {
-                scene::Phase::Break => "break — go and look at something far away".into(),
+                scene::Phase::Break => "break · go and look at something far away".into(),
                 _ => "back to it".into(),
             };
         }
@@ -832,10 +863,9 @@ fn run(terminal: &mut display::Terminal, app: &mut App) -> Result<()> {
 
         // If the terminal itself goes away, drawing to it or reading from it
         // fails: save what there is before reporting that.
-        let graphical = display::graphical(terminal) || session::composited();
         let mut animating = false;
         let mut splash_wait = None;
-        if let Err(e) = terminal.draw(|f| {
+        if let Err(e) = draw_frame(terminal, |f| {
             splash_wait = splash
                 .as_mut()
                 .and_then(|splash| splash.draw(f, Instant::now()));
@@ -977,6 +1007,9 @@ fn dispatch_event(app: &mut App, ev: Event, confirm_quit: &mut bool) -> bool {
             app.paste_keyboard_wizard(text);
             return false;
         }
+        if app.overlay == Overlay::Deck(app::wros::Page::Settings) {
+            return false;
+        }
         if app.overlay == Overlay::Continuity {
             app.paste_continuity(text);
             return false;
@@ -999,6 +1032,13 @@ fn dispatch_event(app: &mut App, ev: Event, confirm_quit: &mut bool) -> bool {
         }
         if matches!(
             app.overlay,
+            Overlay::ProjectSources(_) | Overlay::PaperDetails { .. }
+        ) {
+            app.paste(text);
+            return false;
+        }
+        if matches!(
+            app.overlay,
             Overlay::Pins
                 | Overlay::Journal
                 | Overlay::Scratchpad
@@ -1012,7 +1052,6 @@ fn dispatch_event(app: &mut App, ev: Event, confirm_quit: &mut bool) -> bool {
                 | Overlay::ReviewNotes
                 | Overlay::Footnotes { .. }
                 | Overlay::FootnoteReader(_)
-                | Overlay::Help { .. }
                 | Overlay::Import(_)
                 | Overlay::Productivity { .. }
                 | Overlay::Deck(_)
@@ -1029,10 +1068,8 @@ fn dispatch_event(app: &mut App, ev: Event, confirm_quit: &mut bool) -> bool {
             } else {
                 app.paste(text);
             }
-        } else {
-            for c in text.chars().filter(|c| !c.is_control()) {
-                app.on_overlay_key(Key::Char(c));
-            }
+        } else if app.overlay_takes_text() {
+            app.paste_overlay(text);
         }
         return false;
     }
@@ -1428,14 +1465,12 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
                 *confirm_quit = false;
             }
             KeyCode::Char('c') => app.copy_selection(),
-            KeyCode::Char('x') => app.cut(),
+            // Cutting and undoing belong to the desk: with a box up they'd
+            // change the page behind it, unseen. (Find keeps undo, for a
+            // replace you want back.)
+            KeyCode::Char('x') if matches!(app.overlay, Overlay::None) => app.cut(),
             // Paste: into the page, or into whatever box is being typed in.
-            KeyCode::Char('v') if matches!(app.overlay, Overlay::None) => app.paste_clipboard(),
-            KeyCode::Char('v') => {
-                for c in app.clipboard_text().chars().filter(|c| !c.is_control()) {
-                    app.on_overlay_key(Key::Char(c));
-                }
-            }
+            KeyCode::Char('v') => app.paste_clipboard(),
             KeyCode::Char('a') if matches!(app.overlay, Overlay::None) => app.select_all(),
             // Bold and italics. Ctrl-I reaches Grimoire only where the
             // terminal tells it apart from Tab (Ghostty, Kitty, WezTerm,
@@ -1456,6 +1491,8 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
             KeyCode::Char('o') if matches!(app.overlay, Overlay::None) => app.open_codex(),
             KeyCode::Char('t') if matches!(app.overlay, Overlay::None) => app.open_marks(),
             KeyCode::Char('d') if matches!(app.overlay, Overlay::None) => app.toggle_focus_mode(),
+            KeyCode::Char('z' | 'Z' | 'y')
+                if !matches!(app.overlay, Overlay::None | Overlay::Find { .. }) => {}
             KeyCode::Char('z') if shift => app.redo(),
             KeyCode::Char('Z') => app.redo(),
             KeyCode::Char('z') => app.undo(),
@@ -1564,10 +1601,7 @@ fn on_key_inner(app: &mut App, k: KeyEvent, confirm_quit: &mut bool) -> bool {
         Focus::Clearing => app.on_clearing_key(key),
     }
 
-    if std::mem::take(&mut app.quit) && quit_or_arm(app, confirm_quit) {
-        return true;
-    }
-    false
+    std::mem::take(&mut app.quit) && quit_or_arm(app, confirm_quit)
 }
 
 /// Quit, saving everything first; true to leave. A save that fails keeps

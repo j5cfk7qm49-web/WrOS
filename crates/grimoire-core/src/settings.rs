@@ -24,7 +24,13 @@ pub struct Settings {
     pub spelling: String,
     /// Search online catalogues from @ and Add a source. On unless turned off.
     pub catalogue_search: bool,
+    /// How fast *Read aloud* reads: 1.0 is the voice's own pace, from half
+    /// that to twice it.
+    pub voice_speed: f32,
 }
+
+/// The slowest and fastest *Read aloud* goes.
+pub const VOICE_SPEEDS: (f32, f32) = (0.5, 2.0);
 
 /// A comfortable measure for prose: about twelve words a line.
 pub const LINE_WIDTH: usize = 72;
@@ -40,6 +46,7 @@ impl Default for Settings {
             voice: String::new(),
             spelling: "en_US".into(),
             catalogue_search: true,
+            voice_speed: 1.0,
         }
     }
 }
@@ -77,6 +84,13 @@ impl Settings {
                 "voice" => out.voice = v.trim().trim_matches('"').to_string(),
                 "spelling" => out.spelling = v.trim().trim_matches('"').to_string(),
                 "catalogue_search" => out.catalogue_search = v.trim() != "false",
+                "voice_speed" => {
+                    if let Ok(n) = v.trim().parse::<f32>()
+                        && n.is_finite()
+                    {
+                        out.voice_speed = n.clamp(VOICE_SPEEDS.0, VOICE_SPEEDS.1);
+                    }
+                }
                 _ => {}
             }
         }
@@ -100,7 +114,9 @@ impl Settings {
              voice = \"{}\"\n\
              # Which English spellcheck knows: en_US, en_GB, en_CA or en_AU.\n\
              spelling = {}\n\
-             catalogue_search = {}\n",
+             catalogue_search = {}\n\
+             # How fast Read aloud reads: 1.0 is the voice's own pace (0.5 to 2.0).\n\
+             voice_speed = {:.1}\n",
             self.spellcheck,
             self.icons,
             self.line_width,
@@ -109,6 +125,7 @@ impl Settings {
             self.voice.replace('"', ""),
             self.spelling,
             self.catalogue_search,
+            self.voice_speed
         )
     }
 }
@@ -186,7 +203,11 @@ mod tests {
             voice: "/home/me/voices/en_US-lessac-high.onnx".into(),
             spelling: "en_GB".into(),
             catalogue_search: false,
+            voice_speed: 1.3,
         };
         assert_eq!(Settings::parse(&s.to_text()), s);
+        // A pace outside what a voice can do is brought back inside it.
+        assert_eq!(Settings::parse("voice_speed = 9").voice_speed, 2.0);
+        assert_eq!(Settings::parse("voice_speed = nonsense").voice_speed, 1.0);
     }
 }

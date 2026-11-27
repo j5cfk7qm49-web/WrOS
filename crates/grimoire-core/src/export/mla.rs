@@ -360,7 +360,7 @@ pub(super) fn export(p: &Project, b: &Book, opts: &ExportOptions) -> Result<Expo
     let stem = format!(
         "{}_{}_MLA",
         crate::names::stem(&p.meta.mla.surname),
-        crate::names::stem(b.title)
+        crate::names::stem(&b.title)
     );
     let mut files = Vec::new();
     let mut pdf_error = None;
@@ -389,7 +389,7 @@ pub(super) fn export(p: &Project, b: &Book, opts: &ExportOptions) -> Result<Expo
         mla_document = Some((paper.typst(), path.with_extension("pdf")));
     }
     if opts.markdown {
-        let path = dir.join(format!("{}.md", slug(b.title)));
+        let path = dir.join(format!("{}.md", slug(&b.title)));
         let raw = b
             .source_indices
             .iter()

@@ -70,6 +70,9 @@ pub struct Reading {
     pub history: Vec<(PathBuf, String)>,
     pub source_path: PathBuf,
     pub source_revision: (u64, u64),
+    /// The voice itself and its pace, to start it again at another speed.
+    pub engine: crate::voice::Engine,
+    pub speed: f32,
 }
 
 /// Save a couple of seconds after typing stops…
@@ -113,9 +116,9 @@ pub enum Focus {
 /// back.
 /// The recovered-words choices, in the order they're listed.
 pub const RECOVER_CHOICES: [&str; 3] = [
-    "Restore them — the saved versions go into each scene's history",
-    "Keep the saved versions — the recovered words go to the trash",
-    "Decide later — offered again next time",
+    "Restore them (the saved versions go into each scene's history)",
+    "Keep the saved versions (the recovered words go to the trash)",
+    "Decide later (offered again next time)",
 ];
 
 #[derive(Debug, Clone)]
@@ -218,9 +221,15 @@ pub struct App {
     pub parents: Vec<Option<usize>>,
     pub sel: usize,
     pub tree_scroll: usize,
+    /// The highlight and pane height the outline last scrolled to keep in
+    /// view; it only follows again when one of them changes.
+    pub tree_seen: (usize, usize),
     pub open: Option<usize>,
     pub editor: Editor,
     pub focus: Focus,
+    /// Where the caret is in the one-line box being typed in, counted in
+    /// characters; `None` is the end. One box takes typing at a time.
+    pub caret: Option<usize>,
     /// The manuscript's word count at the start of today: "today" is what it
     /// has grown by since. See [`App::tick_today`].
     pub baseline: usize,
@@ -407,7 +416,15 @@ pub struct App {
     pub reading: Option<Reading>,
     /// The corkboard to come back to after naming, renaming or deleting a
     /// card from it.
-    pub cork_back: Option<Overlay>,
+    pub cork_back: Option<(Overlay, Focus)>,
+    /// The sessions list a change was opened from, kept so that closing the
+    /// change comes back to the same session and the same row.
+    pub sessions_back: Option<Overlay>,
+    /// A search across the book that a match was opened from: what was
+    /// looked for, the replacement if one was typed, and the row.
+    pub book_find: Option<(String, Option<String>, usize)>,
+    /// A Template Sheet's form, waiting for the note being named to fill.
+    pub from_sheet: Option<String>,
     /// The last click on the page: when, where, and how many in a row.
     last_click: Option<(Instant, u16, u16, u8)>,
     /// What was last copied or cut, for Ctrl-V when the system clipboard
@@ -877,6 +894,12 @@ pub enum Overlay {
         back: Option<Box<Overlay>>,
     },
     /// Suggestions for one misspelt word, plus adding it to the book.
+    /// Every word "Always ignore" taught the spellcheck, to take one back:
+    /// the word, and whether it's this book's (or the writer's, everywhere).
+    Taught {
+        sel: usize,
+        words: Vec<(String, bool)>,
+    },
     Spelling {
         line: usize,
         start: usize,
@@ -1052,9 +1075,11 @@ impl App {
             parents,
             sel: 0,
             tree_scroll: 0,
+            tree_seen: (usize::MAX, 0),
             open: None,
             editor: productivity::source_editor(""),
             focus: Focus::Tree,
+            caret: None,
             baseline,
             baseline_date,
             challenge_days_checked: HashSet::new(),
@@ -1153,6 +1178,9 @@ impl App {
             day_noted: None,
             reading: None,
             cork_back: None,
+            sessions_back: None,
+            book_find: None,
+            from_sheet: None,
             clip: String::new(),
             last_click: None,
             state_file: None,
@@ -1184,7 +1212,7 @@ impl App {
             }
             if guide.is_some() {
                 app.msg =
-                    "a new project — this is how it's laid out · Tab to read, Esc for the menu"
+                    "a new project, and this is how it’s laid out · Tab to read, Esc for the menu"
                         .into();
             }
             app.resume_where_left();
@@ -1204,10 +1232,10 @@ impl App {
                 .filter(|n| n.disk.unavailable.is_some())
                 .count();
             if let Some(why) = &app.project.meta_unreadable {
-                app.msg = format!("{why} — opened with the defaults, and it won't be rewritten");
+                app.msg = format!("{why} · opened with the defaults, and it won't be rewritten");
             } else if unreadable > 0 {
                 app.msg = format!(
-                    "{unreadable} file{} can't be read right now (not downloaded, or offline?) — shown, kept, and never saved over",
+                    "{unreadable} file{} can't be read right now (not downloaded, or offline?) · shown, kept, and never saved over",
                     if unreadable == 1 { "" } else { "s" }
                 );
             }
@@ -1231,14 +1259,14 @@ impl App {
         let told = root.join(".grimoire").join("history-notice");
         if self.history_in_book && !told.exists() {
             self.msg = format!(
-                "writing history is inside this {} folder, where sync can damage it — \
+                "writing history is inside this {} folder, where sync can damage it · \
                  Esc › Move writing history out (your writing is safe either way)",
                 client.label()
             );
             let _ = fs::create_dir_all(root.join(".grimoire"));
             let _ = fs::write(&told, "shown\n");
         } else if self.msg.is_empty() {
-            self.msg = format!("in {} — conflicts are caught and kept", client.label());
+            self.msg = format!("in {} · conflicts are caught and kept", client.label());
         } else {
             self.msg = format!("{} · in {}", self.msg, client.label());
         }
@@ -1360,7 +1388,7 @@ impl App {
                 self.editor = productivity::source_editor("");
             }
             self.msg = format!(
-                "{} can't be edited yet — {}",
+                "{} can't be edited yet: {}",
                 self.project.nodes[i].title, why.why
             );
             return;
@@ -1372,7 +1400,7 @@ impl App {
             self.editor.place(cy, cx);
         }
         self.msg = format!(
-            "{} isn't UTF-8 text, so WrOS shows it but won't change it — resave it as UTF-8 to edit it here",
+            "{} isn't UTF-8 text, so WrOS shows it but won't change it. Resave it as UTF-8 to edit it here",
             self.project.nodes[i].title
         );
     }
@@ -1471,7 +1499,9 @@ impl App {
         let before = self.project.dirty_count();
         self.flush();
         let pending = self.project.dirty_count().max(before);
-        if self.commit_saves() {
+        // Words still waiting on a file that can't be checked yet aren't
+        // saved, and the status bar already says they're waiting.
+        if self.commit_saves() && !matches!(self.save_state, SaveState::Waiting(_)) {
             let recorded = self.checkpoint_productivity(true);
             self.msg = match pending {
                 0 => "all saved".into(),
@@ -1577,7 +1607,7 @@ impl App {
                     .as_ref()
                     .map(|u| u.why.clone())
                     .unwrap_or_else(|| "its file is missing just now".into());
-                let wait = format!("{} can't be saved yet — {why}", n.title);
+                let wait = format!("{} can't be saved yet: {why}", n.title);
                 if !matches!(&self.save_state, SaveState::Waiting(w) if *w == wait) {
                     self.msg =
                         format!("{wait}. Your words are kept and will be saved once it can be.");
@@ -1604,11 +1634,11 @@ impl App {
         self.save_state = SaveState::Failed(why.clone());
         self.msg = if kept {
             format!(
-                "couldn't save {title} ({why}) — your words are kept safe and will be offered back"
+                "couldn't save {title} ({why}) · your words are kept safe and will be offered back"
             )
         } else {
             format!(
-                "couldn't save {title} ({why}) — and couldn't keep a copy either; copy your text somewhere"
+                "couldn't save {title} ({why}), and couldn't keep a copy either; copy your text somewhere"
             )
         };
         false
@@ -1822,7 +1852,7 @@ impl App {
                     self.update_document_editor(i);
                     let m = self.mod_label();
                     self.msg = format!(
-                        "{title} was changed outside WrOS — showing that version ({m}Z goes back)"
+                        "{title} was changed outside WrOS · showing that version ({m}Z goes back)"
                     );
                 }
             }
@@ -1831,7 +1861,7 @@ impl App {
                     self.update_document_editor(i);
                 }
                 self.msg = format!(
-                    "{title} was changed elsewhere while you were writing — that version is the scene now, and yours is beside it as “{}”",
+                    "{title} was changed elsewhere while you were writing · that version is the scene now, and yours is beside it as “{}”",
                     name(&copy)
                 );
                 self.tree_stale = true;
@@ -1844,7 +1874,7 @@ impl App {
             }
             DiskChange::GoneParked(copy) => {
                 self.msg = format!(
-                    "{title} was moved or deleted outside WrOS — your unsaved words are in the Trash as “{}”",
+                    "{title} was moved or deleted outside WrOS · your unsaved words are in the Trash as “{}”",
                     name(&copy)
                 );
                 self.tree_stale = true;
@@ -1852,7 +1882,7 @@ impl App {
             DiskChange::Unavailable(why) => {
                 if open || self.project.nodes[i].dirty {
                     self.msg = format!(
-                        "{title}: {} — what's here is kept, and nothing is saved over it until it can be read",
+                        "{title}: {} · what's here is kept, and nothing is saved over it until it can be read",
                         why.why
                     );
                 }
@@ -1941,7 +1971,7 @@ impl App {
                     self.reveal(j);
                 }
                 self.msg = format!(
-                    "{} was moved outside WrOS — followed it",
+                    "{} was moved outside WrOS · followed it",
                     self.project.nodes[j].title
                 );
             } else {
@@ -2067,6 +2097,14 @@ impl App {
     pub fn paste_clipboard(&mut self) {
         if matches!(
             self.overlay,
+            Overlay::PaperDetails { .. } | Overlay::ProjectSources(_)
+        ) {
+            let text = self.clipboard_text();
+            self.paste(&text);
+            return;
+        }
+        if matches!(
+            self.overlay,
             Overlay::Footnotes { .. } | Overlay::FootnoteReader(_) | Overlay::Help { .. }
         ) {
             return;
@@ -2101,11 +2139,20 @@ impl App {
                 self.deck.shell.nav.current(),
                 shell::Route::BackupForm
                     | shell::Route::WifiConnect
+                    | shell::Route::MusicServerForm
                     | shell::Route::UpdateBundleForm
+                    | shell::Route::ManualClock
+                    | shell::Route::KeyboardWizard
             )
         {
             let text = self.clipboard_text();
             self.paste(&text);
+            return;
+        }
+        if self.overlay != Overlay::None {
+            if self.overlay_takes_text() {
+                self.paste_overlay(&self.clipboard_text());
+            }
             return;
         }
         if !self.focus.is_editor() || self.open.is_none() {
@@ -2239,12 +2286,10 @@ impl App {
         };
         let path = self.project.nodes[idx].path.clone();
         let trash = project::trash_dir(&self.project.root);
-        if path.parent() != Some(trash.as_path()) {
-            self.msg = if self.project.in_trash(idx) {
-                "restore the folder it's in, and it comes back too".into()
-            } else {
-                "that isn't in the Trash".into()
-            };
+        // Anything in the Trash comes back: a whole folder, or one scene
+        // out of a deleted chapter (to that chapter, where it still is).
+        if !self.project.in_trash(idx) || path == trash {
+            self.msg = "that isn't in the Trash".into();
             return;
         }
         self.flush();
@@ -2253,8 +2298,8 @@ impl App {
         }
         let name = self.project.nodes[idx].title.clone();
         let before = self.project.total_words();
-        match project::restore(&self.project.root, &path) {
-            Ok(to) => {
+        match project::restore_with_note(&self.project.root, &path) {
+            Ok((to, note)) => {
                 self.follow_paths(&path, &to);
                 self.record(TreeStep::Moved {
                     what: format!("restore {name}"),
@@ -2270,7 +2315,11 @@ impl App {
                     self.reveal(i);
                 }
                 let m = self.mod_label();
-                self.msg = format!("restored {name} · {m}Z puts it back in the Trash");
+                self.msg = match note {
+                    // It couldn't go exactly where it was: say where it is.
+                    Some(note) => format!("restored {name} · {note}"),
+                    None => format!("restored {name} · {m}Z puts it back in the Trash"),
+                };
             }
             Err(e) => self.msg = format!("couldn't restore it: {e:#}"),
         }
@@ -2677,6 +2726,7 @@ impl App {
                 }
             }
             Action::Voices => self.open_voices(),
+            Action::TaughtWords => self.open_taught(),
             Action::OpenBookAt(root) => {
                 let _ = self.open_book(&root);
             }
@@ -2920,10 +2970,11 @@ impl App {
                 if n > 0 {
                     self.flush();
                 }
+                let m = self.mod_label();
                 self.msg = match n {
                     0 => "no matches".into(),
-                    1 => "replaced 1 — Ctrl-Z undoes it".into(),
-                    n => format!("replaced {n} — Ctrl-Z undoes them"),
+                    1 => format!("replaced 1 · {m}Z undoes it"),
+                    n => format!("replaced {n} · {m}Z undoes them"),
                 };
             }
             Overlay::FindBook {
@@ -2984,19 +3035,82 @@ impl App {
 
     pub fn open_find_book(&mut self, query: String) {
         self.flush();
+        // Coming back from a match: the same search, on the same row, so
+        // the next one is one key away.
+        let (query, with, sel) = match self.book_find.take() {
+            Some((q, with, sel)) if query.is_empty() || query == q => (q, with, sel),
+            _ => (query, None, 0),
+        };
         let hits = search::book(&self.project, &self.parents, &query, self.find_opts);
         self.overlay = Overlay::FindBook {
             query,
-            with: None,
+            with,
             on_with: false,
+            sel: sel.min(hits.len().saturating_sub(1)),
             hits,
-            sel: 0,
             confirm: false,
         };
     }
 
+    /// Change the one highlighted match of a search across the book, and
+    /// leave the rest. One step to undo, like replacing them all.
+    pub(crate) fn replace_hit(&mut self, hit: &search::Hit, query: &str, with: &str) {
+        self.flush();
+        let Some(i) = self.project.nodes.iter().position(|n| n.path == hit.path) else {
+            return;
+        };
+        if self.project.nodes[i].read_only {
+            self.msg = "that one can't be changed right now".into();
+            return;
+        }
+        // Only if the match is still exactly where the list says it is.
+        let still = self.project.nodes[i]
+            .body
+            .split('\n')
+            .nth(hit.line)
+            .is_some_and(|l| {
+                search::matches_with(l, query, self.find_opts).contains(&(hit.start, hit.end))
+            });
+        if !still {
+            self.msg = "that match has changed since the search · search again".into();
+            return;
+        }
+        let (total, _) = self.replace_book_sources(
+            format!("replace one “{query}” with “{with}”"),
+            false,
+            Some(&hit.path),
+            |editor| {
+                editor.select((hit.line, hit.start), (hit.line, hit.end));
+                editor.replace_selection_with_as(with, grimoire_core::measure::Origin::Replace);
+                1
+            },
+        );
+        if total > 0 {
+            let m = self.mod_label();
+            self.msg = format!("replaced that one · {m}Z takes it back");
+        }
+    }
+
     /// Open the scene a hit is in, with the match selected.
     fn go_to_hit(&mut self, path: &Path, line: usize, start: usize, end: usize) {
+        // The search waits, to come back to with `/`.
+        if let Overlay::FindBook {
+            query,
+            with,
+            hits,
+            sel,
+            ..
+        } = &self.overlay
+        {
+            self.book_find = Some((query.clone(), with.clone(), *sel));
+            let m = self.mod_label();
+            self.msg = format!(
+                "match {} of {} · {m}F twice (or / in the outline) goes back to the list",
+                sel + 1,
+                hits.len()
+            );
+        }
+        let note = std::mem::take(&mut self.msg);
         self.overlay = Overlay::None;
         let Some(i) = self.project.nodes.iter().position(|n| n.path == path) else {
             return;
@@ -3008,6 +3122,7 @@ impl App {
         }
         self.focus = self.editor_focus();
         self.editor.select((line, start), (line, end));
+        self.msg = note;
     }
 
     fn replace_in_book(&mut self, query: &str, with: &str) {
@@ -3016,6 +3131,7 @@ impl App {
         let (total, scenes) = self.replace_book_sources(
             format!("replace “{query}” with “{with}”"),
             false,
+            None,
             |editor| editor.replace_matches(query, with, opts),
         );
         let m = self.mod_label();
@@ -3029,6 +3145,7 @@ impl App {
         &mut self,
         what: String,
         manuscript_only: bool,
+        only: Option<&Path>,
         replace: impl Fn(&mut Editor) -> usize,
     ) -> (usize, usize) {
         self.flush();
@@ -3044,6 +3161,7 @@ impl App {
                 || self.project.in_trash(i)
                 || self.project.nodes[i].read_only
                 || (manuscript_only && !self.project.nodes[i].in_manuscript)
+                || only.is_some_and(|path| self.project.nodes[i].path != path)
             {
                 continue;
             }
@@ -3447,7 +3565,7 @@ impl App {
                     self.pdf_job = Some(rx);
                 }
                 lines.push(String::new());
-                // Shunn rounds, which makes a short book "about 0 words".
+                // Shunn rounds, which makes a short book "about 100 words".
                 let rounded = manuscript::rounded_words(done.words);
                 let words = if rounded == 0 {
                     format!("{} words", done.words)
@@ -3622,7 +3740,7 @@ impl App {
 
     /// Build the dictionary off the UI thread, with the notebook's names and
     /// the book's own word list already accepted.
-    fn load_speller(&mut self) {
+    pub(crate) fn load_speller(&mut self) {
         let words = self.speller_words();
         let lang = self.spell_lang;
         let (tx, rx) = std::sync::mpsc::channel();
@@ -3814,7 +3932,7 @@ impl App {
     pub fn open_sessions(&mut self) {
         if !sessions::git_available() {
             self.msg =
-                "writing sessions need Git — install it from git-scm.com, then try again".into();
+                "writing sessions need Git · install it from git-scm.com, then try again".into();
             return;
         }
         if !self.sessions_on && self.timeline.is_none() {
@@ -3909,7 +4027,7 @@ impl App {
         }
         let Some(i) = entry else {
             self.msg = if self.codex_index.is_empty() {
-                "no notes yet — add one under Characters or Places".into()
+                "no notes yet · add one under Characters or Places".into()
             } else {
                 "put the cursor on a name from your notebook".into()
             };
@@ -4146,7 +4264,7 @@ impl App {
             .get(line)
             .map(|l| l.chars().skip(start).take(end - start).collect());
         if still.as_deref() != Some(word) {
-            self.msg = "the text changed under it — try again".into();
+            self.msg = "the text changed under it · try again".into();
             return;
         }
         self.editor.replace_in_line(line, start, end, with);
@@ -4198,10 +4316,12 @@ impl App {
         let (total, _) = self.replace_book_sources(
             format!("fix “{variant}” to “{name}”"),
             true,
+            None,
             |editor| editor.replace_name(variant, name),
         );
+        let m = self.mod_label();
         self.msg = format!(
-            "{variant} → {name} in {total} place{}",
+            "{variant} → {name} in {total} place{} · {m}Z takes it back",
             if total == 1 { "" } else { "s" }
         );
     }
@@ -4230,7 +4350,7 @@ impl App {
             })
             .collect();
         if self.timeline.is_none() && versions.is_empty() {
-            self.msg = format!("no history for {} yet — it's kept as you write", n.title);
+            self.msg = format!("no history for {} yet · it's kept as you write", n.title);
             return;
         }
         let timeline = self
@@ -4329,7 +4449,7 @@ impl App {
         self.flush();
         self.mark_changed(idx);
         self.focus = self.editor_focus();
-        self.msg = "restored — Ctrl-Z undoes it".into();
+        self.msg = format!("restored · {}Z undoes it", self.mod_label());
     }
 
     fn checkpoint_before_change(&mut self, entry: Entry) {
@@ -4351,6 +4471,12 @@ impl App {
     /// Where things go is `create::plan`'s job.
     pub fn start_create(&mut self, want: New) {
         let sel = self.visible.get(self.sel).copied();
+        // Made in the Trash, a new scene would quietly land in the
+        // manuscript instead. Say so, and make nothing.
+        if sel.is_some_and(|i| self.project.in_trash(i)) {
+            self.msg = "nothing new starts in the Trash · pick a place in the project first".into();
+            return;
+        }
         match create::plan(&self.project, &self.parents, sel, want) {
             Ok(plan) => {
                 let fresh = !plan.name.is_empty();
@@ -4364,6 +4490,49 @@ impl App {
                 self.overlay = Overlay::None;
                 self.msg = why;
             }
+        }
+    }
+
+    /// `f` on a Template Sheet: a new note in Characters or Places (or
+    /// Notes) that starts as a copy of the form, ready to fill in. It's
+    /// named first, like any new note.
+    pub fn start_from_sheet(&mut self) {
+        let sheet = self.visible.get(self.sel).copied().filter(|&i| {
+            let n = &self.project.nodes[i];
+            n.kind == Kind::Scene && n.area == Area::Templates && !self.project.in_trash(i)
+        });
+        let Some(sheet) = sheet else {
+            self.msg = "f fills in a copy of a Template Sheet · highlight one there first".into();
+            return;
+        };
+        let title = self.project.nodes[sheet].title.to_lowercase();
+        let wanted = if title.contains("character") {
+            Area::Characters
+        } else if title.contains("setting") || title.contains("place") {
+            Area::Places
+        } else {
+            Area::Notes
+        };
+        let section = |a: Area| {
+            self.project
+                .nodes
+                .iter()
+                .position(|n| n.kind == Kind::Category && n.area == a)
+        };
+        let Some(home) = section(wanted).or_else(|| section(Area::Notes)) else {
+            self.msg = "there's no Characters, Places or Notes section to put it in".into();
+            return;
+        };
+        match create::plan(&self.project, &self.parents, Some(home), New::Scene) {
+            Ok(plan) => {
+                self.from_sheet = Some(self.project.nodes[sheet].body.clone());
+                self.overlay = Overlay::Create {
+                    buf: String::new(),
+                    plan,
+                    fresh: false,
+                };
+            }
+            Err(why) => self.msg = why,
         }
     }
 
@@ -4418,8 +4587,21 @@ impl App {
             if plan.folder {
                 // The next key is n or c, which only the tree hears.
                 self.focus = Focus::Tree;
+                // Made from the corkboard, a chapter is asked for its
+                // first scene straight away: a board shows cards.
+                if plan.made == New::Chapter && self.cork_back.is_some() {
+                    self.start_create(New::Scene);
+                }
             } else {
                 self.open_scene(i);
+                // Made from a Template Sheet: it starts as the form.
+                if let Some(form) = self.from_sheet.take() {
+                    self.editor.set_text(&form);
+                    self.flush();
+                    self.mark_changed(i);
+                    // On disk at once: the note is the form from the start.
+                    self.commit_saves();
+                }
             }
         }
         // Say what comes next, so an empty chapter isn't a dead end.
@@ -4434,7 +4616,9 @@ impl App {
             String::new()
         };
         self.msg = format!("made {made}{next}{also}");
-        self.back_to_cork(Some(&path));
+        if self.cork_back.is_some() && !matches!(self.overlay, Overlay::Create { .. }) {
+            self.back_to_cork(Some(&path));
+        }
     }
 
     // ---- renaming and deleting ---------------------------------------------
@@ -4478,7 +4662,7 @@ impl App {
     fn selected_file(&mut self) -> Option<usize> {
         let idx = self.visible.get(self.sel).copied()?;
         if self.project.nodes[idx].kind == Kind::Category {
-            self.msg = "that's a section — pick what's inside it".into();
+            self.msg = "that's a section · pick what's inside it".into();
             return None;
         }
         Some(idx)
@@ -4537,6 +4721,14 @@ impl App {
     }
 
     pub fn start_delete(&mut self) {
+        // On the Trash itself, delete empties it.
+        if let Some(idx) = self.visible.get(self.sel).copied()
+            && self.project.nodes[idx].kind == Kind::Category
+            && self.project.in_trash(idx)
+        {
+            self.start_empty_trash();
+            return;
+        }
         let Some(idx) = self.selected_file() else {
             return;
         };
@@ -4547,6 +4739,35 @@ impl App {
             noun: self.noun_of(idx),
             words: self.project.subtree_words(idx),
             permanent: self.project.in_trash(idx),
+        };
+    }
+
+    /// Ask before emptying the Trash: the one delete that can't be undone.
+    pub fn start_empty_trash(&mut self) {
+        let trash = project::trash_dir(&self.project.root);
+        let Some(idx) = self.project.nodes.iter().position(|n| n.path == trash) else {
+            self.msg = "the Trash is already empty".into();
+            return;
+        };
+        let holds = self
+            .project
+            .nodes
+            .iter()
+            .filter(|n| n.path.parent() == Some(trash.as_path()))
+            .count();
+        if holds == 0 {
+            self.msg = "the Trash is already empty".into();
+            return;
+        }
+        self.overlay = Overlay::Confirm {
+            path: trash,
+            name: match holds {
+                1 => "the 1 thing in the Trash".into(),
+                n => format!("all {n} things in the Trash"),
+            },
+            noun: "the trash".into(),
+            words: self.project.subtree_words(idx),
+            permanent: true,
         };
     }
 
@@ -4563,7 +4784,22 @@ impl App {
         }
         let root = self.project.root.clone();
         self.close_document_views_under(&path);
-        let done = if permanent {
+        let emptying = path == project::trash_dir(&root);
+        let done = if emptying {
+            // The Trash itself stays; everything in it goes, and its record
+            // of where things came from with them.
+            (|| -> Result<String> {
+                anyhow::ensure!(
+                    std::fs::symlink_metadata(&path)?.is_dir(),
+                    "the Trash folder changed"
+                );
+                for entry in std::fs::read_dir(&path)? {
+                    project::destroy(&entry?.path())?;
+                }
+                self.undo_stash.retain(|p, _| !p.starts_with(&path));
+                Ok(String::new())
+            })()
+        } else if permanent {
             project::destroy(&path).map(|_| {
                 self.undo_stash.retain(|p, _| !p.starts_with(&path));
                 String::new()
@@ -4601,7 +4837,7 @@ impl App {
                     batches: vec![batch],
                     links: false,
                 });
-                format!("{with} — {m}Z puts it back")
+                format!("{with} · {m}Z puts it back")
             })
         };
         match done {
@@ -4610,7 +4846,11 @@ impl App {
                     self.msg = format!("deleted, but couldn't re-read the tree: {e}");
                     return;
                 }
-                self.msg = format!("deleted {name}{where_to}");
+                self.msg = if emptying {
+                    "the Trash is empty".into()
+                } else {
+                    format!("deleted {name}{where_to}")
+                };
             }
             Err(e) => self.msg = format!("couldn't delete it: {e}"),
         }
@@ -5299,6 +5539,7 @@ impl App {
             Key::Char('J') => self.move_selected(false),
             Key::Char('/') => self.open_find_book(String::new()),
             Key::Char('v') => self.open_beside(),
+            Key::Char('f') => self.start_from_sheet(),
             Key::Up => self.sel = self.sel.saturating_sub(1),
             Key::Down => {
                 if self.sel + 1 < self.visible.len() {
@@ -5727,6 +5968,17 @@ impl App {
         if matches!(self.overlay, Overlay::Spelling { .. }) {
             self.overlay = Overlay::None;
         }
+        // In the outline: highlight what's under the pointer and open what
+        // can be done with it (rename, delete, details, a new scene…).
+        if self.overlay == Overlay::None && hit(self.rect_tree, x, y) {
+            let row = self.tree_scroll + (y - self.rect_tree.y) as usize;
+            if row < self.visible.len() {
+                self.sel = row;
+                self.focus = Focus::Tree;
+                self.open_bar(Some(crate::palette::Title::Book), true);
+            }
+            return;
+        }
         if self.editor_at(x, y).is_some() {
             self.on_click(x, y);
         }
@@ -5955,6 +6207,7 @@ impl App {
                 ),
                 Action::CatalogueSearch,
             ),
+            ("Words spellcheck was taught…".into(), Action::TaughtWords),
         ]
     }
 
@@ -6078,7 +6331,7 @@ impl App {
         }
         self.activate_editor(Pane::Primary);
         if self.open.is_none() {
-            self.msg = "open a scene first — focus mode is for writing one".into();
+            self.msg = "open a scene first · focus mode is for writing one".into();
             return;
         }
         self.focus_mode = true;
@@ -6146,7 +6399,7 @@ impl App {
             return;
         }
         if self.open == Some(i) {
-            self.msg = "that's the scene you're writing — pick another to show beside it".into();
+            self.msg = "that's the scene you're writing · pick another to show beside it".into();
             return;
         }
         if self.beside.as_ref().is_some_and(|b| b.path == node.path) {

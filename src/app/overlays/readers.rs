@@ -141,6 +141,19 @@ impl App {
             return;
         };
         if done.is_some() {
+            // The files are made: `o` shows them in the computer's own
+            // file manager, and the list stays up to read.
+            if matches!(key, Key::Char('o') | Key::Char('O')) {
+                let dir = self.project.root.join("exports");
+                self.msg = match super::about::open_url(&dir.to_string_lossy()) {
+                    Ok(()) => "opened the exports folder".into(),
+                    Err(_) => format!(
+                        "couldn't open it here · the files are in {}",
+                        crate::books::pretty(&dir)
+                    ),
+                };
+                return;
+            }
             self.overlay = Overlay::None;
             return;
         }
@@ -412,7 +425,7 @@ pub(super) fn draw_export(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         while lines.len() < (inner.height as usize).saturating_sub(1) {
             lines.push(Line::from(""));
         }
-        lines.push(hint_line(" any key closes", t));
+        lines.push(hint_line(" o opens the folder   any other key closes", t));
         f.render_widget(Paragraph::new(lines), inner);
         return;
     }
@@ -460,7 +473,7 @@ pub(super) fn draw_export(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     } else if app.has_office() {
         "the same pages, made by LibreOffice"
     } else {
-        "needs LibreOffice (free) — libreoffice.org"
+        "needs LibreOffice (free) from libreoffice.org"
     };
     let paperback_note = if app.has_office() {
         format!("◂ {} ▸  print-ready DOCX + PDF", trim.label())
@@ -532,7 +545,7 @@ pub(super) fn draw_export(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     lines.push(row2(how_much + 1, "Look…", m.manuscript.summary(), dim));
     let who = if m.contact.is_empty() {
         (
-            "not set — the title page wants your name and email".to_string(),
+            "not set (the title page wants your name and email)".to_string(),
             Style::default().fg(t.warn),
         )
     } else {
@@ -575,7 +588,7 @@ pub(super) fn draw_export(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             format!(
-                " {} TK{} still in the text — x again exports anyway, ^T finds them",
+                " {} TK{} still in the text · x again exports anyway, ^T finds them",
                 found.len(),
                 if found.len() == 1 { " is" } else { "s are" }
             ),
@@ -715,18 +728,27 @@ impl App {
         };
         let n = fields.len();
         match key {
-            Key::Up => *sel = sel.saturating_sub(1),
-            Key::Down | Key::Tab => *sel = (*sel + 1).min(n - 1),
-            Key::BackTab => *sel = sel.saturating_sub(1),
-            Key::Char(c) if !c.is_control() => {
-                if fields[*sel].chars().count() < 120 {
-                    fields[*sel].push(c);
-                }
+            Key::Up | Key::BackTab => {
+                *sel = sel.saturating_sub(1);
+                self.caret = None;
             }
-            Key::Backspace => {
-                fields[*sel].pop();
+            Key::Down | Key::Tab => {
+                *sel = (*sel + 1).min(n - 1);
+                self.caret = None;
             }
-            Key::Enter if *sel + 1 < n => *sel += 1,
+            Key::Char(_)
+            | Key::Backspace
+            | Key::Delete
+            | Key::Left
+            | Key::Right
+            | Key::Home
+            | Key::End => {
+                line::edit(&mut fields[*sel], &mut self.caret, key, 120, |_| true);
+            }
+            Key::Enter if *sel + 1 < n => {
+                *sel += 1;
+                self.caret = None;
+            }
             Key::Enter | Key::Esc => {
                 let (f, back) = (fields.clone(), back.take());
                 let keep = |v: &[String]| -> Vec<String> {
@@ -849,25 +871,28 @@ pub(super) fn draw_author(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
     let room = (inner.width as usize).saturating_sub(24);
     for (i, value) in fields.iter().enumerate() {
         let on = i == *sel;
-        let shown = if on {
-            format!("{}▏", truncate(value, room.saturating_sub(1)))
-        } else {
-            truncate(value, room)
-        };
-        let l = Line::from(vec![
-            Span::styled(
-                if on { " ▸ " } else { "   " },
-                Style::default().fg(t.accent),
-            ),
-            Span::styled(
-                format!("{:<19}", AUTHOR_LABELS[i]),
-                Style::default().fg(if on { t.accent } else { t.text }),
-            ),
-            Span::styled(
-                shown,
-                Style::default().fg(if on { t.accent } else { t.text }),
-            ),
-        ]);
+        let l = Line::from(
+            vec![
+                Span::styled(
+                    if on { " ▸ " } else { "   " },
+                    Style::default().fg(t.accent),
+                ),
+                Span::styled(
+                    format!("{:<19}", AUTHOR_LABELS[i]),
+                    Style::default().fg(if on { t.accent } else { t.text }),
+                ),
+            ]
+            .into_iter()
+            .chain(if on {
+                line::spans(value, app.caret, room, Style::default().fg(t.accent), t)
+            } else {
+                vec![Span::styled(
+                    truncate(value, room),
+                    Style::default().fg(t.text),
+                )]
+            })
+            .collect::<Vec<_>>(),
+        );
         lines.push(if on {
             l.style(Style::default().bg(t.sel))
         } else {

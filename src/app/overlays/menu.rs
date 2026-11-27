@@ -121,7 +121,7 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "outline",
         ),
         Action::Delete => (
-            "Moves it to the Trash at the bottom of the outline. It asks first, by name.",
+            "Moves the item to the Trash. On the Trash itself, it asks before emptying it.",
             "outline",
         ),
         Action::Goals => (
@@ -276,6 +276,10 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
         ),
         Action::Spellcheck => (
             "Underlines words that might be misspelt as you write.",
+            "spelling",
+        ),
+        Action::TaughtWords => (
+            "Every word you told spellcheck to always ignore, in this project and in every project. Take one back and it's underlined again.",
             "spelling",
         ),
         Action::SpellingLanguage => (

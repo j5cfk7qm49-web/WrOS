@@ -106,9 +106,14 @@ impl App {
             Engine::Silent
         };
         let name = engine.name();
+        let speed = if self.background {
+            Settings::load().voice_speed
+        } else {
+            Settings::default().voice_speed
+        };
         let texts = sentences.iter().map(|s| s.text.clone()).collect();
         self.reading = Some(Reading {
-            reader: voice::Reader::start(engine, texts, from),
+            reader: voice::Reader::start(engine.clone(), texts, from, speed),
             sentences,
             at: from,
             voice: name.clone(),
@@ -116,6 +121,8 @@ impl App {
             history: Vec::new(),
             source_path: self.project.nodes[current].path.clone(),
             source_revision: self.editor.revision_stamp(),
+            engine,
+            speed,
         });
         self.focus = self.editor_focus();
         self.show_sentence(from);
@@ -144,7 +151,9 @@ impl App {
         {
             return false;
         }
-        self.reading = None;
+        let Some(Reading { engine, speed, .. }) = self.reading.take() else {
+            return false;
+        };
         self.open_scene(idx);
         if self.open != Some(idx)
             || grimoire_core::diagnostics::hex_digest(self.editor.text().as_bytes()) != expected
@@ -155,18 +164,10 @@ impl App {
         if sentences.is_empty() {
             return false;
         }
-        let engine = if self.background {
-            match voice::choose(&Settings::load().voice) {
-                Some(e) => e,
-                None => return false,
-            }
-        } else {
-            Engine::Silent
-        };
         let name = engine.name();
         let texts = sentences.iter().map(|s| s.text.clone()).collect();
         self.reading = Some(Reading {
-            reader: voice::Reader::start(engine, texts, 0),
+            reader: voice::Reader::start(engine.clone(), texts, 0, speed),
             sentences,
             at: 0,
             voice: name.clone(),
@@ -174,6 +175,8 @@ impl App {
             history,
             source_path: path,
             source_revision: self.editor.revision_stamp(),
+            engine,
+            speed,
         });
         self.focus = self.editor_focus();
         self.show_sentence(0);
@@ -349,6 +352,31 @@ impl App {
                 let i = r.at + 1;
                 r.reader.jump(i);
             }
+            // Slower or faster, a tenth at a time. The voice starts the
+            // sentence it's on again at the new pace, and the pace is kept
+            // for next time.
+            Key::Char('-' | '_' | '+' | '=') => {
+                let (lo, hi) = grimoire_core::settings::VOICE_SPEEDS;
+                let step = if matches!(key, Key::Char('-' | '_')) {
+                    -0.1
+                } else {
+                    0.1
+                };
+                let speed = ((r.speed + step) * 10.0).round() / 10.0;
+                let speed = speed.clamp(lo, hi);
+                if speed != r.speed {
+                    r.speed = speed;
+                    let texts = r.sentences.iter().map(|s| s.text.clone()).collect();
+                    let at = r.at.min(r.sentences.len().saturating_sub(1));
+                    r.reader = voice::Reader::start(r.engine.clone(), texts, at, speed);
+                    if self.background {
+                        let mut s = Settings::load();
+                        s.voice_speed = speed;
+                        let _ = s.save();
+                    }
+                }
+                self.msg = format!("reading aloud · {} · speed {speed:.1}×", r.voice);
+            }
             Key::Char('m') => self.mark_reading_sentence_for_revision(),
             Key::Char('n') => {
                 if !self.advance_reading_queue() {
@@ -436,32 +464,38 @@ pub(super) fn draw_reading(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         )
     };
     let mut hints = String::from(if r.reader.paused {
-        "space go on  ← → sentence  m mark note"
+        "space go on  ← → sentence  - + speed  m mark note"
     } else {
-        "space pause  ← → sentence  m mark note"
+        "space pause  ← → sentence  - + speed  m mark note"
     });
-    hints.push_str(match (!r.queue.is_empty(), !r.history.is_empty()) {
+    let scene_hint = match (!r.queue.is_empty(), !r.history.is_empty()) {
         (true, true) => "  n/p next/prev scene",
         (true, false) => "  n next scene",
         (false, true) => "  p prev scene",
         (false, false) => "",
-    });
+    };
+    hints.push_str(scene_hint);
     hints.push_str("  esc stop");
     let state = if r.reader.paused {
         "paused"
     } else {
         "reading aloud"
     };
-    let place = format!(
-        " · sentence {} of {}{}",
+    let progress = format!(
+        "{} of {}{queue_note} · {:.1}×",
         r.at + 1,
         r.sentences.len(),
-        queue_note
+        r.speed
     );
-    // The voice was named when reading began; drop it before the keys run off the edge.
+    let width = usize::from(row.width);
+    let hints_width = 6 + state.chars().count() + hints.chars().count();
+    let mut place = format!(" · sentence {progress}");
+    if !scene_hint.is_empty() && hints_width + place.chars().count() > width {
+        place = format!(" · {progress}");
+    }
+    // Leave room for the keys before showing the voice again.
     let voice = format!(" · {}", r.voice);
-    let used = 3 + state.chars().count() + place.chars().count() + 3 + hints.chars().count();
-    let voice = if used + voice.chars().count() <= usize::from(row.width) {
+    let voice = if hints_width + place.chars().count() + voice.chars().count() <= width {
         voice
     } else {
         String::new()

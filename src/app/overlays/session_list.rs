@@ -17,7 +17,7 @@ impl App {
                     Ok(()) => {
                         self.sessions_on = true;
                         self.msg =
-                            "session history is on — each session is kept when you quit".into();
+                            "session history is on · each session is kept when you quit".into();
                         self.open_sessions();
                     }
                     Err(e) => self.msg = format!("couldn't turn on session history: {e}"),
@@ -62,6 +62,9 @@ impl App {
                             .file_stem()
                             .map(|x| x.to_string_lossy().to_string())
                             .unwrap_or_default();
+                        // The list as it stands, to come back to: the same
+                        // session, the same file in it.
+                        self.sessions_back = Some(self.overlay.clone());
                         self.overlay = Overlay::SessionDiff {
                             title,
                             label: s.label.clone(),
@@ -107,7 +110,10 @@ impl App {
         match key {
             Key::Down | Key::PageDown | Key::Char(' ') => *scroll += 5,
             Key::Up | Key::PageUp => *scroll = scroll.saturating_sub(5),
-            _ => self.open_sessions_keeping_place(),
+            _ => match self.sessions_back.take() {
+                Some(list) => self.overlay = list,
+                None => self.open_sessions_keeping_place(),
+            },
         }
     }
 }
@@ -202,7 +208,7 @@ pub(super) fn draw_sessions(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         lines.push(Line::from(vec![
             Span::styled(" now: ", dim),
             Span::styled(p.clone(), Style::default().fg(t.sun)),
-            Span::styled("  — saved when you quit, or s to save it now", dim),
+            Span::styled("  · saved when you quit, or s to save it now", dim),
         ]));
     }
     lines.push(Line::from(""));

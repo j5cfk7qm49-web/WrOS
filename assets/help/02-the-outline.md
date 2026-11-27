@@ -17,12 +17,15 @@ The outline is the project's folders and files, shown as a tree. Every change yo
 
 Each asks for a name, with a suggestion already filled in. Type to replace it, or press `Enter` to take it. Nothing is ever renumbered to make room: a new item goes at the end.
 
+Right-click a row in the manuscript outline in Write to select it and open the Project menu.
+
 ## Renaming and deleting
 
 - `r` renames what's selected. The file is renamed to match, and keeps its number and place.
 - `d` deletes it. WrOS asks first, by name, and moves it to the **Trash** section at the bottom of the outline.
 - Deleting something that is **already in the Trash** removes it for good. That one asks too.
-- `u` on something in the Trash **restores** it: back to its old folder under its old name (*Restore from the Trash* in *Project* and `Ctrl-K` too). If its folder has gone since, it's made again.
+- `d` on the **Trash** itself empties it: everything in it goes for good, after one question.
+- `u` on something in the Trash **restores** it: back to its old folder under its old name (*Restore from the Trash* in *Project* and `Ctrl-K` too). If its folder has gone since, it's made again when restoring the whole item. A single scene from a deleted chapter whose folder is gone returns to the top of its section.
 
 ## Details
 

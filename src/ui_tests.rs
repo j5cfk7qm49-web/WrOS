@@ -3417,7 +3417,7 @@ fn a_synced_book_with_history_inside_offers_to_move_it_out() {
     d.app.msg.clear();
     d.app.note_where_it_syncs(true);
     assert_eq!(
-        d.app.msg, "in Dropbox — conflicts are caught and kept",
+        d.app.msg, "in Dropbox · conflicts are caught and kept",
         "only once"
     );
     d.draw();
@@ -3435,7 +3435,7 @@ fn a_synced_book_with_history_inside_offers_to_move_it_out() {
 
 // ---- conflict copies: shown, named, settled, undone ----------------------
 
-const DROPBOX_COPY: &str = "01-Scene-One (Josh's conflicted copy 2026-09-25).md";
+const DROPBOX_COPY: &str = "01-Scene-One (Ada's conflicted copy 2026-09-25).md";
 
 /// A book whose first scene has a Dropbox conflict copy beside it.
 fn conflicted(tag: &str) -> (PathBuf, PathBuf, PathBuf) {
@@ -3485,7 +3485,7 @@ fn settling_takes_the_copy_and_ctrl_z_puts_both_back() {
     d.app.open_conflicts();
     d.draw();
     assert!(d.shows("SETTLE CONFLICTS"));
-    assert!(d.shows("Scene One — Dropbox copy"));
+    assert!(d.shows("Scene One · Dropbox copy"));
     d.key(KeyCode::Enter);
     assert!(matches!(d.app.overlay, Overlay::Settle { .. }));
     assert!(d.shows("Take the Dropbox copy"));
@@ -3814,7 +3814,7 @@ fn the_look_dialog_saves_to_project_toml_and_goes_back_to_export() {
 fn author_details_are_typed_in_and_kept() {
     let mut d = export_desk("author", "Words.");
     let (_, _, author, _) = export_rows(&d);
-    assert!(d.shows("not set — the title page wants your name"));
+    assert!(d.shows("not set (the title page wants your name"));
     go_to(&mut d, author);
     d.key(KeyCode::Enter);
     assert!(matches!(d.app.overlay, Overlay::Author { .. }));
@@ -4382,6 +4382,8 @@ fn key_named(name: &str) -> KeyEvent {
         "End" => KeyCode::End,
         "PgUp" => KeyCode::PageUp,
         "PgDn" => KeyCode::PageDown,
+        "Backspace" => KeyCode::Backspace,
+        "Delete" => KeyCode::Delete,
         "↑" => KeyCode::Up,
         "↓" => KeyCode::Down,
         "←" => KeyCode::Left,
@@ -4512,6 +4514,7 @@ const EVERY_KEY: &[(&str, &str, &[&str])] = &[
     ("The outline", "H", &[]),
     ("The outline", "b", &[]),
     ("The outline", "v", &["↓"]),
+    ("The outline", "f", &[]),
     ("The outline", "/", &[]),
     ("The outline", "t", &[]),
     ("The outline", "q", &[]),
@@ -4519,6 +4522,15 @@ const EVERY_KEY: &[(&str, &str, &[&str])] = &[
     ("The page", "End", &["Home"]),
     ("The page", "PgUp", &[]),
     ("The page", "PgDn", &["PgUp"]),
+    ("The page", "Ctrl-←", &[]),
+    ("The page", "Ctrl-→", &["Ctrl-←"]),
+    ("The page", "Ctrl-↑", &[]),
+    ("The page", "Ctrl-↓", &["Ctrl-↑"]),
+    ("The page", "Ctrl-Home", &[]),
+    ("The page", "Ctrl-End", &["Ctrl-Home"]),
+    ("The page", "Shift-→", &["Home"]),
+    ("The page", "Ctrl-Backspace", &[]),
+    ("The page", "Ctrl-Delete", &["Home"]),
     ("The page", "Ctrl-C", &[]),
     ("The page", "Ctrl-X", &[]),
     ("The page", "Ctrl-Shift-Z", &["x", "Ctrl-Z"]),
@@ -4530,6 +4542,11 @@ const EVERY_KEY: &[(&str, &str, &[&str])] = &[
     ("The find bar", "Alt-W", &[]),
     ("The find bar", "Ctrl-E", &[]),
     ("The find bar", "Alt-C", &[]),
+    ("The corkboard", "c", &[]),
+    ("Read aloud", "-", &[]),
+    ("Read aloud", "+", &[]),
+    ("Export results", "o", &[]),
+    ("Taught words", "d", &[]),
     ("The Pomodoro pane", "Enter", &[]),
     ("The Pomodoro pane", "Space", &[]),
     ("The Pomodoro pane", "r", &["Enter"]),
@@ -4639,6 +4656,27 @@ fn desk_for(section: &str) -> (Desk, std::sync::mpsc::Receiver<music::Cmd>) {
             d.key(KeyCode::Home);
             d.ctrl('f');
             d.typed("the");
+        }
+        "The corkboard" => d.key(KeyCode::Char('b')),
+        "Read aloud" => {
+            d.key(KeyCode::Tab);
+            d.typed("Ada opened the door.");
+            d.app.start_reading();
+            assert!(matches!(d.app.overlay, Overlay::Reading));
+        }
+        "Export results" => {
+            d.app.open_export();
+            d.key(KeyCode::Char('x'));
+            assert!(matches!(
+                d.app.overlay,
+                Overlay::Export { done: Some(_), .. }
+            ));
+        }
+        "Taught words" => {
+            fs::write(d.root.join("dictionary.txt"), "Vaelthar\n").unwrap();
+            d.menu(&["Settings", "Writing"]);
+            d.choose("Editor");
+            d.choose("Words spellcheck was taught…");
         }
         "The Pomodoro pane" => focus_on(&mut d, Focus::Clearing),
         "The Music view" => {
@@ -12231,3 +12269,554 @@ mod tutorial_ui_tests;
 
 #[path = "project_names_ui_tests.rs"]
 mod project_names_ui_tests;
+
+/// In many themes the quiet grey all but vanishes on the selection colour
+/// (Tokyo Night: 1.5 to 1). On the finished frame nothing on a highlight or
+/// a button is that faint, in any theme.
+#[test]
+fn words_on_a_highlight_read_in_every_theme() {
+    use crate::theme::{contrast, presets};
+    use crate::ui::{LEGIBLE, keep_highlights_legible};
+    use ratatui::buffer::Buffer;
+    use ratatui::layout::Rect;
+    use ratatui::style::Style;
+    let mut too_faint_before = 0;
+    for t in presets() {
+        let pairs = [
+            (t.dim, t.sel),
+            (t.accent, t.sel),
+            (t.text, t.sel),
+            (t.sun, t.sel),
+            (t.sel, t.accent),
+            (t.dim, t.accent),
+        ];
+        let area = Rect::new(0, 0, pairs.len() as u16, 1);
+        let mut buf = Buffer::empty(area);
+        for (x, (fg, bg)) in pairs.iter().enumerate() {
+            buf.set_string(x as u16, 0, "a", Style::default().fg(*fg).bg(*bg));
+            if contrast(*fg, *bg).is_some_and(|c| c < LEGIBLE) {
+                too_faint_before += 1;
+            }
+        }
+        keep_highlights_legible(&mut buf, &t, area);
+        for x in 0..pairs.len() as u16 {
+            let cell = buf.cell((x, 0)).expect("in the buffer");
+            let c = contrast(cell.fg, cell.bg).expect("themes are true colour");
+            assert!(
+                c >= LEGIBLE,
+                "{}: {:?} on {:?} is {c:.2} to 1",
+                t.name,
+                cell.fg,
+                cell.bg
+            );
+        }
+        // A colour that already reads is left as the theme chose it.
+        let area = Rect::new(0, 0, 1, 1);
+        let mut buf = Buffer::empty(area);
+        buf.set_string(0, 0, "a", Style::default().fg(t.text).bg(t.sel));
+        keep_highlights_legible(&mut buf, &t, area);
+        if contrast(t.text, t.sel).is_some_and(|c| c >= LEGIBLE) {
+            assert_eq!(buf.cell((0, 0)).expect("there").fg, t.text, "{}", t.name);
+        }
+    }
+    assert!(
+        too_faint_before > 10,
+        "the themes no longer need this ({too_faint_before})"
+    );
+}
+
+/// Pasted over a list, every letter would run as a key: "Tuesday" on the
+/// corkboard sent a scene to the Trash and answered yes.
+#[test]
+fn a_paste_only_goes_where_words_can_be_typed() {
+    let mut d = Desk::open(book("paste-box", true), 150, 44);
+    d.key(KeyCode::Char('b'));
+    assert!(matches!(d.app.overlay, Overlay::Cork { .. }));
+    assert!(
+        !d.app.overlay_takes_text(),
+        "a board has no box to paste in"
+    );
+    d.key(KeyCode::Char('r'));
+    assert!(matches!(d.app.overlay, Overlay::Rename { .. }));
+    assert!(d.app.overlay_takes_text());
+    d.key(KeyCode::Esc);
+    d.key(KeyCode::Esc);
+    d.key(KeyCode::Esc);
+    assert!(d.menu_open());
+    assert!(!d.app.overlay_takes_text(), "nor has the menu");
+}
+
+#[test]
+fn a_paste_leaves_the_wros_settings_list_alone_and_types_in_a_field() {
+    use crate::app::{shell::Route, wros::Page};
+
+    let mut d = Desk::open(book("paste-settings", true), 120, 40);
+    d.app.open_settings_page(Route::WritingManuscript);
+    d.draw();
+    let before = d.rows();
+    let author = d.app.project.meta.author.clone();
+    let text = "Tuesday\tWren";
+    assert!(!dispatch_event(
+        &mut d.app,
+        Event::Paste(text.into()),
+        &mut d.armed,
+    ));
+    d.draw();
+    assert_eq!(d.app.overlay, Overlay::Deck(Page::Settings));
+    assert_eq!(d.app.deck.shell.nav.current(), Route::WritingManuscript);
+    assert_eq!(d.rows(), before);
+
+    d.choose("Author details…");
+    assert!(!dispatch_event(
+        &mut d.app,
+        Event::Paste(text.into()),
+        &mut d.armed,
+    ));
+    let Overlay::Author { sel, fields, .. } = &d.app.overlay else {
+        panic!("the author details are still open");
+    };
+    assert_eq!(*sel, 0);
+    assert_eq!(fields[0], format!("{author}Tuesday Wren"));
+    assert_eq!(d.app.project.meta.author, author);
+}
+
+#[test]
+fn the_corkboard_gives_the_page_back_to_whoever_was_writing() {
+    let mut d = Desk::open(book("cork-focus", true), 150, 44);
+    d.app.focus = Focus::Editor;
+    d.app.open_cork();
+    assert!(matches!(d.app.overlay, Overlay::Cork { .. }));
+    d.key(KeyCode::Char('>'));
+    d.key(KeyCode::Esc);
+    assert!(matches!(d.app.overlay, Overlay::None));
+    assert_eq!(
+        d.app.focus,
+        Focus::Editor,
+        "typing must not land in the outline"
+    );
+}
+
+#[test]
+fn the_wheel_looks_down_the_outline_and_it_stays_there() {
+    let mut d = Desk::open(book("tree-wheel", true), 100, 16);
+    d.draw();
+    let (x, y) = (d.app.rect_tree.x + 1, d.app.rect_tree.y + 1);
+    // Far enough that the highlighted scene is off the top of the pane.
+    for _ in 0..4 {
+        d.app.on_scroll(x, y, true);
+        d.draw();
+    }
+    assert!(
+        d.app.tree_scroll > d.app.sel,
+        "the outline snapped back to the highlight"
+    );
+    // Moving the highlight brings the view back to it.
+    d.key(KeyCode::Down);
+    d.draw();
+    let height = d.app.rect_tree.height as usize;
+    assert!(d.app.sel >= d.app.tree_scroll && d.app.sel < d.app.tree_scroll + height);
+}
+
+#[test]
+fn undo_does_nothing_to_the_page_behind_a_box() {
+    let mut d = Desk::open(book("undo-box", true), 120, 40);
+    d.app.focus = Focus::Editor;
+    d.typed("Kept words");
+    d.key(KeyCode::Esc);
+    assert!(d.menu_open());
+    d.ctrl('z');
+    d.ctrl('x');
+    d.key(KeyCode::Esc);
+    assert!(d.app.editor.text().contains("Kept words"));
+}
+
+/// A one-line box has a caret: a name is mended in the middle, not rubbed
+/// out from the end.
+#[test]
+fn a_name_is_mended_in_the_middle_of_the_rename_box() {
+    let mut d = Desk::open(book("caret-rename", true), 120, 40);
+    d.key(KeyCode::Char('r'));
+    let Overlay::Rename { buf, .. } = &d.app.overlay else {
+        panic!("r renames");
+    };
+    let old = buf.clone();
+    // Keep the old name, go to its start, and put a word in front.
+    d.key(KeyCode::Home);
+    d.typed("The ");
+    assert!(d.shows(&format!("The {old}")), "{}", d.rows().join("\n"));
+    // Delete takes the letter under the caret; the rest stays.
+    d.key(KeyCode::Delete);
+    let Overlay::Rename { buf, .. } = &d.app.overlay else {
+        panic!("still renaming");
+    };
+    assert_eq!(*buf, format!("The {}", &old[1..]));
+    d.key(KeyCode::Esc);
+    assert_eq!(d.app.caret, None);
+}
+
+/// `d` on the Trash itself empties it, after asking; and nothing new is
+/// made from inside it (a scene started there used to land in the manuscript).
+#[test]
+fn the_trash_empties_after_asking_and_nothing_starts_in_it() {
+    let root = book("empty-trash", true);
+    let mut d = Desk::open(root.clone(), 120, 44);
+    let trash = grimoire_core::project::trash_dir(&root);
+    // A scene goes to the Trash.
+    d.key(KeyCode::Char('d'));
+    d.key(KeyCode::Char('y'));
+    assert_eq!(
+        fs::read_dir(&trash).unwrap().flatten().count(),
+        2,
+        "it and .origins"
+    );
+    // Onto the Trash section itself.
+    let at = d
+        .app
+        .visible
+        .iter()
+        .position(|&i| d.app.project.nodes[i].path == trash)
+        .expect("the Trash shows in the outline");
+    d.app.sel = at;
+    let scenes = d.app.project.nodes.len();
+    d.key(KeyCode::Char('n'));
+    assert!(
+        matches!(d.app.overlay, Overlay::None),
+        "nothing starts here"
+    );
+    assert!(d.app.msg.contains("Trash"), "{}", d.app.msg);
+    assert_eq!(d.app.project.nodes.len(), scenes);
+    d.key(KeyCode::Char('d'));
+    assert!(d.shows("EMPTY THE TRASH"), "{}", d.rows().join("\n"));
+    assert!(d.shows("for good"));
+    // Esc keeps everything.
+    d.key(KeyCode::Esc);
+    assert_eq!(fs::read_dir(&trash).unwrap().flatten().count(), 2);
+    d.key(KeyCode::Char('d'));
+    d.key(KeyCode::Char('y'));
+    assert_eq!(fs::read_dir(&trash).unwrap().flatten().count(), 0);
+    assert!(trash.is_dir(), "the Trash itself stays");
+    assert_eq!(d.app.msg, "the Trash is empty");
+    // And again there's nothing to ask about.
+    d.app.sel = d
+        .app
+        .visible
+        .iter()
+        .position(|&i| d.app.project.nodes[i].path == trash)
+        .expect("still there");
+    d.key(KeyCode::Char('d'));
+    assert!(matches!(d.app.overlay, Overlay::None));
+}
+
+/// The menu answers the mouse: a click on a row chooses it; and a
+/// right-click in the outline opens what can be done with the row under the
+/// pointer.
+#[test]
+fn the_menu_answers_the_mouse() {
+    let mut d = Desk::open(book("menu-mouse", true), 120, 40);
+    d.key(KeyCode::Esc);
+    assert!(d.menu_open());
+    d.key(KeyCode::Char('s'));
+    let rows = d.rows();
+    let y = rows
+        .iter()
+        .position(|r| r.contains("Look and keyboard"))
+        .unwrap() as u16;
+    let x = rows[y as usize].find("Look and keyboard").unwrap() as u16;
+    d.app.on_click(x, y);
+    d.draw();
+    assert!(
+        d.shows("Look and keyboard")
+            && matches!(
+                d.app.overlay,
+                Overlay::Deck(crate::app::wros::Page::Settings)
+            ),
+        "{}",
+        d.rows().join("\n")
+    );
+    d.key(KeyCode::Esc);
+    d.key(KeyCode::Esc);
+    assert!(matches!(d.app.overlay, Overlay::None));
+
+    // Right-click the second row of the outline.
+    d.draw();
+    let (x, y) = (d.app.rect_tree.x + 2, d.app.rect_tree.y + 1);
+    d.app.on_right_click(x, y);
+    d.draw();
+    assert_eq!(d.app.sel, d.app.tree_scroll + 1);
+    assert!(matches!(
+        d.app.overlay,
+        Overlay::Bar {
+            title: crate::palette::Title::Book,
+            open: true,
+            ..
+        }
+    ));
+    assert!(d.shows("Rename…"), "{}", d.rows().join("\n"));
+}
+
+/// A search across the book changes one match at a time, and after going to
+/// a match the same search is there to come back to.
+#[test]
+fn a_book_search_replaces_one_match_and_keeps_its_place() {
+    let root = book("find-one", true);
+    let scene = first_scene(&root);
+    let text = fs::read_to_string(&scene).unwrap();
+    fs::write(&scene, format!("{text}Mara saw Mara.\nMara left.\n")).unwrap();
+    let mut d = Desk::open(root, 130, 40);
+    d.key(KeyCode::Char('/'));
+    d.typed("Mara");
+    let count = |d: &Desk| match &d.app.overlay {
+        Overlay::FindBook { hits, .. } => hits.len(),
+        _ => panic!("the search is up"),
+    };
+    assert_eq!(count(&d), 3);
+    // The second match, changed alone.
+    d.key(KeyCode::Down);
+    d.key(KeyCode::Tab);
+    d.typed("Wren");
+    d.key(KeyCode::Enter);
+    assert_eq!(count(&d), 2, "{}", d.rows().join("\n"));
+    assert!(
+        fs::read_to_string(&scene)
+            .unwrap()
+            .contains("Mara saw Wren.\nMara left.")
+    );
+    // Go to what is now the second match, and come back to the same row.
+    d.key(KeyCode::Tab);
+    d.key(KeyCode::Enter);
+    assert!(matches!(d.app.overlay, Overlay::None));
+    assert!(d.app.msg.starts_with("match 2 of 2"), "{}", d.app.msg);
+    assert_eq!(d.app.editor.selected_text().as_deref(), Some("Mara"));
+    d.app.focus = Focus::Tree;
+    d.key(KeyCode::Char('/'));
+    match &d.app.overlay {
+        Overlay::FindBook {
+            query, sel, hits, ..
+        } => {
+            assert_eq!((query.as_str(), *sel, hits.len()), ("Mara", 1, 2));
+        }
+        _ => panic!("the search comes back"),
+    }
+    // Esc ends the search for good, and one undo puts the word back.
+    d.key(KeyCode::Esc);
+    d.key(KeyCode::Char('/'));
+    assert_eq!(count(&d), 0);
+    d.key(KeyCode::Esc);
+    d.ctrl('z');
+    assert!(
+        fs::read_to_string(&scene)
+            .unwrap()
+            .contains("Mara saw Mara.")
+    );
+}
+
+/// Read aloud goes slower and faster with `-` and `+`, within what a voice
+/// can do, and says its pace.
+#[test]
+fn read_aloud_goes_slower_and_faster() {
+    let root = book("voice-speed", true);
+    let scene = first_scene(&root);
+    let text = fs::read_to_string(&scene).unwrap();
+    fs::write(
+        &scene,
+        format!("{text}The rain had stopped. Oren was late.\n"),
+    )
+    .unwrap();
+    let mut d = Desk::open(root, 130, 40);
+    d.app.focus = Focus::Editor;
+    d.app.start_reading();
+    assert!(matches!(d.app.overlay, Overlay::Reading));
+    let speed = |d: &Desk| d.app.reading.as_ref().expect("still reading").speed;
+    let was = speed(&d);
+    d.key(KeyCode::Char('+'));
+    d.key(KeyCode::Char('+'));
+    assert!((speed(&d) - (was + 0.2)).abs() < 0.01, "{}", speed(&d));
+    assert!(
+        d.shows(&format!("{:.1}×", was + 0.2)),
+        "{}",
+        d.rows().join("\n")
+    );
+    for _ in 0..40 {
+        d.key(KeyCode::Char('-'));
+    }
+    assert_eq!(speed(&d), 0.5, "never slower than half pace");
+    assert!(matches!(d.app.overlay, Overlay::Reading), "and it reads on");
+}
+
+/// One scene can be taken back out of a deleted chapter; it used to answer
+/// "restore the folder it's in".
+#[test]
+fn a_scene_comes_back_out_of_a_deleted_chapter() {
+    let root = book("restore-nested", true);
+    let mut d = Desk::open(root.clone(), 120, 50);
+    let trash = grimoire_core::project::trash_dir(&root);
+    // The first chapter goes to the Trash, scenes and all.
+    let chapter = first_scene(&root).parent().unwrap().to_path_buf();
+    d.app.sel = d
+        .app
+        .visible
+        .iter()
+        .position(|&i| d.app.project.nodes[i].path == chapter)
+        .expect("the first chapter is in the outline");
+    d.key(KeyCode::Char('d'));
+    d.key(KeyCode::Char('y'));
+    assert!(!chapter.exists());
+    // Find one of its scenes in the Trash and bring only that back.
+    let scene = d
+        .app
+        .project
+        .nodes
+        .iter()
+        .position(|n| {
+            n.kind == grimoire_core::project::Kind::Scene
+                && n.path.starts_with(&trash)
+                && n.path.parent() != Some(trash.as_path())
+        })
+        .expect("its scenes went with it");
+    let was = d.app.project.nodes[scene].path.clone();
+    d.app.reveal(scene);
+    d.key(KeyCode::Char('u'));
+    assert!(d.app.msg.starts_with("restored"), "{}", d.app.msg);
+    assert!(!was.exists(), "it left the Trash");
+    let back = d
+        .app
+        .visible
+        .get(d.app.sel)
+        .map(|&i| d.app.project.nodes[i].path.clone())
+        .expect("the highlight is on it");
+    assert!(
+        back.starts_with(root.join("manuscript")),
+        "{}",
+        back.display()
+    );
+}
+
+/// A word taught by mistake can be taken back: Settings lists every word
+/// "Always ignore" added, and `d` removes one.
+#[test]
+fn a_taught_word_can_be_taken_back() {
+    let root = book("taught", true);
+    fs::write(
+        root.join("dictionary.txt"),
+        "# this book's words\nVaelthar\nOren\n",
+    )
+    .unwrap();
+    let mut d = Desk::open(root.clone(), 120, 40);
+    d.app.load_speller_now();
+    assert!(d.app.speller.as_ref().unwrap().is_correct("Vaelthar"));
+    d.key(KeyCode::Esc);
+    d.menu(&["Settings", "Writing"]);
+    d.choose("Editor");
+    d.choose("Words spellcheck was taught…");
+    assert!(
+        d.shows("Vaelthar") && d.shows("this project"),
+        "{}",
+        d.rows().join("\n")
+    );
+    d.key(KeyCode::Char('d'));
+    assert_eq!(
+        fs::read_to_string(root.join("dictionary.txt")).unwrap(),
+        "# this book's words\nOren\n",
+        "only that word goes; the comment stays"
+    );
+    assert!(!d.app.speller.as_ref().unwrap().is_correct("Vaelthar"));
+    assert!(d.app.speller.as_ref().unwrap().is_correct("Oren"));
+    let Overlay::Taught { words, .. } = &d.app.overlay else {
+        panic!("the list stays up");
+    };
+    assert_eq!(words, &vec![("Oren".to_string(), true)]);
+}
+
+/// `f` on a Template Sheet makes a note that starts as a copy of the form,
+/// in the section the form is for; the sheet stays as it was.
+#[test]
+fn a_template_sheet_fills_in_a_new_note() {
+    let root = book("sheet-copy", true);
+    let mut d = Desk::open(root.clone(), 130, 50);
+    let sheet = d
+        .app
+        .project
+        .nodes
+        .iter()
+        .position(|n| n.title == "Character Sketch")
+        .expect("the starter book has a character sheet");
+    let form = d.app.project.nodes[sheet].body.clone();
+    assert!(form.contains("## Wants"));
+    d.app.reveal(sheet);
+    d.draw();
+    assert!(d.shows("f fill in a copy"), "{}", d.rows().join("\n"));
+    d.key(KeyCode::Char('f'));
+    assert!(
+        d.shows("NEW NOTE") && d.shows("Characters"),
+        "{}",
+        d.rows().join("\n")
+    );
+    d.typed("Mara Venn");
+    d.key(KeyCode::Enter);
+    let made = d.app.open.expect("the new note opens");
+    let note = &d.app.project.nodes[made];
+    assert_eq!(note.title, "Mara Venn");
+    assert!(
+        note.path.starts_with(root.join("characters")),
+        "{}",
+        note.path.display()
+    );
+    assert_eq!(d.app.editor.text(), form);
+    assert!(fs::read_to_string(&note.path).unwrap().contains("## Wants"));
+    // Cancelling leaves no form waiting for the next thing made.
+    d.app.reveal(sheet);
+    d.key(KeyCode::Char('f'));
+    d.key(KeyCode::Esc);
+    assert_eq!(d.app.from_sheet, None);
+}
+
+/// `c` on the corkboard makes a chapter and asks for its first scene; a
+/// chapter with no scenes still shows its heading on the board.
+#[test]
+fn a_chapter_is_added_from_the_corkboard_and_an_empty_one_still_shows() {
+    let mut d = Desk::open(book("cork-chapter", true), 150, 50);
+    d.key(KeyCode::Char('b'));
+    assert!(matches!(d.app.overlay, Overlay::Cork { .. }));
+    assert!(d.shows("c chapter"), "{}", d.rows().join("\n"));
+    d.key(KeyCode::Char('c'));
+    assert!(d.shows("NEW CHAPTER"), "{}", d.rows().join("\n"));
+    d.typed("x");
+    for _ in 0..40 {
+        d.key(KeyCode::Backspace);
+    }
+    d.typed("Interlude");
+    d.key(KeyCode::Enter);
+    // Straight on to its first scene.
+    assert!(d.shows("NEW SCENE"), "{}", d.rows().join("\n"));
+    d.typed("The Gap");
+    d.key(KeyCode::Enter);
+    assert!(
+        matches!(d.app.overlay, Overlay::Cork { .. }),
+        "back on the board"
+    );
+    assert!(
+        d.shows("Interlude") && d.shows("The Gap"),
+        "{}",
+        d.rows().join("\n")
+    );
+
+    // A second one, left without a scene: its heading is there all the same.
+    d.key(KeyCode::Char('c'));
+    d.typed("x");
+    for _ in 0..40 {
+        d.key(KeyCode::Backspace);
+    }
+    d.typed("Coda");
+    d.key(KeyCode::Enter);
+    d.key(KeyCode::Esc);
+    assert!(matches!(d.app.overlay, Overlay::Cork { .. }));
+    // (Off the bottom of a short screen, so ask the board itself.)
+    let part = grimoire_core::cork::parts(&d.app.project)[0];
+    let all = grimoire_core::cork::board_all(&d.app.project, Some(part));
+    let shown = grimoire_core::cork::board(&d.app.project, Some(part));
+    assert!(all.iter().any(|g| g.title == "Coda" && g.cards.is_empty()));
+    assert!(
+        !shown.iter().any(|g| g.title == "Coda"),
+        "no card to stand on"
+    );
+}

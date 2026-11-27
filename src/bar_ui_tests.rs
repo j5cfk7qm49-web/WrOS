@@ -313,10 +313,13 @@ fn every_bar_row_says_what_it_does_and_has_a_help_topic() {
 
 #[test]
 fn nothing_in_ctrl_k_is_missing_from_the_bar() {
+    use crate::app::shell::{Route, page_actions};
+
     let d = everything_offered("bar-ctrlk");
     let on_bar: Vec<A> = all_rows(&d.app)
         .into_iter()
         .map(|(_, r)| r.action)
+        .chain(page_actions(&d.app, Route::WritingEditor))
         .collect();
     let missing: Vec<String> = palette::entries(&d.app)
         .into_iter()

@@ -1,6 +1,6 @@
 <!doctype html><html lang="en"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="source-sha256" content="bfcf6e57f5a24178144a510964eccc5ec24adea04199efcccc6b7cca51607b4d">
+<meta name="source-sha256" content="33a71ff452bd3ac59205b1118c8b9a1e0fec17e8e498849965e61ceda5a764ff">
 <title>WrOS — printable keyboard reference</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#edece7;color:#242923;font:14px/1.4 system-ui,sans-serif}main{max-width:1000px;margin:28px auto;padding:32px 40px;background:#fff;border-top:8px solid #365b47}h1{font-size:32px;margin:0}header p{color:#586258;margin:6px 0 18px}.badge{font:700 11px system-ui;letter-spacing:.12em;color:#365b47}aside{padding:12px 15px;background:#edf3ee;border:1px solid #cfdbd1;margin:20px 0}.keys{columns:2;column-gap:32px}h2{font-size:16px;margin:18px 0 5px;break-after:avoid}p{margin:7px 0}table{border-collapse:collapse;width:100%;font-size:12px}tr{break-inside:avoid}td{border-bottom:1px solid #ddd;padding:4px 3px;vertical-align:top}td:first-child{width:34%}tr:first-child{font-weight:bold}kbd{font:inherit;font-weight:600}footer{border-top:1px solid #ddd;padding-top:12px;margin-top:20px;font-size:11px;color:#555}@media(max-width:680px){main{margin:0;padding:20px}.keys{columns:1}}@media print{@page{margin:12mm}body{background:white;font-size:10pt}main{margin:0;padding:0;max-width:none;border:0}h1{font-size:24pt}.keys{columns:2;column-gap:7mm}aside{background:white;margin:10px 0}table{font-size:8pt}h2{font-size:11pt}td{padding:2px}footer{font-size:8pt}header p{margin-bottom:8px}}
@@ -12,7 +12,7 @@
 <h2>Everywhere</h2>
 <table>
 <tr><td>Key</td><td>Does</td></tr>
-<tr><td><kbd>Esc</kbd></td><td>the menu — or first, closes a note or scene beside, or lets go of a selection</td></tr>
+<tr><td><kbd>Esc</kbd></td><td>the menu, or first, closes a note or scene beside, or lets go of a selection</td></tr>
 <tr><td><kbd>F1</kbd></td><td>this help, on the topic for where you are</td></tr>
 <tr><td><kbd>?</kbd></td><td>this help too, wherever you aren&#x27;t typing; on the page it&#x27;s a question mark</td></tr>
 <tr><td><kbd>Ctrl-K</kbd></td><td>find anything: actions, scenes, notes, themes</td></tr>
@@ -101,13 +101,14 @@
 <tr><td><kbd>p</kbd></td><td>new part</td></tr>
 <tr><td><kbd>N</kbd></td><td>new folder</td></tr>
 <tr><td><kbd>r</kbd></td><td>rename</td></tr>
-<tr><td><kbd>d</kbd></td><td>delete, to the Trash</td></tr>
+<tr><td><kbd>d</kbd></td><td>delete to the Trash, or empty it if the Trash itself is selected</td></tr>
 <tr><td><kbd>u</kbd></td><td>restore from the Trash</td></tr>
 <tr><td><kbd>i</kbd></td><td>the scene&#x27;s or note&#x27;s details</td></tr>
 <tr><td><kbd>K</kbd></td><td>move up; <kbd>J</kbd> down</td></tr>
 <tr><td><kbd>H</kbd></td><td>the scene&#x27;s history</td></tr>
 <tr><td><kbd>b</kbd></td><td>the corkboard</td></tr>
 <tr><td><kbd>v</kbd></td><td>show the scene beside</td></tr>
+<tr><td><kbd>f</kbd></td><td>on a Template Sheet: a new note that starts as a copy of it</td></tr>
 <tr><td><kbd>/</kbd></td><td>find in the whole project</td></tr>
 <tr><td><kbd>t</kbd></td><td>themes</td></tr>
 <tr><td><kbd>q</kbd></td><td>quit</td></tr>
@@ -117,11 +118,16 @@
 <tr><td>Key</td><td>Does</td></tr>
 <tr><td><kbd>Home</kbd></td><td>start of the line; <kbd>End</kbd> the end</td></tr>
 <tr><td><kbd>PgUp</kbd></td><td>a screenful up; <kbd>PgDn</kbd> down</td></tr>
+<tr><td><kbd>Ctrl-←</kbd></td><td>a word back; <kbd>Ctrl-→</kbd> a word on (Alt too, and Option on a Mac)</td></tr>
+<tr><td><kbd>Ctrl-↑</kbd></td><td>a paragraph up; <kbd>Ctrl-↓</kbd> down</td></tr>
+<tr><td><kbd>Ctrl-Home</kbd></td><td>the top of the scene; <kbd>Ctrl-End</kbd> the end</td></tr>
+<tr><td><kbd>Shift-→</kbd></td><td>select as you go: Shift with any arrow, Home, End, PgUp or PgDn</td></tr>
+<tr><td><kbd>Ctrl-Backspace</kbd></td><td>delete the word before the cursor; <kbd>Ctrl-Delete</kbd> the word after</td></tr>
 <tr><td><kbd>Ctrl-C</kbd></td><td>copy the selection</td></tr>
 <tr><td><kbd>Ctrl-X</kbd></td><td>cut the selection</td></tr>
 <tr><td><kbd>Ctrl-Shift-Z</kbd></td><td>redo, where the terminal can send it</td></tr>
 </table>
-<p>Click to place the cursor, drag to select, and click or right-click an underlined word for its spellings.</p>
+<p>Click to place the cursor, drag to select, double-click for a word and click once more for the paragraph. Click or right-click an underlined word for its spellings.</p>
 <h2>The find bar</h2>
 <table>
 <tr><td>Key</td><td>Does</td></tr>
@@ -131,6 +137,27 @@
 <tr><td><kbd>Ctrl-E</kbd></td><td>exact case or any case (<kbd>Alt-C</kbd> too)</td></tr>
 </table>
 <p><kbd>Tab</kbd> moves between the find and replace boxes.</p>
+<h2>The corkboard</h2>
+<table>
+<tr><td>Key</td><td>Does</td></tr>
+<tr><td><kbd>c</kbd></td><td>add a chapter and its first scene</td></tr>
+</table>
+<h2>Read aloud</h2>
+<table>
+<tr><td>Key</td><td>Does</td></tr>
+<tr><td><kbd>-</kbd> / <kbd>+</kbd></td><td>slow down or speed up</td></tr>
+</table>
+<h2>Export results</h2>
+<table>
+<tr><td>Key</td><td>Does</td></tr>
+<tr><td><kbd>o</kbd></td><td>open the exports folder</td></tr>
+</table>
+<h2>Taught words</h2>
+<p>In Settings › Writing › Editor, open **Words spellcheck was taught…**.</p>
+<table>
+<tr><td>Key</td><td>Does</td></tr>
+<tr><td><kbd>d</kbd></td><td>take back the highlighted word</td></tr>
+</table>
 <h2>The Pomodoro pane</h2>
 <table>
 <tr><td>Key</td><td>Does</td></tr>

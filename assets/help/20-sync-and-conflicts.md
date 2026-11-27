@@ -44,7 +44,7 @@ A project is a folder, so any sync service carries it: Dropbox, Google Drive, pC
 
 **Nothing is ever written over.** Before every save WrOS checks the file on disk. If it changed somewhere else, the other version stays the scene, and your words from here are kept beside it as a *parked copy*.
 
-Sync services make their own copies when two devices clash — Dropbox's "conflicted copy", pCloud's "(conflicted)", Box's "(1)", and so on. WrOS recognises all of them. They appear right under their scene, marked with where they came from ("Dropbox copy"), and they're never counted or exported twice. They move with their scene.
+Sync services make their own copies when two devices clash: Dropbox's "conflicted copy", pCloud's "(conflicted)", Box's "(1)", and so on. WrOS recognises all of them. They appear right under their scene, marked with where they came from ("Dropbox copy"), and they're never counted or exported twice. They move with their scene.
 
 While there are any, the status bar says `⚠ 1 conflict`.
 
@@ -52,9 +52,9 @@ While there are any, the status bar says `⚠ 1 conflict`.
 
 *Settle conflicts…* (menu or `Ctrl-K`) lists every copy. Choose one and it opens beside its scene, with how much longer or shorter it is. Then:
 
-- `1` **take the copy** — the scene's own words go into its history first;
-- `2` **keep the scene** — the copy goes to the Trash;
-- `3` **keep both** — the copy becomes a scene of its own, right after the original.
+- `1` **take the copy**: the scene's own words go into its history first;
+- `2` **keep the scene**: the copy goes to the Trash;
+- `3` **keep both**: the copy becomes a scene of its own, right after the original.
 
 A copy from Google Drive also offers `4` **merge paragraph by paragraph**. A paragraph changed on only one side is kept as it is. Where both sides changed the same paragraph, you see both versions with the words that differ marked. Press `1` for yours, `2` for Drive's or `3` for both. `Tab` picks which version the arrow keys scroll; the mouse wheel scrolls the one under the pointer.
 
