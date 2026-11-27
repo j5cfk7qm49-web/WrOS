@@ -10,5 +10,5 @@ workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 alsa = { version = "=0.11.0", default-features = false }
-libc = "0.2"
-tempfile = "3"
+libc = { workspace = true }
+tempfile = { workspace = true }

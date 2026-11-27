@@ -9,13 +9,13 @@ description = "Native Grimoire presentation for Debian Installer's passthrough f
 workspace = true
 
 [dependencies]
-wros-shell = { path = "../wros-shell" }
-ratatui = { version = "0.30.2", features = ["unstable-rendered-line-info"] }
-zeroize = "1.9"
+wros-shell = { workspace = true }
+ratatui = { workspace = true, features = ["unstable-rendered-line-info"] }
+zeroize = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-libc = "0.2"
-signal-hook = "0.3"
+libc = { workspace = true }
+signal-hook = { workspace = true }
 
 [dev-dependencies]
-serde_json = "1.0"
+serde_json = { workspace = true }

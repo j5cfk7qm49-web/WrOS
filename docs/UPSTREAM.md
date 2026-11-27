@@ -29,6 +29,22 @@ git merge --no-commit --no-ff upstream/main
 2. Resolve the rest by the rules below.
 3. All checks must pass (`rc14-argon/nixos-wsl/README.md`) before the merge is committed.
 
+## Dependencies
+
+- **Crate versions follow upstream.** Every crate upstream locks is locked at the same version in
+  WrOS (checked at rc32: all 324). When merging, take upstream's version for every crate both
+  lockfiles have, then run `cargo update -w` for the workspace's own crates. WrOS's extra crates
+  (graphics, greeter, music, citations, notes, …) move on their own schedule.
+- **Shared manifests stay in upstream's form.** That means the root package's dependency lists,
+  `crates/grimoire-core/Cargo.toml` and `crates/grimoire-app/Cargo.toml`: plain version strings,
+  not `workspace = true`, so upstream's version bumps merge without conflict. WrOS's own crates
+  share versions through `[workspace.dependencies]` in the root `Cargo.toml`.
+- **One intentional difference:** `grimoire-core` keeps `serde_json`. Upstream dropped it as
+  unused (905640c), but WrOS's code in that crate uses it.
+- **Toolchain:** upstream's CI builds with the latest stable Rust; WrOS pins Rust through the
+  flake (`nixos/pkgs/default.nix`, rust-overlay). Move WrOS's pin with a nixpkgs bump, not
+  inside an upstream merge.
+
 ## Which files are whose
 
 A file is **shared** if it exists in the latest upstream tag WrOS has merged

@@ -18,10 +18,10 @@ harness = false
 
 [target.'cfg(target_os = "linux")'.dependencies]
 crossterm = { version = "0.29", features = ["serde"] }
-libc = "0.2"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-zeroize = "1.9"
+libc = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+zeroize = { workspace = true }
 input = { version = "0.10.0", default-features = false, features = ["udev", "libinput_1_21"], optional = true }
 xkbcommon = { version = "0.9.0", default-features = false, optional = true }
-signal-hook = { version = "0.3", optional = true }
+signal-hook = { workspace = true, optional = true }

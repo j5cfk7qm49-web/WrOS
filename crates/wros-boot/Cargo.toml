@@ -9,14 +9,14 @@ description = "WrOS start screens drawn with Ratatui: the disk password and the 
 workspace = true
 
 [dependencies]
-wros-shell = { path = "../wros-shell" }
-ratatui = "0.30.2"
-zeroize = "1.9"
+wros-shell = { workspace = true }
+ratatui = { workspace = true }
+zeroize = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-libc = "0.2"
-wros-graphics = { path = "../wros-graphics" }
+libc = { workspace = true }
+wros-graphics = { workspace = true }
 
 [dev-dependencies]
-insta = "1.49"
-vt100 = "0.18"
+insta = { workspace = true }
+vt100 = { workspace = true }
