@@ -158,7 +158,11 @@ impl Mpv {
             self.start()?;
         }
         self.request_id = self.request_id.wrapping_add(1);
-        let result = exchange(self.stream.as_mut().unwrap(), args, self.request_id);
+        let stream = self
+            .stream
+            .as_mut()
+            .ok_or_else(|| anyhow!("mpv connection unavailable"))?;
+        let result = exchange(stream, args, self.request_id);
         if result.is_err() {
             self.stream = None;
         }

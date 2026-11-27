@@ -107,6 +107,7 @@ pub struct Lesson {
     pub event: Option<Event>,
     pub instructions: String,
 }
+#[expect(clippy::expect_used, reason = "the bundled tutorial is constant JSON")]
 pub fn lessons() -> &'static [Lesson] {
     static LESSONS: OnceLock<Vec<Lesson>> = OnceLock::new();
     LESSONS.get_or_init(|| {
@@ -222,7 +223,11 @@ impl Store {
     pub fn save(&mut self) -> Result<()> {
         self.progress.validate()?;
         let text = serde_json::to_string_pretty(&self.progress)? + "\n";
-        fs::create_dir_all(self.path.parent().unwrap())?;
+        fs::create_dir_all(
+            self.path
+                .parent()
+                .context("missing tutorial state directory")?,
+        )?;
         match crate::sync::save_guarded(&self.path, &text, self.seen)? {
             SaveOutcome::Written => {
                 self.seen = Some(Fingerprint::of(&text));

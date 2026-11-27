@@ -75,7 +75,10 @@ impl<S: Screen> Transaction<S> {
             self.expire(now)?;
             bail!("the preview expired and was reverted");
         }
-        let pending = self.pending.take().unwrap();
+        let pending = self
+            .pending
+            .take()
+            .ok_or_else(|| anyhow::anyhow!("the preview has finished"))?;
         if keep {
             // Keep was accepted before expiry. A bounded durable save either
             // commits the choice or restores the last confirmed choice.

@@ -761,6 +761,10 @@ mod capture {
         }
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "the recorder command always pipes standard output"
+    )]
     fn spawn(tool: Tool, sink: Option<&str>, ring: &Arc<Mutex<Ring>>) -> Result<Child, String> {
         let mut child = tool
             .command(sink)

@@ -380,7 +380,7 @@ fn inspect_markdown_links_and_assets(
             }
         }
     }
-    let parsed = String::from_utf8(masked).expect("complete UTF-8 ranges masked with ASCII");
+    let parsed = String::from_utf8(masked)?;
     let mut out = Vec::new();
     for (event, range) in Parser::new_ext(&parsed, Options::ENABLE_FOOTNOTES).into_offset_iter() {
         match event {
@@ -490,7 +490,7 @@ fn unresolved_wiki_links(
             }
         }
     }
-    let parsed = String::from_utf8(masked).expect("complete UTF-8 ranges masked with ASCII");
+    let parsed = String::from_utf8(masked)?;
     let mut excluded = Vec::new();
     let mut code = false;
     for (event, range) in Parser::new_ext(&parsed, Options::ENABLE_FOOTNOTES).into_offset_iter() {
@@ -547,7 +547,9 @@ fn editorial_lines(content: &str) -> BTreeSet<usize> {
             }
         }
     }
-    let parsed = String::from_utf8(masked).expect("complete UTF-8 ranges masked with ASCII");
+    let Ok(parsed) = String::from_utf8(masked) else {
+        return BTreeSet::new();
+    };
     let mut code = false;
     let mut visible = Vec::new();
     for (event, range) in Parser::new_ext(&parsed, Options::ENABLE_FOOTNOTES).into_offset_iter() {

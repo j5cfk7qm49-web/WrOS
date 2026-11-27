@@ -19,19 +19,41 @@ fn colour(v: &serde_json::Value) -> Color {
 
 fn main() -> std::io::Result<()> {
     let args: Vec<String> = std::env::args().collect();
-    let frames: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&args[1])?).expect("frames JSON");
-    let out = std::path::Path::new(&args[2]);
+    let [_, input, out, ..] = args.as_slice() else {
+        return Err(std::io::Error::other(
+            "usage: cells_preview FRAMES.json OUTPUT_DIR",
+        ));
+    };
+    let invalid = std::io::Error::other;
+    let frames: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(input)?)?;
+    let out = std::path::Path::new(out);
     std::fs::create_dir_all(out)?;
-    for frame in frames.as_array().expect("a list of frames") {
+    for frame in frames
+        .as_array()
+        .ok_or_else(|| invalid("expected a list of frames"))?
+    {
         let (w, h) = (
-            frame["w"].as_u64().unwrap() as u16,
-            frame["h"].as_u64().unwrap() as u16,
+            frame["w"]
+                .as_u64()
+                .ok_or_else(|| invalid("expected frame width"))? as u16,
+            frame["h"]
+                .as_u64()
+                .ok_or_else(|| invalid("expected frame height"))? as u16,
         );
         let mut pixels = TextSize::Writing.raster(w, h);
         let mut cells = vec![];
-        for (y, row) in frame["rows"].as_array().unwrap().iter().enumerate() {
-            for (x, c) in row.as_array().unwrap().iter().enumerate() {
+        for (y, row) in frame["rows"]
+            .as_array()
+            .ok_or_else(|| invalid("expected frame rows"))?
+            .iter()
+            .enumerate()
+        {
+            for (x, c) in row
+                .as_array()
+                .ok_or_else(|| invalid("expected a row of cells"))?
+                .iter()
+                .enumerate()
+            {
                 let mut cell = Cell::default();
                 cell.set_symbol(c[0].as_str().unwrap_or(" "));
                 // Reset reaches the screen as the native session paints it.

@@ -255,10 +255,11 @@ fn export(path: &Path, directory: &Path, stop: &AtomicBool, first: bool) -> Resu
 }
 
 fn stamp_text(stamp: &[u8]) -> String {
-    use std::fmt::Write as _;
+    const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut text = String::with_capacity(stamp.len() * 2);
     for byte in stamp {
-        write!(text, "{byte:02x}").expect("String format");
+        text.push(char::from(HEX[(byte >> 4) as usize]));
+        text.push(char::from(HEX[(byte & 0xf) as usize]));
     }
     text
 }
@@ -287,9 +288,9 @@ fn recover_copies(db: &Connection, directory: &Path, stop: &AtomicBool) -> Resul
             )?
             .query_map([&last], |row| row.get(0))?
             .collect::<rusqlite::Result<_>>()?;
-        if keys.is_empty() {
+        let Some(end) = keys.last() else {
             break;
-        }
+        };
         for key in &keys {
             let node: NodeId = serde_json::from_str(key)?;
             if !directory
@@ -300,7 +301,7 @@ fn recover_copies(db: &Connection, directory: &Path, stop: &AtomicBool) -> Resul
                     .execute(params![key, stamp])?;
             }
         }
-        last = keys.into_iter().last().expect("Nonempty page batch");
+        last.clone_from(end);
     }
     Ok(())
 }
@@ -312,15 +313,21 @@ fn is_page(db: &Connection, key: &str) -> Result<bool> {
 }
 
 fn publish(temporary: tempfile::NamedTempFile, path: &Path) -> Result<()> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| io::Error::other("missing Markdown directory"))?;
     temporary.as_file().sync_all()?;
     temporary.persist(path)?;
-    storage::sync_directory(path.parent().expect("Markdown directory"))?;
+    storage::sync_directory(parent)?;
     Ok(())
 }
 
 fn remove_copy(path: &Path) -> Result<()> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| io::Error::other("missing Markdown directory"))?;
     match fs::remove_file(path) {
-        Ok(()) => storage::sync_directory(path.parent().expect("Markdown directory"))?,
+        Ok(()) => storage::sync_directory(parent)?,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => return Err(error.into()),
     }

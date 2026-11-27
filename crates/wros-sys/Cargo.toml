@@ -5,6 +5,9 @@ edition = "2024"
 license = "MIT"
 description = "Narrow, testable Linux appliance interfaces for WritingDeck OS"
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow = "1.0"
 serde = { version = "1.0", features = ["derive"] }

@@ -1,6 +1,7 @@
 //! Sync apps' conflict copies, dropped beside a scene the way each app does
 //! it, and what the book makes of them: shown, never counted or exported,
 //! carried along by moves, and settled without losing either version.
+#![cfg(test)]
 
 use grimoire_core::export::{ExportOptions, export};
 use grimoire_core::project::{self, Project, Settle};

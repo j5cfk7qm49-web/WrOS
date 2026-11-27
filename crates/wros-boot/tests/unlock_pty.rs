@@ -1,9 +1,13 @@
 //! The real `wros-boot unlock` on a pseudo-terminal standing in for the console:
 //! what the boot image's wrapper gets on standard output, and its exit code.
 #![cfg(target_os = "linux")]
+#![cfg(test)]
 
-use std::io::Read;
+use std::fs::{File, OpenOptions};
+use std::io::{Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::os::unix::fs::OpenOptionsExt;
+use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -100,7 +104,6 @@ impl Console {
             .stderr(Stdio::piped())
             .spawn()
             .unwrap();
-        drop(slave);
         let master = Arc::new(master);
         let screen = Arc::new(Mutex::new(vt100::Parser::new(
             std::num::NonZero::new(height).unwrap(),
@@ -148,6 +151,7 @@ impl Console {
             );
             std::thread::sleep(Duration::from_millis(20));
         }
+        drop(slave);
         console
     }
 
@@ -273,19 +277,85 @@ fn progress_file(tag: &str, value: &str) -> std::path::PathBuf {
     path
 }
 
+fn progress_writer(path: &Path) -> File {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        match OpenOptions::new()
+            .write(true)
+            .custom_flags(libc::O_NONBLOCK)
+            .open(path)
+        {
+            Ok(writer) => return writer,
+            Err(error)
+                if error.raw_os_error() == Some(libc::ENXIO) && Instant::now() < deadline =>
+            {
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            Err(error) => panic!("waiting for the splash progress reader: {error}"),
+        }
+    }
+}
+
+fn wait_for_console_read(console: &Console, bytes: &[u8]) {
+    let pid = console.child.id();
+    // Use the drawing thread's counter. Progress-file reads on the sampler thread don't count.
+    let read_bytes = || -> u64 {
+        let io = std::fs::read_to_string(format!("/proc/{pid}/task/{pid}/io")).unwrap();
+        io.lines()
+            .find_map(|line| line.strip_prefix("rchar: "))
+            .unwrap()
+            .parse()
+            .unwrap()
+    };
+    let before = read_bytes();
+    console.type_bytes(bytes);
+    console.until("the splash to read the test input", |_| {
+        read_bytes() >= before + bytes.len() as u64
+    });
+}
+
 #[test]
 fn the_progress_screen_follows_systemd_and_stops_when_asked_without_a_flash() {
-    // The bar counts from systemd's first reading (here 0), so later readings fill it in step.
-    let file = progress_file("follow", "d 0\n");
-    let path = file.to_str().unwrap().to_string();
+    let file = progress_file("follow", "");
+    std::fs::remove_file(&file).unwrap();
+    let path = std::ffi::CString::new(file.as_os_str().as_encoded_bytes()).unwrap();
+    assert_eq!(unsafe { libc::mkfifo(path.as_ptr(), 0o600) }, 0);
     let console = Console::start_mode(
-        &["splash", "--progress-file", &path],
+        &["splash", "--progress-file", file.to_str().unwrap()],
         100,
         37,
         &[],
         "Starting WrOS",
     );
-    std::fs::write(&file, "d 0.25\n").unwrap();
+    // Serve zero first. The next FIFO open acknowledges that the sampler published it.
+    let watch = unsafe { libc::inotify_init1(libc::IN_CLOEXEC) };
+    assert!(watch >= 0);
+    let watch = unsafe { OwnedFd::from_raw_fd(watch) };
+    assert!(
+        unsafe {
+            libc::inotify_add_watch(watch.as_raw_fd(), path.as_ptr(), libc::IN_CLOSE_NOWRITE)
+        } >= 0
+    );
+    let mut closed = libc::pollfd {
+        fd: watch.as_raw_fd(),
+        events: libc::POLLIN,
+        revents: 0,
+    };
+    let mut first = progress_writer(&file);
+    first.write_all(b"d 0\n").unwrap();
+    drop(first);
+    // Wait for the original reader to close before pairing with the next open.
+    assert_eq!(
+        unsafe { libc::poll(&mut closed, 1, 20_000) },
+        1,
+        "the splash did not close its first sample"
+    );
+    let next = progress_writer(&file);
+    // Two reads (the splash reads at most 64 bytes per tick) guarantee a drawing tick after
+    // publication. The caption alone can appear before the zero reading reaches the drawing loop.
+    wait_for_console_read(&console, &[b'x'; 128]);
+    std::fs::rename(progress_file("quarter", "d 0.25\n"), &file).unwrap();
+    drop(next);
     console.until("a quarter", |s| {
         s.contains(&format!("|{}{}|", "#".repeat(8), " ".repeat(25)))
     });
@@ -294,13 +364,12 @@ fn the_progress_screen_follows_systemd_and_stops_when_asked_without_a_flash() {
             .screen()
             .contains("+----------------+----------------+")
     );
-    std::fs::write(&file, "d 0.75\n").unwrap();
+    std::fs::rename(progress_file("three-quarters", "d 0.75\n"), &file).unwrap();
     console.until("three quarters", |s| {
         s.contains(&format!("|{}{}|", "#".repeat(25), " ".repeat(8)))
     });
     // Keys typed while starting are never echoed.
-    console.type_bytes(b"typed during boot");
-    std::thread::sleep(Duration::from_millis(400));
+    wait_for_console_read(&console, b"typed during boot");
     assert!(!console.screen().contains("typed during boot"));
     // systemd stops it as the login screen starts: it ends at once and leaves its last frame.
     unsafe { libc::kill(console.child.id() as i32, libc::SIGTERM) };

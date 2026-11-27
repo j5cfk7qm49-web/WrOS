@@ -346,7 +346,7 @@ impl Store {
             bail!("pins metadata exceeds size limit");
         }
         let path = Self::safe_path(&self.root)?;
-        fs::create_dir_all(path.parent().unwrap())?;
+        fs::create_dir_all(path.parent().context("missing pins directory")?)?;
         match crate::sync::save_guarded(&path, &text, self.seen)? {
             SaveOutcome::Written => {
                 self.seen = Some(Fingerprint::of(&text));
@@ -405,8 +405,11 @@ fn heading_lines(body: &str) -> impl Iterator<Item = (usize, String)> + '_ {
             }
             return None;
         }
-        if indent <= 3 && matches!(marker, Some('`' | '~')) && run >= 3 {
-            fence = Some((marker.unwrap(), run));
+        if indent <= 3
+            && run >= 3
+            && let Some(c @ ('`' | '~')) = marker
+        {
+            fence = Some((c, run));
             return None;
         }
         heading(line).map(|title| (row, title))
@@ -451,7 +454,7 @@ pub fn resolve(body: &str, anchor: Option<&Anchor>) -> Resolution {
             };
             // A second overlapping match is ambiguous too; str::match_indices
             // alone misses the second 'aa' in 'aaa'. Advance one Unicode char.
-            let step = body[at..].chars().next().unwrap().len_utf8();
+            let step = text.chars().next().map_or(0, char::len_utf8);
             if body[at + step..].contains(text.as_str()) {
                 Resolution::Ambiguous
             } else {

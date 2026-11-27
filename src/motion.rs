@@ -52,11 +52,10 @@ impl Marquee {
         self.offset = if self.offset == self.end {
             0
         } else {
-            let next = self.title[self.offset..]
-                .chars()
-                .next()
-                .expect("before end");
-            self.offset + next.len_utf8()
+            self.title
+                .get(self.offset..)
+                .and_then(|suffix| suffix.chars().next())
+                .map_or(0, |next| self.offset + next.len_utf8())
         };
         let at_end = self.offset == 0 || self.offset == self.end;
         self.paused_until = now + if at_end { MARQUEE_PAUSE } else { MARQUEE_STEP };

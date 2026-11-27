@@ -479,6 +479,10 @@ fn one_at_a_time(
 
 /// The Windows voice, kept open in one PowerShell: it says each line it's
 /// given and answers `done`.
+#[expect(
+    clippy::expect_used,
+    reason = "the speech process is opened before its input is used"
+)]
 fn windows(
     texts: &[String],
     from: usize,

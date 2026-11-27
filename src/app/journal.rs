@@ -47,7 +47,12 @@ impl Journal {
         let day = writer
             .as_ref()
             .map(|s| s.day().clone())
-            .unwrap_or_else(|| Day::empty(&date).unwrap());
+            .unwrap_or_else(|| Day {
+                version: 1,
+                date: date.clone(),
+                next_id: 1,
+                facts: Vec::new(),
+            });
         Self {
             writer,
             writer_date: date.clone(),
@@ -77,8 +82,11 @@ impl Journal {
                 self.warning.clear();
             }
             Err(e) => {
-                self.day = Day::empty(date).unwrap();
                 self.warning = format!("Journal original preserved: {e:#}");
+                let Ok(day) = Day::empty(date) else {
+                    return;
+                };
+                self.day = day;
             }
         }
         self.date = date.into();
@@ -96,10 +104,11 @@ impl Journal {
                 self.writer = Some(Store::load(root, &day)?);
                 self.writer_date = day.clone();
             }
-            self.writer.as_mut().unwrap().append(kind, o)?;
+            let writer = self.writer.as_mut().context("journal writer unavailable")?;
+            writer.append(kind, o)?;
             self.pending.remove(0);
             if self.date == day {
-                self.day = self.writer.as_ref().unwrap().day().clone();
+                self.day = writer.day().clone();
                 self.warning.clear();
             }
         }
@@ -352,7 +361,10 @@ impl App {
                     }
                     self.views.secondary_visible = true;
                 }
-                let i = self.view_open(pane).unwrap();
+                let Some(i) = self.view_open(pane) else {
+                    self.msg = "Reflection editor is unavailable".into();
+                    return true;
+                };
                 self.journal_track_reflection(i);
                 self.activate_editor(pane);
                 self.overlay = Overlay::None;
@@ -478,7 +490,10 @@ impl App {
                 self.overlay = Overlay::None;
             }
             Key::Left | Key::Right => {
-                let d = journal::date(&self.journal.date).unwrap();
+                let Ok(d) = journal::date(&self.journal.date) else {
+                    self.journal.warning = "Journal date is invalid".into();
+                    return;
+                };
                 let days = chrono::Days::new(1);
                 let next = if key == Key::Right {
                     d.checked_add_days(days)
@@ -561,8 +576,8 @@ fn fact_rows(day: &Day, start: usize, height: usize) -> Vec<Line<'static>> {
             f.id,
             f.kind.name(),
             DateTime::parse_from_rfc3339(&o.at)
-                .unwrap()
-                .format("%H:%M:%S %:z")
+                .map(|time| time.format("%H:%M:%S %:z").to_string())
+                .unwrap_or_else(|_| o.at.clone())
         )));
         rows.push(Line::from(format!(
             "Project {} · daily net {} · since-open delta {}",
@@ -577,8 +592,8 @@ fn fact_rows(day: &Day, start: usize, height: usize) -> Vec<Line<'static>> {
         rows.push(Line::from(format!(
             "App opened {} · initial {} words",
             DateTime::parse_from_rfc3339(&o.app_opened_at)
-                .unwrap()
-                .format("%Y-%m-%d %H:%M:%S %:z"),
+                .map(|time| time.format("%Y-%m-%d %H:%M:%S %:z").to_string())
+                .unwrap_or_else(|_| o.app_opened_at.clone()),
             o.initial_manuscript_words
                 .map(|n| n.to_string())
                 .unwrap_or_else(|| "unavailable".into())

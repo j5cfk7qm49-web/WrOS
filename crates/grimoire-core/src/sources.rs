@@ -242,10 +242,14 @@ impl Sources {
         if self.get(&stem).is_none() {
             return stem;
         }
-        (2..)
-            .map(|i| format!("{stem}-{i}"))
-            .find(|key| self.get(key).is_none())
-            .unwrap()
+        let mut suffix = 2usize;
+        loop {
+            let key = format!("{stem}-{suffix}");
+            if self.get(&key).is_none() {
+                return key;
+            }
+            suffix += 1;
+        }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&str, &Record)> {

@@ -114,8 +114,7 @@ fn main() -> Result<()> {
         return compositor_warmth::worker_main();
     }
 
-    if matches!(first.as_deref(), Some("compile") | Some("index")) {
-        let want = first.clone().unwrap();
+    if let Some(want @ ("compile" | "index")) = first.as_deref() {
         let (root, _) = resolve_project(args.next().map(PathBuf::from))?;
         let project = Project::load(&root).context("loading project")?;
         if want == "index" {

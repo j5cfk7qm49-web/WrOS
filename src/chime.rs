@@ -31,7 +31,7 @@ pub(crate) fn ring(kind: Kind) {
             let sink = rodio::Player::connect_new(device.mixer());
             sink.append(rodio::buffer::SamplesBuffer::new(
                 NonZeroU16::MIN,
-                NonZeroU32::new(SAMPLE_RATE).unwrap(),
+                NonZeroU32::new(SAMPLE_RATE).unwrap_or(NonZeroU32::MIN),
                 tones(kind),
             ));
             sink.sleep_until_end();

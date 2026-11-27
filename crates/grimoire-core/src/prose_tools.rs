@@ -679,24 +679,30 @@ mod tests {
     #[test]
     fn controlled_child_cpu_limit_and_exit_failure_are_visible_without_findings_or_stderr() {
         use std::os::unix::fs::PermissionsExt;
-        let path =
-            std::env::temp_dir().join(format!("wd-prose-exit-fixture-{}", std::process::id()));
-        for (body, status, notice) in [
+        let dir = tempfile::tempdir().unwrap();
+        for (iteration, (body, status, notice)) in [
             ("kill -XCPU $$", Status::TimedOut, "kernel CPU budget"),
             ("exit 70", Status::Failed, "exit status: 70"),
-        ] {
-            std::fs::write(
-                &path,
-                format!("#!/bin/sh\necho 'synthetic stderr must not be forwarded' >&2\n{body}\n"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let path = dir.path().join(format!("prose-exit-{iteration}"));
+            let mut script = std::fs::File::create(&path).unwrap();
+            writeln!(
+                script,
+                "#!/bin/sh\necho 'synthetic stderr must not be forwarded' >&2\n{body}"
             )
             .unwrap();
+            script.sync_all().unwrap();
+            drop(script);
             std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
             let report = analyze(
                 source("in order to see."),
                 &revision(),
                 Engine::Proselint,
                 &Runtime {
-                    python: path.clone(),
+                    python: path,
                     wall_ms: 2000,
                 },
                 None,
@@ -708,6 +714,5 @@ mod tests {
             assert!(report.notice.contains(notice), "{}", report.notice);
             assert!(!report.notice.contains("synthetic stderr"));
         }
-        std::fs::remove_file(path).unwrap();
     }
 }

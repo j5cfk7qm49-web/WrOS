@@ -5,6 +5,9 @@ edition = "2024"
 license = "MIT"
 description = "WrOS start screens drawn with Ratatui: the disk password and the progress bar, with Debian's prompt behind them"
 
+[lints]
+workspace = true
+
 [dependencies]
 wros-shell = { path = "../wros-shell" }
 ratatui = "0.30.2"

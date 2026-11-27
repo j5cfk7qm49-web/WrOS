@@ -207,6 +207,10 @@ impl Title {
     }
 
     /// The letter that opens the menu, underlined in its title.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "all title labels are fixed nonempty strings"
+    )]
     pub fn letter(self) -> char {
         if self == Self::Power {
             'w'
@@ -215,6 +219,7 @@ impl Title {
         }
     }
 
+    #[expect(clippy::unwrap_used, reason = "Title::ALL lists every title variant")]
     pub fn index(self) -> usize {
         Title::ALL.iter().position(|t| *t == self).unwrap()
     }

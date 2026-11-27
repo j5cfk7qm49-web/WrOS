@@ -621,7 +621,9 @@ impl App {
         if let Some(view) = tile {
             match key {
                 Key::Left | Key::Right => {
-                    let at = DeskView::ALL.iter().position(|&v| v == view).unwrap();
+                    let Some(at) = DeskView::ALL.iter().position(|&v| v == view) else {
+                        return;
+                    };
                     let next = if key == Key::Left {
                         at.saturating_sub(1)
                     } else {
@@ -952,7 +954,7 @@ pub fn draw_bar_line(f: &mut Frame, app: &App, area: Rect, t: &Theme, show_marks
             } else {
                 ground
             };
-            let initial = view.label().chars().next().unwrap();
+            let initial = view.label().chars().next().unwrap_or(' ');
             spans.push(Span::styled(initial.to_string(), letter));
             spans.push(Span::styled(" ", if current { ground } else { base }));
         }

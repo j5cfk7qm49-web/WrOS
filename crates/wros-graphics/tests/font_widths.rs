@@ -2,6 +2,7 @@
 //! many cells wide as the layout gives it (rc13 design, call 19). A new symbol
 //! Unifont draws two cells wide fails here until `assets/fonts/wros-narrow.txt`
 //! gains a one-cell drawing for it.
+#![cfg(test)]
 use std::path::{Path, PathBuf};
 use unicode_width::UnicodeWidthChar;
 use wros_graphics::unifont::glyph;

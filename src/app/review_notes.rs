@@ -1,6 +1,6 @@
 //! Revision-note workflow over the existing retained editor and guarded store.
 use super::*;
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use grimoire_core::{
     annotations::AnnotationStatus as Status,
     diagnostics::Snapshot,
@@ -372,27 +372,19 @@ impl App {
             .ok_or_else(|| anyhow::anyhow!("refresh with r first"))?;
         let binding = self.verify_review_binding(&expected)?;
         let note = self.review_notes.note()?;
-        ensure!(
-            !self
-                .review_notes
-                .store
-                .as_ref()
-                .unwrap()
-                .value
-                .document(note.current.document_id)?
-                .needs_reconnect,
-            "interrupted document move; explicitly re-anchor to reconnect this identity"
-        );
-        let path = &self
+        let document = self
             .review_notes
             .store
             .as_ref()
-            .unwrap()
+            .context("Revision notes unavailable")?
             .value
-            .document(note.current.document_id)?
-            .path;
+            .document(note.current.document_id)?;
         ensure!(
-            *path == binding.snapshot.stamp.document,
+            !document.needs_reconnect,
+            "interrupted document move; explicitly re-anchor to reconnect this identity"
+        );
+        ensure!(
+            document.path == binding.snapshot.stamp.document,
             "open the recorded source in the editor, then refresh with r"
         );
         let span = note
@@ -455,7 +447,9 @@ impl App {
         let (binding, anchor, id) = (
             draft.binding.clone(),
             draft.anchor.clone(),
-            draft.note.unwrap(),
+            draft
+                .note
+                .context("No revision note is selected for re-anchoring")?,
         );
         self.verify_review_binding(&binding)?;
         let doc = self.review_notes.note()?.current.document_id;

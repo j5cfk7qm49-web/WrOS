@@ -12,26 +12,24 @@ use std::{collections::BTreeMap, env, fs, io::Read, path::PathBuf};
 const HEX: &str = "../../assets/fonts/unifont-18.0.01.hex.gz";
 const NARROW: &str = "../../assets/fonts/wros-narrow.txt";
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed={HEX}");
     println!("cargo:rerun-if-changed={NARROW}");
     let mut text = String::new();
-    flate2::read::GzDecoder::new(fs::File::open(HEX).expect("Unifont hex file"))
-        .read_to_string(&mut text)
-        .expect("Unifont hex file is gzip text");
+    flate2::read::GzDecoder::new(fs::File::open(HEX)?).read_to_string(&mut text)?;
     let mut glyphs: BTreeMap<u32, Vec<u8>> = BTreeMap::new();
     for (n, line) in text.lines().enumerate() {
         let (cp, bits) = line
             .split_once(':')
             .unwrap_or_else(|| panic!("hex line {}: no colon", n + 1));
-        let cp = u32::from_str_radix(cp, 16).expect("hex code point");
+        let cp = u32::from_str_radix(cp, 16)?;
         assert!(
             bits.len() == 32 || bits.len() == 64,
             "hex line {}: {} digits",
             n + 1,
             bits.len()
         );
-        glyphs.insert(cp, decode(bits));
+        glyphs.insert(cp, decode(bits)?);
     }
     // Symbols Unifont draws two cells wide where the layout gives one: scaled
     // down evenly, so they keep their proportions. (A letter of a script keeps
@@ -45,8 +43,8 @@ fn main() {
         }
     }
     // WrOS's own drawings, made by hand for the symbols the interface uses.
-    let narrow = fs::read_to_string(NARROW).expect("narrow drawings");
-    for (cp, rows) in narrow_drawings(&narrow) {
+    let narrow = fs::read_to_string(NARROW)?;
+    for (cp, rows) in narrow_drawings(&narrow)? {
         glyphs.insert(cp, rows);
     }
     // The view tiles (rc31): two cells each, a 14x14 square frame with Unifont's own letter (or
@@ -82,8 +80,9 @@ fn main() {
     out.extend_from_slice(&(glyphs.len() as u32).to_le_bytes());
     out.extend(index);
     out.extend(blob);
-    let path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("unifont.bin");
-    fs::write(path, out).expect("write unifont.bin");
+    let path = PathBuf::from(env::var("OUT_DIR")?).join("unifont.bin");
+    fs::write(path, out)?;
+    Ok(())
 }
 
 /// A view tile's two cells: the square's lines on columns 1 and 14 and rows 1 and 14 of the
@@ -227,7 +226,9 @@ fn one_cell_from(rows: &[u8]) -> Vec<u8> {
     let Some((_, c)) = best else {
         return vec![0; 16];
     };
-    let (cx0, cx1, cy0, cy1) = ink_box(&c).expect("a chosen drawing has ink");
+    let Some((cx0, cx1, cy0, cy1)) = ink_box(&c) else {
+        return vec![0; 16];
+    };
     let (w, h) = (cx1 - cx0 + 1, cy1 - cy0 + 1);
     // Columns 1-7, like Unifont's own one-cell symbols, at the original's height.
     let left = 1 + (FIT_WIDTH - w) / 2;
@@ -379,14 +380,14 @@ fn shape(g: &Grid) -> (usize, usize) {
     (regions(true).0, regions(false).1)
 }
 
-fn decode(bits: &str) -> Vec<u8> {
+fn decode(bits: &str) -> Result<Vec<u8>, std::num::ParseIntError> {
     (0..bits.len() / 2)
-        .map(|i| u8::from_str_radix(&bits[i * 2..i * 2 + 2], 16).expect("hex digits"))
+        .map(|i| u8::from_str_radix(&bits[i * 2..i * 2 + 2], 16))
         .collect()
 }
 
 /// `U+XXXX` headers, each followed by 16 rows of 8 `#`/`.` pixels.
-fn narrow_drawings(text: &str) -> Vec<(u32, Vec<u8>)> {
+fn narrow_drawings(text: &str) -> Result<Vec<(u32, Vec<u8>)>, std::num::ParseIntError> {
     let mut out = vec![];
     let mut lines = text.lines().map(str::trim_end);
     while let Some(line) = lines.next() {
@@ -398,7 +399,7 @@ fn narrow_drawings(text: &str) -> Vec<(u32, Vec<u8>)> {
             continue;
         };
         let hex: String = rest.chars().take_while(char::is_ascii_hexdigit).collect();
-        let cp = u32::from_str_radix(&hex, 16).expect("narrow drawing code point");
+        let cp = u32::from_str_radix(&hex, 16)?;
         let rows: Vec<u8> = (0..16)
             .map(|r| {
                 let row = lines
@@ -414,5 +415,5 @@ fn narrow_drawings(text: &str) -> Vec<(u32, Vec<u8>)> {
             .collect();
         out.push((cp, rows));
     }
-    out
+    Ok(out)
 }

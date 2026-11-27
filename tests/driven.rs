@@ -1,6 +1,7 @@
 //! The real app in a pseudo-terminal (#13). vt100 reads what it draws, taria's
 //! socket lets the test choose controls by name, and insta keeps snapshots
 //! of the screens. Build with `--features test-driver`; see docs/TESTING.md.
+#![cfg(test)]
 #![cfg(unix)]
 
 use std::io::{BufRead, BufReader, Write};

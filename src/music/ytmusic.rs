@@ -162,7 +162,7 @@ struct Staged {
 impl Staged {
     fn install(self, cache: &Path, keep: Option<&Path>) -> Result<PathBuf> {
         trim_cache(cache, keep, CACHE_FILES - 1, CACHE_BYTES - self.bytes)?;
-        let path = cache.join(self.file.file_name().unwrap());
+        let path = cache.join(self.file.file_name().context("download has no filename")?);
         fs::rename(&self.file, &path).context("saving downloaded audio in the cache")?;
         Ok(path)
     }
@@ -569,7 +569,10 @@ impl YtMusic {
             self.stream = None;
             self.stream = Some(Stream::start(&self.ytdlp, &item.id, Self::url(item))?);
         }
-        Ok(self.stream.as_ref().unwrap().fifo.clone())
+        self.stream
+            .as_ref()
+            .map(|stream| stream.fifo.clone())
+            .context("music stream unavailable")
     }
 
     fn search_for(&mut self, query: &str) -> Result<&Search> {
@@ -577,7 +580,10 @@ impl YtMusic {
             let result = helper(&self.helper, "search", query)?;
             self.search = Some((query.to_string(), result));
         }
-        Ok(&self.search.as_ref().unwrap().1)
+        self.search
+            .as_ref()
+            .map(|(_, search)| search)
+            .context("music search unavailable")
     }
 
     fn clear_fetching(&mut self) {
@@ -655,14 +661,20 @@ impl YtMusic {
             return;
         };
         let staged_bytes = staged.bytes;
-        let playing = &self.loaded.as_ref().unwrap().path;
+        let Some(playing) = self.loaded.as_ref().map(|loaded| &loaded.path) else {
+            return;
+        };
         let playing_bytes = playing.metadata().map_or(0, |info| info.len());
         if staged_bytes > CACHE_BYTES.saturating_sub(playing_bytes) {
             // Keep the prefetched file staged until the current file can be evicted.
             return;
         }
-        let job = self.download.as_mut().unwrap();
-        let staged = job.ready.take().unwrap().unwrap();
+        let Some(job) = &mut self.download else {
+            return;
+        };
+        let Some(Ok(staged)) = job.ready.take() else {
+            return;
+        };
         match staged.install(&self.cache, Some(playing)) {
             Ok(_) => self.download = None,
             Err(error) => job.ready = Some(Err(error)),
@@ -1102,10 +1114,14 @@ mod tests {
 
     #[cfg(unix)]
     fn fake_helper(dir: &Path, commands: &str) -> PathBuf {
+        use std::io::Write;
         use std::os::unix::fs::PermissionsExt;
 
         let path = dir.join("wros-ytm");
-        fs::write(&path, format!("#!/bin/sh\n{commands}")).unwrap();
+        let mut script = fs::File::create(&path).unwrap();
+        writeln!(script, "#!/bin/sh\n{commands}").unwrap();
+        script.sync_all().unwrap();
+        drop(script);
         fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
         path
     }

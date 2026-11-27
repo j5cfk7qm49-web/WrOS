@@ -622,6 +622,10 @@ pub(super) fn draw_export(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
 /// More rows than the box holds — a short terminal, a book of many parts, a
 /// TK warning: the spacer lines go first, then the list scrolls to keep the
 /// cursor (the `▸` row) in view. The hint row at the bottom always stays.
+#[expect(
+    clippy::expect_used,
+    reason = "overflow handling only runs when the row list is nonempty"
+)]
 fn fit_rows(mut lines: Vec<Line<'static>>, room: usize) -> Vec<Line<'static>> {
     if lines.len() <= room || room < 3 {
         return lines;

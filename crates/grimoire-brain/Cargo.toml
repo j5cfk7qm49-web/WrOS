@@ -6,6 +6,9 @@ license = "MIT"
 description = "Brain operations and reference model for Grimoire"
 publish = false
 
+[lints]
+workspace = true
+
 [features]
 runtime = ["dep:rusqlite", "dep:tempfile"]
 qualification = ["runtime", "dep:automerge", "rusqlite/backup"]

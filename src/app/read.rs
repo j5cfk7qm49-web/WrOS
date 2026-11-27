@@ -6,6 +6,7 @@ use std::sync::{
 };
 use std::time::Instant;
 
+use anyhow::Context;
 use chrono::Utc;
 use grimoire_brain::bounded_store::PagedBrain;
 use grimoire_brain::library::{
@@ -313,7 +314,10 @@ impl ReadDesk {
         let Some((Input::Catalogue(kind), editor)) = &self.prompt else {
             return Ok(None);
         };
-        let catalogue = self.catalogue.as_mut().expect("the catalogue search");
+        let catalogue = self
+            .catalogue
+            .as_mut()
+            .context("Catalogue search unavailable")?;
         let in_editions = catalogue.search.editions().is_some();
         let now = Instant::now();
         let (hits, selected) = catalogue.hits();
@@ -593,7 +597,9 @@ impl ReadDesk {
                 }
             }
             KeyCode::Char('b') if self.open.is_some() => {
-                self.prompt(Input::AddEdition(self.open.as_ref().unwrap().0), "")
+                if let Some((id, _)) = &self.open {
+                    self.prompt(Input::AddEdition(*id), "");
+                }
             }
             KeyCode::Char('m' | 'e') if self.open.is_some() => {
                 if let Some((key_id, _)) = self.editions.get(self.edition) {

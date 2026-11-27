@@ -5,7 +5,7 @@ use crate::{
     accounting::{self, Entry, Mode, Role, Totals},
     statefile::Validate,
 };
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use chrono::{Datelike, Duration, Months, NaiveDate};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -58,7 +58,7 @@ impl Period {
                 (a, a + Duration::days(6))
             }
             Self::Monthly => {
-                let a = d.with_day(1).unwrap();
+                let a = d.with_day(1).context("calendar boundary unavailable")?;
                 let b = a
                     .checked_add_months(Months::new(1))
                     .ok_or_else(|| anyhow::anyhow!("calendar boundary unavailable"))?
@@ -202,7 +202,9 @@ impl Schedule {
             NaiveDate::from_ymd_opt(year, 11, 1).ok_or_else(|| anyhow::anyhow!("invalid year"))?;
         let s = Self {
             start: start.to_string(),
-            end: NaiveDate::from_ymd_opt(year, 11, 30).unwrap().to_string(),
+            end: NaiveDate::from_ymd_opt(year, 11, 30)
+                .context("invalid year")?
+                .to_string(),
             target: 50_000,
             rest_days: BTreeSet::new(),
         };
@@ -448,9 +450,10 @@ impl Sprint {
     }
     pub fn advance(&mut self, now: &accounting::Moment, reading: Option<i128>) -> bool {
         if let Some(b) = &mut self.break_timer {
-            if b.advance(now, None) {
-                let finished = *self.break_timer.take().unwrap();
-                self.breaks.push(finished);
+            if b.advance(now, None)
+                && let Some(finished) = self.break_timer.take()
+            {
+                self.breaks.push(*finished);
                 self.last_checkpoint = now.stamp();
                 return true;
             }

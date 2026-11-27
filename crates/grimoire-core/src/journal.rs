@@ -244,7 +244,7 @@ impl Store {
             bail!("journal exceeds size limit; original preserved");
         }
         let path = Self::checked_path(&self.root, &next.date)?;
-        fs::create_dir_all(path.parent().unwrap())?;
+        fs::create_dir_all(path.parent().context("missing journal directory")?)?;
         match crate::sync::save_guarded(&path, &text, self.seen)? {
             SaveOutcome::Written => {
                 self.seen = Some(Fingerprint::of(&text));
@@ -327,7 +327,7 @@ pub fn ensure_reflection(root: &Path, day: &str) -> Result<PathBuf> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
         Err(e) => return Err(e.into()),
     }
-    fs::create_dir_all(path.parent().unwrap())?;
+    fs::create_dir_all(path.parent().context("missing journal directory")?)?;
     let mut file = fs::OpenOptions::new()
         .write(true)
         .create_new(true)

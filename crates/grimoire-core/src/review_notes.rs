@@ -442,7 +442,7 @@ impl MoveGuard {
             next.documents
                 .iter_mut()
                 .find(|d| d.id == *id)
-                .unwrap()
+                .context("revision document missing during move")?
                 .path = path.clone();
         }
         next.validate()?;
@@ -451,7 +451,7 @@ impl MoveGuard {
                 s.documents
                     .iter_mut()
                     .find(|d| d.id == *id)
-                    .unwrap()
+                    .context("revision document missing during move")?
                     .needs_reconnect = true;
             }
             Ok(())
@@ -464,7 +464,11 @@ impl MoveGuard {
                 .store
                 .update(|s| {
                     for (id, path) in guard.changes {
-                        let doc = s.documents.iter_mut().find(|d| d.id == id).unwrap();
+                        let doc = s
+                            .documents
+                            .iter_mut()
+                            .find(|d| d.id == id)
+                            .context("revision document missing during move")?;
                         doc.previous_paths
                             .push(std::mem::replace(&mut doc.path, path));
                         doc.needs_reconnect = false;

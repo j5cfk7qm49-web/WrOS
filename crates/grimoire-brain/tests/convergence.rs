@@ -1,3 +1,4 @@
+#![cfg(test)]
 use std::collections::BTreeSet;
 
 use chrono::NaiveDate;
@@ -111,7 +112,7 @@ impl<R: Replica> TestPeer for R {
     }
     #[cfg(feature = "qualification")]
     fn operation_count(&self) -> Result<usize> {
-        Ok(self.edit_count())
+        Ok(self.edit_count()?)
     }
 }
 

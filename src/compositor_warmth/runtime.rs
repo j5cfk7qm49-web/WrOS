@@ -359,7 +359,7 @@ fn handle(saved: &mut Saved, trial: &mut Transaction<Protocol>, request: Request
             let seconds = trial
                 .pending
                 .as_ref()
-                .unwrap()
+                .context("the colour preview is unavailable")?
                 .deadline
                 .saturating_duration_since(Instant::now())
                 .as_secs();

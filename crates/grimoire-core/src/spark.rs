@@ -1014,7 +1014,7 @@ impl<'a> Engine<'a> {
                 if sha256(text.as_bytes()) != receipt.sha256 {
                     bail!("Prepared corpus content changed; preserved");
                 }
-                fs::create_dir_all(full.parent().unwrap())?;
+                fs::create_dir_all(full.parent().context("missing Spark export directory")?)?;
                 let mut file = fs::OpenOptions::new()
                     .write(true)
                     .create_new(true)
@@ -1253,7 +1253,7 @@ pub fn validate_existing(root: &Path) -> Result<(usize, usize)> {
         let rel = PathBuf::from(format!(".grimoire/writingdeck/spark/{dir}"));
         let base = crate::statefile::checked(root, &rel.join("probe.json"))?
             .parent()
-            .unwrap()
+            .context("missing Spark audit directory")?
             .to_path_buf();
         if !base.exists() {
             continue;

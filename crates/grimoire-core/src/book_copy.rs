@@ -382,11 +382,11 @@ fn verify_entries(
             .zip(&current)
             .position(|(a, b)| a != b)
             .unwrap_or(entries.len().min(current.len()));
-        let entry = entries.get(i).or_else(|| current.get(i)).unwrap();
-        bail!(
-            "source changed while copying {}",
-            source.join(&entry.path).display()
-        );
+        let changed = entries
+            .get(i)
+            .or_else(|| current.get(i))
+            .map_or_else(|| source.to_path_buf(), |entry| source.join(&entry.path));
+        bail!("source changed while copying {}", changed.display());
     }
     Ok(())
 }

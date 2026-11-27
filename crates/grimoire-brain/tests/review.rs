@@ -1,3 +1,4 @@
+#![cfg(test)]
 use chrono::{DateTime, FixedOffset};
 use grimoire_brain::model::{NodeId, OpId};
 use grimoire_brain::review::{CardKey, Review, Schedule, cards_for_text, update_schedule};

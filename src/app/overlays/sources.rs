@@ -4,6 +4,7 @@ use super::*;
 use crate::app::outline::OutlineReferenceTarget;
 use crate::app::read::{CataloguePick, keep_in_commonplace};
 use crate::catalogue::{Hit, SearchStatus};
+use anyhow::Context;
 use grimoire_brain::library::EditionKey;
 use grimoire_brain::model::NodeId;
 use grimoire_core::sync::Fingerprint;
@@ -436,7 +437,10 @@ impl App {
                 match pick {
                     CataloguePick::Ready(record) => self.finish_catalogue_pick(dialog, record),
                     CataloguePick::Resolving(receiver) => {
-                        let catalogue = dialog.catalogue.as_ref().expect("a catalogue pick");
+                        let catalogue = dialog
+                            .catalogue
+                            .as_ref()
+                            .context("Catalogue search unavailable")?;
                         catalogue.0.borrow_mut().resolving = Some(receiver);
                         dialog.notice.clear();
                         Ok(false)
@@ -544,19 +548,14 @@ impl App {
             dialog.notice.clear();
             return false;
         }
-        let mut catalogue = dialog
-            .catalogue
-            .as_ref()
-            .expect("the editions view has a search")
-            .0
-            .borrow_mut();
+        let (Some(catalogue), Some(selected)) = (&dialog.catalogue, &mut dialog.catalogue_view)
+        else {
+            return false;
+        };
+        let mut catalogue = catalogue.0.borrow_mut();
         if catalogue.resolving.is_some() {
             return false;
         }
-        let selected = dialog
-            .catalogue_view
-            .as_mut()
-            .expect("the editions view is open");
         let Some((_, editions, _)) = catalogue.search.editions() else {
             return false;
         };
@@ -1116,9 +1115,10 @@ impl App {
                             Ok(record) => {
                                 cite.works_cited = source_line(&record);
                                 cite.edited = Some(Box::new(record));
-                                dialog.page =
-                                    *dialog.editing_citation.take().expect("citation edit");
-                                dialog.notice.clear();
+                                if let Some(page) = dialog.editing_citation.take() {
+                                    dialog.page = *page;
+                                    dialog.notice.clear();
+                                }
                             }
                             Err(error) => dialog.notice = format!("{error:#}"),
                         }
@@ -1147,7 +1147,10 @@ impl App {
                             if catalogue_record.is_some()
                                 && let Ok(Some(store)) = self.commonplace_store_if_present()
                             {
-                                let record = next.sources.get(&key).expect("source just added");
+                                let record = next
+                                    .sources
+                                    .get(&key)
+                                    .context("New bibliography record unavailable")?;
                                 let edition = keep_in_commonplace(store, record)?;
                                 let accepted = sources::accepted_library_record(
                                     &key,
@@ -1447,10 +1450,14 @@ fn library_pick(
     let key = if !occupied(&base) {
         base
     } else {
-        (2..)
-            .map(|index| format!("{base}-{index}"))
-            .find(|key| !occupied(key))
-            .expect("an available citation key")
+        let mut suffix = 2usize;
+        loop {
+            let key = format!("{base}-{suffix}");
+            if !occupied(&key) {
+                break key;
+            }
+            suffix += 1;
+        }
     };
     let record = sources::accepted_library_record(&key, identity, bibliography)?;
     Ok(EditionPick {

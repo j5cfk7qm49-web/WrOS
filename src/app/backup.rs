@@ -1221,7 +1221,9 @@ impl App {
             }
             Key::Enter if form.selected < count => form.selected += 1,
             Key::Enter => {
-                let form = self.deck.shell.backup.form.take().unwrap();
+                let Some(form) = self.deck.shell.backup.form.take() else {
+                    return;
+                };
                 let request = form.request(&self.project.root);
                 self.deck.shell.nav.back();
                 self.deck.shell.backup.request(request);

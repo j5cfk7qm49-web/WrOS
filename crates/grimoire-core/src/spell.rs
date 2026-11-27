@@ -78,6 +78,10 @@ impl Language {
         Language::ALL[(i + 1) % Language::ALL.len()]
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "the compressed dictionary is bundled and fixed at build time"
+    )]
     fn words(self) -> std::borrow::Cow<'static, str> {
         let packed = match self {
             Language::American => return std::borrow::Cow::Borrowed(EN_US_DIC),
@@ -144,6 +148,10 @@ impl Speller {
         Speller::for_language(Language::American)
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "the bundled dictionaries and extra entries are fixed at build time"
+    )]
     pub fn for_language(lang: Language) -> Speller {
         let words = lang.words();
         let mut dict =
@@ -1172,6 +1180,10 @@ mod tests {
     /// `cargo test --release spell::tests::timings -- --ignored --nocapture`
     #[test]
     #[ignore]
+    #[expect(
+        clippy::print_stdout,
+        reason = "the opt-in timing test reports its measurements"
+    )]
     fn timings() {
         let t = Instant::now();
         let s = Speller::new();

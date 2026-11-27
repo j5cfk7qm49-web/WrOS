@@ -1630,6 +1630,10 @@ pub(crate) mod tests {
         let _ = fs::remove_dir_all(&d);
     }
 
+    #[expect(
+        clippy::print_stderr,
+        reason = "this test fixture explains a skip when git is unavailable"
+    )]
     fn book(tag: &str) -> Option<PathBuf> {
         if !git_available() {
             eprintln!("skipping {tag}: git isn't installed");
@@ -2571,6 +2575,10 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::print_stderr,
+        reason = "this test explains a skip when git is unavailable"
+    )]
     fn a_book_inside_someone_elses_repository_is_left_alone_until_enabled() {
         if !git_available() {
             eprintln!("skipping nested: git isn't installed");

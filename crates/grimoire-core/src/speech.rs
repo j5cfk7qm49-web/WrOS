@@ -22,14 +22,13 @@ pub fn segment_sentences(text: &str) -> Vec<SentenceSpan> {
         // UAX #29 splits after quoted exclamations. For fiction, keep a
         // following lowercase dialogue tag with that quotation. Offsets still
         // come from the maintained splitter and refer to the original source.
-        let dialogue_tag = trimmed.chars().next().is_some_and(char::is_lowercase)
-            && spans.last().is_some_and(|previous| {
+        if trimmed.chars().next().is_some_and(char::is_lowercase)
+            && let Some(previous) = spans.last_mut().filter(|previous| {
                 let without_quotes = previous.text.trim_end_matches(['"', '\'', '”', '’']);
                 without_quotes.len() < previous.text.len()
                     && without_quotes.ends_with(['.', '!', '?', '…'])
-            });
-        if dialogue_tag {
-            let previous = spans.last_mut().unwrap();
+            })
+        {
             previous.range.end = start + trimmed.len();
             previous.text = text[previous.range.clone()].into();
             continue;

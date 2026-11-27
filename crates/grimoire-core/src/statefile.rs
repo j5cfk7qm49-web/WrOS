@@ -1,6 +1,6 @@
 //! Bounded guarded metadata, never prose storage. No locks/CAS are claimed.
 use crate::sync::{Fingerprint, SaveOutcome};
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use serde::{Serialize, de::DeserializeOwned};
 use std::{
     fs,
@@ -105,7 +105,7 @@ impl<T: Validate + Serialize + DeserializeOwned + Clone> Store<T> {
         }
         self.verify()?;
         let path = checked(&self.root, &self.relative)?;
-        fs::create_dir_all(path.parent().unwrap())?;
+        fs::create_dir_all(path.parent().context("missing state directory")?)?;
         match crate::sync::save_guarded(&path, &text, self.seen)? {
             SaveOutcome::Written => {
                 self.seen = Some(Fingerprint::of(&text));

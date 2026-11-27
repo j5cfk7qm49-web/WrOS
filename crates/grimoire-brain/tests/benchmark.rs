@@ -1,3 +1,4 @@
+#![cfg(test)]
 #![cfg(all(feature = "qualification", target_os = "linux"))]
 
 use std::fs;

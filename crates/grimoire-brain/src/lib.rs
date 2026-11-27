@@ -1,3 +1,5 @@
+#![warn(clippy::print_stdout, clippy::print_stderr)]
+
 //! Brain operations, replication and local storage.
 
 #[cfg(feature = "qualification")]

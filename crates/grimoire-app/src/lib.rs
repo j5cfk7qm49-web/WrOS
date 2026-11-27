@@ -1,3 +1,5 @@
+#![warn(clippy::print_stdout, clippy::print_stderr)]
+
 //! What a front end asks for, in the shapes a front end wants.
 //!
 //! The terminal app drives `grimoire-core` directly, holding a whole `Project`

@@ -111,7 +111,7 @@ impl Keyboard {
                 .as_ref()
                 .is_some_and(|(_, deadline)| now >= *deadline)
         {
-            let (token, _) = self.preview.take().unwrap();
+            let (token, _) = self.preview.take()?;
             self.begin(Command::Cancel(token))
         } else {
             None

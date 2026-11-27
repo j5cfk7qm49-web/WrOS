@@ -85,6 +85,10 @@ pub fn board_all(p: &Project, scope: Option<usize>) -> Vec<Group> {
     groups
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "the scene arm inserts a group if there is no matching last group"
+)]
 fn walk(p: &Project, idx: usize, chapter: &str, groups: &mut Vec<Group>) {
     let n = &p.nodes[idx];
     match n.kind {

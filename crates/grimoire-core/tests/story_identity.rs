@@ -1,4 +1,5 @@
 //! Shared document identity must survive missing/stale metadata without reuse.
+#![cfg(test)]
 use grimoire_core::{
     continuity::{Certainty, ContinuityStore, Fact, FactCategory},
     milestones::{MilestoneStore, VariantStore},

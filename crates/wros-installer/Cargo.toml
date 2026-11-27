@@ -5,6 +5,9 @@ edition = "2024"
 license = "MIT"
 description = "Native Grimoire presentation for Debian Installer's passthrough frontend"
 
+[lints]
+workspace = true
+
 [dependencies]
 wros-shell = { path = "../wros-shell" }
 ratatui = { version = "0.30.2", features = ["unstable-rendered-line-info"] }

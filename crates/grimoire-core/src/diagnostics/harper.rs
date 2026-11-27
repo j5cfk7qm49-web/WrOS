@@ -94,7 +94,10 @@ impl HarperEngine {
                 curated,
             });
         }
-        let loaded = self.loaded.as_mut().expect("initialized grammar engine");
+        let Some(loaded) = self.loaded.as_mut() else {
+            report.status = ReportStatus::EngineFailed("grammar engine unavailable".into());
+            return report;
+        };
         loaded.group.config = loaded.curated.clone();
         if report.options.profile == Profile::DeepReview {
             loaded.group.set_all_rules_to(Some(true));

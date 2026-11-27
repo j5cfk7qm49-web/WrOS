@@ -18,19 +18,21 @@ fn label(value: &str) -> Result<()> {
 // nmcli's documented terse escaping is backslash-colon / backslash-backslash.
 // Do not trim SSIDs or profile names: leading/trailing spaces are significant.
 fn fields(line: &str, count: usize) -> Result<Vec<String>> {
-    let mut parts = vec![String::new()];
+    let mut parts = Vec::new();
+    let mut field = String::new();
     let mut chars = line.chars();
     while let Some(c) = chars.next() {
         match c {
             '\\' => {
                 let escaped = chars.next().context("incomplete nmcli escape")?;
                 ensure!(matches!(escaped, ':' | '\\'), "unknown nmcli escape");
-                parts.last_mut().unwrap().push(escaped);
+                field.push(escaped);
             }
-            ':' => parts.push(String::new()),
-            c => parts.last_mut().unwrap().push(c),
+            ':' => parts.push(std::mem::take(&mut field)),
+            c => field.push(c),
         }
     }
+    parts.push(field);
     ensure!(parts.len() == count, "invalid nmcli field count");
     for part in &parts {
         label(part)?;

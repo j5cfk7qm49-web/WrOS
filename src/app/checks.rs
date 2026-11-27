@@ -441,7 +441,9 @@ impl App {
                     }
                 }
             }
-            let worker = self.checks.worker.as_ref().unwrap();
+            let Some(worker) = self.checks.worker.as_ref() else {
+                return;
+            };
             for slot in &mut self.checks.slots {
                 if !slot.pending
                     && slot.report.is_none()
@@ -704,14 +706,13 @@ impl App {
         Ok(())
     }
     fn enable_live_checks(&mut self) -> Result<()> {
-        ensure!(
-            self.checks.novel.is_some() && self.checks.personal.is_some(),
-            "project/personal check settings unavailable; no live consent written"
-        );
+        let (Some(novel), Some(personal)) = (&mut self.checks.novel, &mut self.checks.personal)
+        else {
+            bail!("project/personal check settings unavailable; no live consent written");
+        };
         let binding = self.checks.project_binding.clone().ok_or_else(|| {
             anyhow::anyhow!("project location cannot be bound; live checks not enabled")
         })?;
-        let personal = self.checks.personal.as_mut().unwrap();
         if !personal.value.allows_runtime() || !personal.value.live_projects.contains(&binding) {
             personal.update(|p| {
                 p.allowed_runtime = Some(CONSENT_VERSION.into());
@@ -722,7 +723,7 @@ impl App {
         // Two separately guarded records, not a cross-file atomic transaction.
         // If the second write fails, personal permission may be remembered,
         // but live analysis cannot start without the novel's consent as well.
-        self.checks.novel.as_mut().unwrap().update(|p| {
+        novel.update(|p| {
             p.live_consent = Some(CONSENT_VERSION.into());
             Ok(())
         })?;

@@ -496,10 +496,16 @@ impl Paper<'_> {
         );
         for (i, (_, value)) in self.details.fields().into_iter().enumerate() {
             if i != 1 {
-                writeln!(s, "#text({}) #linebreak()", typst_string(value.trim())).unwrap();
+                s.push_str(&format!(
+                    "#text({}) #linebreak()\n",
+                    typst_string(value.trim())
+                ));
             }
         }
-        writeln!(s, "#align(center)[#text({})]\n", typst_string(self.title)).unwrap();
+        s.push_str(&format!(
+            "#align(center)[#text({})]\n\n",
+            typst_string(self.title)
+        ));
         for p in &self.paragraphs {
             self.typst_paragraph(p, &mut s);
         }
@@ -580,14 +586,12 @@ fn word_text(text: &str, italic: bool, bold: bool) -> String {
 }
 
 fn typst_run(out: &mut String, text: &str, italic: bool, bold: bool) {
-    write!(
-        out,
+    out.push_str(&format!(
         "#text(style:\"{}\",weight:\"{}\",{})",
         if italic { "italic" } else { "normal" },
         if bold { "bold" } else { "regular" },
         typst_string(text)
-    )
-    .unwrap();
+    ));
 }
 
 fn typst_string(text: &str) -> String {
@@ -601,7 +605,7 @@ fn typst_string(text: &str) -> String {
             '\n' => s.push_str("\\n"),
             '\r' => s.push_str("\\r"),
             '\t' => s.push_str("\\t"),
-            c if c.is_control() => write!(s, "\\u{{{:x}}}", u32::from(c)).unwrap(),
+            c if c.is_control() => s.push_str(&format!("\\u{{{:x}}}", u32::from(c))),
             c => s.push(c),
         }
     }

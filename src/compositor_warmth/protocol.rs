@@ -1,6 +1,6 @@
 //! Only wl_output and gamma-control are bound. No seat or surface is opened.
 use super::{Screen, ramps};
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 #[cfg(test)]
 use std::os::unix::net::UnixStream;
 use std::{
@@ -97,7 +97,12 @@ impl Protocol {
 
     fn acquire(&mut self) -> Result<()> {
         self.check()?;
-        let manager = &self.state.manager.as_ref().unwrap().1;
+        let manager = &self
+            .state
+            .manager
+            .as_ref()
+            .context("the display has no colour control manager")?
+            .1;
         let handle = self.queue.handle();
         for output in &mut self.state.outputs {
             if output.control.is_none() {
@@ -186,7 +191,12 @@ impl Screen for Protocol {
         let changed = (|| {
             self.acquire()?;
             for output in &self.state.outputs {
-                let values = ramps(output.points.unwrap(), choice)?;
+                let values = ramps(
+                    output
+                        .points
+                        .context("the display did not provide a colour curve size")?,
+                    choice,
+                )?;
                 let fd = unsafe {
                     libc::memfd_create(
                         c"wros-gamma".as_ptr(),
@@ -207,7 +217,11 @@ impl Screen for Protocol {
                 if unsafe { libc::fcntl(file.as_raw_fd(), libc::F_ADD_SEALS, seals) } < 0 {
                     return Err(std::io::Error::last_os_error().into());
                 }
-                output.control.as_ref().unwrap().set_gamma(file.as_fd());
+                output
+                    .control
+                    .as_ref()
+                    .context("the display colour control was lost")?
+                    .set_gamma(file.as_fd());
             }
             // Protocol acceptance only: gamma-control provides no ramp readback
             // or presentation acknowledgement. Never describe this as either.

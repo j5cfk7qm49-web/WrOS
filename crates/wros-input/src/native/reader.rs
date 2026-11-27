@@ -107,8 +107,8 @@ fn settings_changed(mut bytes: &[u8]) -> io::Result<bool> {
         // Linux inotify's four 32-bit header fields precede the padded name.
         // Decode bytes directly; the read buffer need not be struct-aligned.
         let header = bytes.get(..16).ok_or_else(invalid)?;
-        let mask = u32::from_ne_bytes(header[4..8].try_into().unwrap());
-        let length = u32::from_ne_bytes(header[12..16].try_into().unwrap()) as usize;
+        let mask = u32::from_ne_bytes(header[4..8].try_into().map_err(|_| invalid())?);
+        let length = u32::from_ne_bytes(header[12..16].try_into().map_err(|_| invalid())?) as usize;
         let end = 16usize.checked_add(length).ok_or_else(invalid)?;
         let name = bytes.get(16..end).ok_or_else(invalid)?;
         if mask & libc::IN_Q_OVERFLOW != 0 {

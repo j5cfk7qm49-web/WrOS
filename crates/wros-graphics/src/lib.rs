@@ -1,3 +1,5 @@
+#![warn(clippy::print_stdout, clippy::print_stderr)]
+
 //! Pixel output for the early screens. Keyboard input stays on the console.
 
 /// An exact boot-menu override covers password, progress, login and writing.

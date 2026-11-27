@@ -1,3 +1,4 @@
+#![cfg(test)]
 use chrono::NaiveDate;
 use grimoire_brain::model::{
     Builtin, Change, Edit, FieldId, Model, ModelError, NodeId, OpId, Place, Snapshot,

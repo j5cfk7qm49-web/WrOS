@@ -145,6 +145,7 @@ let
       fileset = lib.fileset.unions [
         (src + "/Cargo.toml")
         (src + "/Cargo.lock")
+        (src + "/clippy.toml")
         (src + "/src")
         (src + "/crates")
         (src + "/assets")

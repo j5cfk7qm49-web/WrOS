@@ -4,6 +4,7 @@
 //! Each test sets up what a client or another machine would leave on disk and
 //! checks Grimoire neither makes a name that breaks elsewhere nor loses track
 //! of a scene because of how its name is spelled.
+#![cfg(test)]
 
 use grimoire_core::project::{self, Project};
 use grimoire_core::{history, names};

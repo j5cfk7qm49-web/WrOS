@@ -11,7 +11,7 @@ fn main() -> anyhow::Result<()> {
     let root = PathBuf::from(
         std::env::args()
             .nth(1)
-            .expect("supply a NEW disposable probe directory"),
+            .ok_or_else(|| anyhow::anyhow!("supply a NEW disposable probe directory"))?,
     );
     fs::create_dir(&root)?;
     let result = (|| -> anyhow::Result<serde_json::Value> {

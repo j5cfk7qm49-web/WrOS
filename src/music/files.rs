@@ -1,7 +1,7 @@
 //! Albums and tracks from ~/Music and mounted USB sticks.
 
 use super::{Backend, Cmd, Item, Modes, Repeat, State, Track, Update, mpv::Mpv};
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use serde_json::{Value, json};
 use std::{
     cmp::Ordering,
@@ -382,7 +382,10 @@ impl Backend for Files {
             {
                 return Ok(());
             }
-            self.mpv.load(path.to_str().unwrap(), now && i == 0)?;
+            let name = path
+                .to_str()
+                .with_context(|| format!("Music file path is not UTF-8: {}", path.display()))?;
+            self.mpv.load(name, now && i == 0)?;
             if now && i == 0 {
                 self.mpv.set_property("pause", json!(false))?;
             }
@@ -535,7 +538,8 @@ mod tests {
 
 /// Real mpv, real files: run with `--ignored` in a private HOME whose mpv.conf says `ao=null`
 /// (rc20-work/live-music.sh). Not part of the normal suites: it needs mpv and plays audio.
-#[cfg(all(test, unix))]
+#[cfg(test)]
+#[cfg(unix)]
 mod live {
     use super::*;
     use crate::music::{Backend, Cmd, State};

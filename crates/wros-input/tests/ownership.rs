@@ -1,4 +1,5 @@
 //! Actual Linux PTY and reader processes. No host terminal, PAM or locking.
+#![cfg(test)]
 #[cfg(target_os = "linux")]
 mod linux {
     use crossterm::event::{Event, KeyCode};

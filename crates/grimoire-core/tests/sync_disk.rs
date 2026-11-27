@@ -5,7 +5,7 @@
 //! lost, overwritten or taken for something they're not. An online-only file
 //! that isn't downloaded is staged as one that can't be read (`chmod 000`):
 //! the same error an app gets from a dataless placeholder with no connection.
-
+#![cfg(test)]
 #![cfg(unix)]
 
 use grimoire_core::project::{self, DiskChange, Project, trash_dir};

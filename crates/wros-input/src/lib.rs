@@ -1,3 +1,5 @@
+#![warn(clippy::print_stdout, clippy::print_stderr)]
+
 //! Input ownership only. No manuscripts, authentication, locking or power actions.
 #[cfg(target_os = "linux")]
 mod linux;

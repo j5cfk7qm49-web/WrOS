@@ -168,7 +168,7 @@ impl AnalysisOptions {
         Ok(())
     }
     pub fn digest(&self) -> String {
-        hex_digest(&serde_json::to_vec(self).expect("serializable analysis options"))
+        hex_digest(&serde_json::to_vec(self).unwrap_or_else(|_| format!("{self:?}").into_bytes()))
     }
     pub fn allows_role(&self, role: SourceRole) -> bool {
         match role {

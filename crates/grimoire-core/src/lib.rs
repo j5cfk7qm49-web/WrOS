@@ -1,3 +1,5 @@
+#![warn(clippy::print_stdout, clippy::print_stderr)]
+
 //! Grimoire's heart: the book on disk, and everything that reads or changes it.
 //!
 //! No terminal, no windows, no audio — nothing here knows how it is being

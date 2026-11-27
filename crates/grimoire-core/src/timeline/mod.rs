@@ -395,6 +395,10 @@ mod tests {
         Local.with_ymd_and_hms(2026, 11, 17, 19, 15, 0).unwrap()
     }
 
+    #[expect(
+        clippy::print_stderr,
+        reason = "this test fixture explains a skip when git is unavailable"
+    )]
     fn book(tag: &str) -> Option<PathBuf> {
         if !sessions::git_available() {
             eprintln!("skipping {tag}: git isn't installed");

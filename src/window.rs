@@ -82,8 +82,8 @@ impl Engine {
             .with_fg_color(ratatui::style::Color::White)
             .with_bg_color(ratatui::style::Color::Black)
             .with_width_and_height(ratatui_wgpu::Dimensions {
-                width: NonZeroU32::new(size.width.max(1)).unwrap(),
-                height: NonZeroU32::new(size.height.max(1)).unwrap(),
+                width: NonZeroU32::new(size.width).unwrap_or(NonZeroU32::MIN),
+                height: NonZeroU32::new(size.height).unwrap_or(NonZeroU32::MIN),
             })
             .build_with_target(window),
         )

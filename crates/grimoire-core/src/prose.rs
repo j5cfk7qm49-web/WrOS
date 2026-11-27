@@ -38,7 +38,7 @@ pub struct Options {
 impl Options {
     pub fn digest(&self) -> String {
         crate::diagnostics::hex_digest(
-            &serde_json::to_vec(self).expect("serializable prose options"),
+            &serde_json::to_vec(self).unwrap_or_else(|_| format!("{self:?}").into_bytes()),
         )
     }
     fn sentence_limit(&self) -> Option<usize> {

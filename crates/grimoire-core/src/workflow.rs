@@ -315,7 +315,7 @@ impl Store {
             bail!("workflow metadata exceeds 1 MiB");
         }
         let path = checked(&self.root, Path::new(".grimoire/writingdeck/workflow.json"))?;
-        fs::create_dir_all(path.parent().unwrap())?;
+        fs::create_dir_all(path.parent().context("missing workflow state directory")?)?;
         match sync::save_guarded(&path, &text, self.seen)? {
             SaveOutcome::Written => {
                 self.seen = Some(Fingerprint::of(&text));
@@ -428,7 +428,11 @@ impl Store {
                     bail!("Prepared target changed; all versions preserved");
                 }
                 self.update(|s| {
-                    s.note_mut(id)?.promotion.as_mut().unwrap().phase = Phase::Ready;
+                    s.note_mut(id)?
+                        .promotion
+                        .as_mut()
+                        .context("missing prepared promotion")?
+                        .phase = Phase::Ready;
                     Ok(())
                 })?;
                 return Ok(target);
@@ -501,7 +505,10 @@ impl Store {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => create_new(&target, &snapshot)?,
             Err(e) => return Err(e.into()),
         }
-        self.update(|s|{s.note_mut(id)?.promotion.as_mut().unwrap().phase=Phase::Ready;Ok(())}).context("scene snapshot exists; receipt still prepared; explicitly reload/retry; no duplicate created")?;
+        self.update(|s| {
+            s.note_mut(id)?.promotion.as_mut().context("missing prepared promotion")?.phase = Phase::Ready;
+            Ok(())
+        }).context("scene snapshot exists; receipt still prepared; explicitly reload/retry; no duplicate created")?;
         Ok(target)
     }
     /// Only an unwritten preparation can be cancelled. Existing targets never

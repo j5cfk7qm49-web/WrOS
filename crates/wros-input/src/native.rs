@@ -294,15 +294,11 @@ impl Keyboard {
                     && pressed
                     && !was_held
                     && let Some(slot) = evdev.checked_sub(2).filter(|slot| *slot < 4)
+                    && let Some(key) = char::from_digit(slot + 1, 10)
                 {
                     self.compose.reset();
                     // Physical 1–4 have the same meaning across layouts.
-                    return vec![Event::Key(KeyEvent::new(
-                        char::from_digit(slot + 1, 10)
-                            .map(KeyCode::Char)
-                            .expect("desk slot"),
-                        modifiers,
-                    ))];
+                    return vec![Event::Key(KeyEvent::new(KeyCode::Char(key), modifiers))];
                 }
                 return vec![];
             }

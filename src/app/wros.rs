@@ -484,6 +484,10 @@ impl Deck {
             pending.what
         ))
     }
+    #[expect(
+        clippy::unwrap_used,
+        reason = "the system worker is initialized before dispatch"
+    )]
     pub fn request(&mut self, request: Request) {
         if self.busy {
             self.note = format!("Still busy, try again in a moment: {}", self.busy_line());
@@ -1072,7 +1076,12 @@ impl App {
             shortcuts.bindings.push(Binding { chord, action });
             shortcuts.validate()?;
             let text = serde_json::to_string_pretty(&shortcuts.to_saved())? + "\n";
-            fs::create_dir_all(self.deck.shortcuts_path.parent().unwrap())?;
+            fs::create_dir_all(
+                self.deck
+                    .shortcuts_path
+                    .parent()
+                    .ok_or_else(|| anyhow::anyhow!("missing shortcuts directory"))?,
+            )?;
             match grimoire_core::sync::save_guarded(
                 &self.deck.shortcuts_path,
                 &text,
@@ -1495,8 +1504,8 @@ impl App {
                 Instant::now() >= *end || !matches!(self.overlay, Overlay::Deck(Page::Settings))
             })
             && !self.deck.busy
+            && let Some((token, _)) = self.deck.shell.warm_preview.take()
         {
-            let (token, _) = self.deck.shell.warm_preview.take().unwrap();
             self.deck.request(Request::DisplayCancel(token));
             if self.deck.shell.nav.current() == super::shell::Route::WarmPreview {
                 self.deck.shell.nav.back();
@@ -1507,8 +1516,8 @@ impl App {
             .preview
             .as_ref()
             .is_some_and(|(_, _, end)| Instant::now() >= *end)
+            && let Some((token, _, _)) = self.deck.preview.take()
         {
-            let (token, _, _) = self.deck.preview.take().unwrap();
             self.deck.request(Request::KeyboardCancel(token));
             if matches!(self.overlay, Overlay::Deck(Page::KeyboardTest { .. })) {
                 self.overlay = Overlay::Deck(Page::Keyboard { sel: 0 });
@@ -1908,8 +1917,11 @@ impl App {
         }
         let parent = if self.background {
             grimoire_core::paths::data_dir().join("writingdeck")
+        } else if let Some(parent) = self.project.root.parent() {
+            parent.to_path_buf()
         } else {
-            self.project.root.parent().unwrap().to_path_buf()
+            self.deck.note = "The current project has no parent folder".into();
+            return;
         };
         if let Err(e) = fs::create_dir_all(&parent) {
             self.deck.note = e.to_string();

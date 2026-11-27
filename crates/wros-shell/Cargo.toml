@@ -5,6 +5,9 @@ edition = "2024"
 license = "MIT"
 description = "Shared WrOS presentation and navigation without editor, authentication or privilege dependencies"
 
+[lints]
+workspace = true
+
 [dependencies]
 ratatui = "0.30.2"
 tui-big-text = "0.8.9"

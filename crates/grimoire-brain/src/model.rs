@@ -809,7 +809,7 @@ impl Snapshot {
     }
 
     fn move_node(&mut self, node: NodeId, place: Place) -> bool {
-        if !self.nodes.contains_key(&node) || place.after == Some(node) {
+        if place.after == Some(node) {
             return false;
         }
         let parent = place.parent.map(|id| self.resolve(id));
@@ -820,7 +820,9 @@ impl Snapshot {
             }
             ancestor = self.parent(id);
         }
-        let note = self.nodes.get_mut(&node).unwrap();
+        let Some(note) = self.nodes.get_mut(&node) else {
+            return false;
+        };
         self.order
             .entry(note.parent)
             .or_default()
@@ -858,6 +860,12 @@ impl Snapshot {
         if right == left || self.nodes.get(&right).is_some_and(|note| note.created) {
             return;
         }
+        let Some(tokens) = self.nodes.get(&left).map(|note| &note.text) else {
+            return;
+        };
+        let Some(boundary) = tokens.iter().position(|id| *id == at) else {
+            return;
+        };
         let parent = self.parent(left);
         self.create(
             right,
@@ -867,9 +875,10 @@ impl Snapshot {
             },
             true,
         );
-        let tokens = &mut self.nodes.get_mut(&left).unwrap().text;
-        let boundary = tokens.iter().position(|id| *id == at).unwrap();
-        let suffix = tokens.split_off(boundary);
+        let Some(note) = self.nodes.get_mut(&left) else {
+            return;
+        };
+        let suffix = note.text.split_off(boundary);
         self.transfer_text(right, suffix);
     }
 
@@ -877,12 +886,14 @@ impl Snapshot {
         if left == right
             || self.aliases.contains_key(&right)
             || !self.nodes.get(&left).is_some_and(|note| note.created)
-            || !self.nodes.get(&right).is_some_and(|note| note.created)
             || self.parent(left) != self.parent(right)
         {
             return;
         }
-        let suffix = std::mem::take(&mut self.nodes.get_mut(&right).unwrap().text);
+        let Some(note) = self.nodes.get_mut(&right).filter(|note| note.created) else {
+            return;
+        };
+        let suffix = std::mem::take(&mut note.text);
         self.transfer_text(left, suffix);
         for child in self.order.get(&Some(right)).cloned().unwrap_or_default() {
             self.move_node(
@@ -897,10 +908,15 @@ impl Snapshot {
     }
 
     fn transfer_text(&mut self, owner: NodeId, tokens: Vec<OpId>) {
-        for id in &tokens {
-            self.tokens.get_mut(id).unwrap().owner = owner;
+        if let Some(note) = self.nodes.get_mut(&owner) {
+            note.text.extend(tokens.into_iter().filter(|id| {
+                let Some(token) = self.tokens.get_mut(id) else {
+                    return false;
+                };
+                token.owner = owner;
+                true
+            }));
         }
-        self.nodes.get_mut(&owner).unwrap().text.extend(tokens);
     }
 }
 

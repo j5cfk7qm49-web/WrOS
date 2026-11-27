@@ -1,4 +1,5 @@
 use super::*;
+use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::process::Command;
 
@@ -31,7 +32,10 @@ fn isolated(name: &str, tools: bool, session: &str, success: bool) -> bool {
             } else {
                 "#!/bin/sh\nexit 1\n".into()
             };
-            fs::write(&path, script).unwrap();
+            let mut file = fs::File::create(&path).unwrap();
+            file.write_all(script.as_bytes()).unwrap();
+            file.sync_all().unwrap();
+            drop(file);
             fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
         }
     }

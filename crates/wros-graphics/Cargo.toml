@@ -5,6 +5,9 @@ edition = "2024"
 license = "MIT"
 description = "WrOS software rendering to Linux DRM/KMS"
 
+[lints]
+workspace = true
+
 [dependencies]
 ratatui = "0.30.2"
 soft_ratatui = { version = "0.2.0", default-features = false }

@@ -95,12 +95,8 @@ impl<const PAGED: bool> Replica for LoroReplica<PAGED> {
     }
 
     #[cfg(feature = "qualification")]
-    fn edit_count(&self) -> usize {
-        self.edit_maps()
-            .expect("valid fixture edit pages")
-            .iter()
-            .map(LoroMap::len)
-            .sum()
+    fn edit_count(&self) -> Result<usize, StoreError> {
+        Ok(self.edit_maps()?.iter().map(LoroMap::len).sum())
     }
 
     fn project(&self) -> Result<Snapshot, StoreError> {

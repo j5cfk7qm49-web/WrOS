@@ -1,5 +1,5 @@
 //! A bounded colour-only pipe. The child starts before any project or input setup.
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::{
     io::{BufRead, Read, Write},
@@ -85,8 +85,11 @@ impl Process {
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()?;
-        let input = child.stdin.take().unwrap();
-        let output = child.stdout.take().unwrap();
+        let (Some(input), Some(output)) = (child.stdin.take(), child.stdout.take()) else {
+            let _ = child.kill();
+            let _ = child.wait();
+            bail!("could not open the colour worker's pipes");
+        };
         let flags = unsafe { libc::fcntl(output.as_raw_fd(), libc::F_GETFL) };
         if flags < 0
             || unsafe { libc::fcntl(output.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK) }
@@ -108,7 +111,10 @@ impl Process {
         let colour = Colour::from_request(request)?;
         let mut bytes = serde_json::to_vec(&colour)?;
         bytes.push(b'\n');
-        self.input.as_mut().unwrap().write_all(&bytes)?;
+        self.input
+            .as_mut()
+            .context("the colour worker input has closed")?
+            .write_all(&bytes)?;
         let deadline = Instant::now() + Duration::from_secs(25);
         let mut bytes = Vec::new();
         loop {

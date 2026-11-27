@@ -378,11 +378,14 @@ fn quarantine_partial_files(
 }
 
 fn quarantine(root: &Path, path: &Path, report: &mut RecoveryReport) -> io::Result<()> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| io::Error::other("missing quarantine source directory"))?;
     let destination = root.join("quarantine");
     fs::create_dir_all(&destination)?;
     let filename = path
         .file_name()
-        .expect("generated filename")
+        .ok_or_else(|| io::Error::other("missing quarantine source filename"))?
         .to_string_lossy();
     let mut target = destination.join(filename.as_ref());
     let mut suffix = 1;
@@ -391,7 +394,7 @@ fn quarantine(root: &Path, path: &Path, report: &mut RecoveryReport) -> io::Resu
         suffix = next_number(suffix)?;
     }
     fs::rename(path, &target)?;
-    sync_directory(path.parent().expect("generated path has a parent"))?;
+    sync_directory(parent)?;
     sync_directory(&destination)?;
     sync_directory(root)?;
     report.quarantined.push(target);
@@ -434,6 +437,9 @@ fn next_number(number: u64) -> io::Result<u64> {
 }
 
 fn write_checked(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| io::Error::other("missing Brain storage directory"))?;
     let temporary = path.with_extension("new");
     let mut file = OpenOptions::new()
         .write(true)
@@ -444,7 +450,7 @@ fn write_checked(path: &Path, bytes: &[u8]) -> io::Result<()> {
     file.sync_all()?;
     drop(file);
     fs::rename(&temporary, path)?;
-    sync_directory(path.parent().expect("generated path has a parent"))
+    sync_directory(parent)
 }
 
 fn checked_reader(path: &Path) -> io::Result<(File, [u8; CHECKSUM_LEN])> {

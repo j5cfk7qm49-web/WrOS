@@ -2,7 +2,7 @@
 //! One active job and one newest queued request; no editor or manuscript save
 //! owner here. Model permission is separate from Harper and never persisted.
 use super::*;
-use anyhow::{bail, ensure};
+use anyhow::{Context, bail, ensure};
 use grimoire_core::{
     diagnostics::{self as diag, Diagnostic, Profile, RuleKey, Snapshot, SourceRole, SourceUnit},
     prose, prose_tools as tools, review_queue as review,
@@ -557,7 +557,11 @@ impl App {
     }
     fn goto_prose_item(&mut self) -> Result<()> {
         let item = self.selected_prose_item()?;
-        let source = &self.current_prose_analysis().unwrap().native.snapshot;
+        let source = &self
+            .current_prose_analysis()
+            .context("No current prose analysis")?
+            .native
+            .snapshot;
         let from = source
             .point(item.finding.span.start)
             .ok_or_else(|| anyhow::anyhow!("invalid source start"))?;
@@ -572,7 +576,9 @@ impl App {
     fn apply_prose_item(&mut self) -> Result<()> {
         self.ensure_document_claims()?;
         let item = self.selected_prose_item()?;
-        let analysis = self.current_prose_analysis().unwrap();
+        let analysis = self
+            .current_prose_analysis()
+            .context("No current prose analysis")?;
         let current =
             self.check_snapshot(self.views.active, analysis.native.snapshot.stamp.generation)?;
         let options = self.prose_options();

@@ -100,7 +100,7 @@ impl Metric {
     fn milliseconds(observed: Duration, limit: u64) -> Self {
         let ms = observed.as_secs_f64() * 1000.0;
         Self {
-            observed: Number::from_f64(ms).unwrap(),
+            observed: Number::from_f64(ms).unwrap_or_else(|| u64::MAX.into()),
             limit: limit.into(),
             passed: ms <= limit as f64,
         }
@@ -151,6 +151,10 @@ struct Report<'a> {
     within_limits: bool,
 }
 
+#[expect(
+    clippy::print_stderr,
+    reason = "brain-bench reports progress separately from results"
+)]
 pub fn run<S: BenchStore>(
     seed: u64,
     profile: Profile,
@@ -250,6 +254,10 @@ pub fn run<S: BenchStore>(
 
 // Separate worker processes ensure fixture allocation and prior opens cannot
 // leave resident allocator pages in the checkpoint measurement process.
+#[expect(
+    clippy::print_stderr,
+    reason = "brain-bench reports fixture preparation on stderr"
+)]
 pub fn prepare_worker<S: BenchStore>(seed: u64, profile: Profile, root: &Path) -> Result<()> {
     let paths = BenchPaths::new(root);
     let workload = profile.workload();
@@ -386,7 +394,7 @@ fn make_edit(previous: u64, change: Change, extra: Option<OpId>) -> Edit {
 fn seed_replica<S: Replica>(root: &Path, workload: &Workload, seed: u64) -> Result<FixtureNote> {
     let mut store = S::new(DEVICE)?;
     let target = populate_fixture(&mut store, workload, seed)?;
-    assert_eq!(store.edit_count() as u64, workload.accumulated_edits);
+    assert_eq!(store.edit_count()? as u64, workload.accumulated_edits);
     let checkpoint = store.checkpoint()?;
     drop(store);
     let mut disk = Journal::<S>::open(root, DEVICE)?;
@@ -647,6 +655,10 @@ struct Sample {
     checkpoint_size: u64,
 }
 
+#[expect(
+    clippy::print_stderr,
+    reason = "brain-bench reports progress while sampling cold opens"
+)]
 fn sample_workload<S: BenchStore>(
     root: &Path,
     paths: &BenchPaths,

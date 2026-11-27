@@ -373,7 +373,7 @@ impl App {
             .spark
             .engine
             .as_ref()
-            .unwrap()
+            .context("Spark unavailable")?
             .state()
             .exports
             .iter()
@@ -391,7 +391,7 @@ impl App {
                 self.spark
                     .engine
                     .as_ref()
-                    .unwrap()
+                    .context("Spark unavailable")?
                     .state()
                     .exports
                     .iter()
@@ -413,7 +413,7 @@ impl App {
                 self.workflow
                     .store
                     .as_mut()
-                    .unwrap()
+                    .context("Scratchpad unavailable")?
                     .adopt_created_note(id, grimoire_core::sync::Fingerprint::of(&expected))?;
                 self.workflow.selected = Some(id);
                 self.workflow.life = grimoire_core::pins::Life::Active;

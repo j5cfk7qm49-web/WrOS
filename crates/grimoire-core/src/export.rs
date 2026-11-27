@@ -341,6 +341,10 @@ pub fn preflight(p: &Project, opts: &ExportOptions) -> Result<ExportPreflight> {
 }
 
 /// Write the chosen formats to `<book>/exports/`.
+#[expect(
+    clippy::expect_used,
+    reason = "Word bytes are prepared under the same docx or PDF condition"
+)]
 pub fn export(p: &Project, opts: &ExportOptions) -> Result<Exported> {
     p.ensure_whole()?;
     if !(opts.docx || opts.pdf || opts.epub || opts.markdown || opts.paperback) {

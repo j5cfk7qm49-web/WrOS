@@ -288,6 +288,10 @@ impl Jukebox {
     }
 
     #[cfg(feature = "audio")]
+    #[expect(
+        clippy::expect_used,
+        reason = "the audio device is initialized immediately before access"
+    )]
     fn device(&mut self) -> Result<&mut Audio> {
         if self.audio.is_none() {
             let device = rodio::DeviceSinkBuilder::open_default_sink()

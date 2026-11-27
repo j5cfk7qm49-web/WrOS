@@ -290,7 +290,7 @@ fn equivalent(a: &Diagnostic, b: &Diagnostic) -> bool {
 fn stable_id(item: &Item) -> String {
     // Generation excluded deliberately: a new run over identical bytes/rules
     // may retain an explicit review. Changed source/config/version cannot.
-    diagnostics::hex_digest(serde_json::to_string(&serde_json::json!({"document":item.finding.source.document,"unit":item.finding.source.unit,"role":item.finding.source.role,"source":item.finding.source.sha256,"configuration":item.finding.configuration,"span":item.finding.span,"rules":item.provenance})).expect("serializable review identity").as_bytes())
+    diagnostics::hex_digest(serde_json::json!({"document":item.finding.source.document,"unit":item.finding.source.unit,"role":item.finding.source.role,"source":item.finding.source.sha256,"configuration":item.finding.configuration,"span":item.finding.span,"rules":item.provenance}).to_string().as_bytes())
 }
 fn is_hash(value: &str) -> bool {
     value.len() == 64

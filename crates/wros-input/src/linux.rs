@@ -386,7 +386,7 @@ impl Input {
         let ready = running
             .messages
             .as_ref()
-            .unwrap()
+            .ok_or_else(|| failure("Input reader has no startup channel"))?
             .recv_timeout(startup)
             .map_err(|_| failure("Input reader startup unacknowledged"))??;
         let Some(Wire::Ready {
@@ -413,7 +413,11 @@ impl Input {
         let State::Active(running) = &self.state else {
             return Err(mpsc::RecvTimeoutError::Disconnected);
         };
-        let message = running.messages.as_ref().unwrap().recv_timeout(timeout)?;
+        let messages = running
+            .messages
+            .as_ref()
+            .ok_or(mpsc::RecvTimeoutError::Disconnected)?;
+        let message = messages.recv_timeout(timeout)?;
         Ok(message.and_then(|mut message| match message.0.take() {
             Some(Wire::Event(event)) => Ok(event),
             Some(Wire::EventRejected) => Err(failure(

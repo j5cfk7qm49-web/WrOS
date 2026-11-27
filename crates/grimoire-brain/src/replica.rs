@@ -74,7 +74,7 @@ pub trait Replica: Sized {
     fn project(&self) -> Result<Snapshot, StoreError>;
 
     #[cfg(feature = "qualification")]
-    fn edit_count(&self) -> usize;
+    fn edit_count(&self) -> Result<usize, StoreError>;
     #[cfg(feature = "qualification")]
     fn record_fixture_edit(&mut self, edit: Edit) -> Result<(), StoreError>;
     #[cfg(feature = "qualification")]

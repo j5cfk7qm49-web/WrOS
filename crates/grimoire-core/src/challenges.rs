@@ -110,6 +110,10 @@ struct Bank {
     license: String,
     exercises: Vec<Exercise>,
 }
+#[expect(
+    clippy::expect_used,
+    reason = "the bundled challenge catalogue is constant JSON"
+)]
 pub fn catalog() -> &'static [Exercise] {
     static BANK: OnceLock<Vec<Exercise>> = OnceLock::new();
     BANK.get_or_init(|| {
@@ -220,7 +224,7 @@ impl Validate for Day {
         for a in &self.assignments {
             validate_assignment(a)?;
             if !ids.insert(&a.record_id)
-                || exercise(&a.record_id).is_none_or(|e| stamp(e) != a.source_stamp)
+                || exercise(&a.record_id).map(stamp).transpose()? != Some(a.source_stamp)
             {
                 bail!("unknown/duplicate challenge reference; preserved");
             }
@@ -278,7 +282,7 @@ impl Validate for Day {
 }
 fn validate_assignment(a: &Assignment) -> Result<()> {
     let e = exercise(&a.record_id).context("unknown exercise reference")?;
-    if stamp(e) != a.source_stamp {
+    if stamp(e)? != a.source_stamp {
         bail!("exercise source stamp changed; preserved");
     }
     for at in [&a.accepted_at, &a.completed_at].into_iter().flatten() {
@@ -347,7 +351,7 @@ impl Day {
             e.category == Category::Productivity && e.measured.is_some() && !recent.contains(&e.id)
         }) {
             let e = candidates.remove(at);
-            assignments.push(blank(&e.id));
+            assignments.push(blank(e)?);
         }
         while assignments.len() < 3 && !candidates.is_empty() {
             let fresh = candidates
@@ -357,7 +361,7 @@ impl Day {
             let limit = if fresh > 0 { fresh } else { candidates.len() };
             let at = (next(&mut rng) % limit as u64) as usize;
             let e = candidates.remove(at);
-            assignments.push(blank(&e.id));
+            assignments.push(blank(e)?);
         }
         let s = Self {
             created_at: now.stamp(),
@@ -513,7 +517,8 @@ impl Day {
         let old_assignment = a.clone();
         let old = a.record_id.clone();
         used.insert(old.clone());
-        self.assignments[index] = blank(&replacement);
+        self.assignments[index] =
+            blank(exercise(&replacement).context("unknown replacement exercise")?)?;
         self.rerolls.push(Reroll {
             old_assignment,
             profile: profile.clone(),
@@ -524,23 +529,20 @@ impl Day {
         Ok(())
     }
 }
-fn stamp(exercise: &Exercise) -> u64 {
-    crate::sync::Fingerprint::of(
-        &serde_json::to_string(exercise).expect("compiled exercise serializes"),
-    )
-    .hash
+fn stamp(exercise: &Exercise) -> Result<u64> {
+    Ok(crate::sync::Fingerprint::of(&serde_json::to_string(exercise)?).hash)
 }
-fn blank(id: &str) -> Assignment {
-    Assignment {
-        record_id: id.into(),
-        source_stamp: stamp(exercise(id).expect("compiled exercise reference")),
+fn blank(exercise: &Exercise) -> Result<Assignment> {
+    Ok(Assignment {
+        record_id: exercise.id.clone(),
+        source_stamp: stamp(exercise)?,
         status: Status::Assigned,
         accepted_at: None,
         baseline: None,
         completed_at: None,
         evidence: None,
         include_footnotes: false,
-    }
+    })
 }
 /// Read-only audit of recognized civil-date files. Unknown filenames remain
 /// uninterpreted; no missing date is generated and no metadata is published.
@@ -549,7 +551,7 @@ pub fn validate_existing(root: &Path) -> Result<usize> {
         root,
         Path::new(".grimoire/writingdeck/challenges/2000-01-01.json"),
     )?;
-    let entries = match std::fs::read_dir(probe.parent().unwrap()) {
+    let entries = match std::fs::read_dir(probe.parent().context("missing challenge directory")?) {
         Ok(e) => e,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(0),
         Err(e) => return Err(e.into()),

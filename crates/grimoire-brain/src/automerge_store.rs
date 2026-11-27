@@ -101,10 +101,11 @@ impl Replica for AutomergeStore {
     }
 
     #[cfg(feature = "qualification")]
-    fn edit_count(&self) -> usize {
-        self.doc
+    fn edit_count(&self) -> Result<usize, StoreError> {
+        Ok(self
+            .doc
             .map_range(ROOT, String::from("e-")..String::from("f"))
-            .count()
+            .count())
     }
 
     #[cfg(feature = "qualification")]

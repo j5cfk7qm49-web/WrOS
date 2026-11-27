@@ -1,3 +1,4 @@
+#![cfg(test)]
 #![cfg(feature = "runtime")]
 
 use grimoire_brain::bounded_store::PagedBrain;

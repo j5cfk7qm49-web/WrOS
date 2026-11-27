@@ -1,4 +1,8 @@
 #[cfg(target_os = "linux")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "login failures use fixed strings without NUL bytes"
+)]
 fn main() {
     // Never format an authentication value or panic payload on screen/in logs.
     std::panic::set_hook(Box::new(|_| {}));

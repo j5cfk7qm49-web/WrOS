@@ -1485,7 +1485,10 @@ impl App {
             Err(_) => {}
         }
         if !self.project.nodes[idx].read_only && !self.project.nodes[idx].never_read() {
-            let relative = path.strip_prefix(&self.project.root).unwrap();
+            let Ok(relative) = path.strip_prefix(&self.project.root) else {
+                self.msg = "can't edit a file outside the project".into();
+                return;
+            };
             match self.views.registry.assign(Pane::Primary, relative) {
                 Ok(Assignment::Assigned) => {}
                 Ok(Assignment::OwnedBy(_)) => {
@@ -5430,6 +5433,10 @@ impl App {
 
     /// Move a whole section one place up or down among the others. The order
     /// is the book's, kept in novel.toml; the trash stays at the bottom.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "the canonical order includes all non-Trash sections"
+    )]
     fn move_section(&mut self, idx: usize, up: bool) {
         use grimoire_core::project::Area;
         let area = self.project.nodes[idx].area;
@@ -6969,7 +6976,8 @@ fn copy_to_clipboard(text: &str) -> bool {
     true
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
+#[cfg(unix)]
 #[path = "app/clipboard_tests.rs"]
 mod clipboard_fallback_tests;
 

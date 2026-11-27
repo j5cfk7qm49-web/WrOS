@@ -668,7 +668,11 @@ impl App {
                     grimoire_core::sync::Fingerprint::of(&path.to_string_lossy()).hash
                 );
                 if settings.award(&id, label, false, &now.stamp())? {
-                    settings.awards.last_mut().unwrap().source = Some(path);
+                    settings
+                        .awards
+                        .last_mut()
+                        .context("New award unavailable")?
+                        .source = Some(path);
                 }
             }
             Ok(())
@@ -1277,12 +1281,10 @@ impl App {
         spark: Option<grimoire_core::spark::ResultRef>,
     ) -> Result<()> {
         if kind == SprintKind::Break
-            && self.productivity.sprint.as_ref().is_some_and(|s| {
-                !matches!(s.status, SprintStatus::Completed | SprintStatus::Stopped)
-            })
+            && let Some(s) = &self.productivity.sprint
+            && !matches!(s.status, SprintStatus::Completed | SprintStatus::Stopped)
         {
             let now = self.productivity.clock.now();
-            let s = self.productivity.sprint.as_ref().unwrap();
             let reading =
                 self.productivity
                     .snapshot
@@ -1292,7 +1294,7 @@ impl App {
                 settings
                     .sprint
                     .as_mut()
-                    .unwrap()
+                    .context("Current sprint unavailable")?
                     .start_break(id, &now, reading, target)
             })?;
             return Ok(());
@@ -1328,11 +1330,15 @@ impl App {
                 .as_ref()
                 .context("open/accept a daily challenge first")?
                 .value;
-            let a=day.assignments.iter().find(|a|a.status==Status::Accepted&&challenges::exercise(&a.record_id).is_some_and(|e|e.measured.is_some())).context("accept a measured daily challenge first; subjective tasks use explicit self-report, not an invented counter")?;
-            let e = challenges::exercise(&a.record_id).unwrap();
-            criterion = e.measured.clone();
+            let (a, e, c) = day.assignments.iter()
+                .filter(|a| a.status == Status::Accepted)
+                .find_map(|a| {
+                    let exercise = challenges::exercise(&a.record_id)?;
+                    Some((a, exercise, exercise.measured.as_ref()?))
+                })
+                .context("accept a measured daily challenge first; subjective tasks use explicit self-report, not an invented counter")?;
+            criterion = Some(c.clone());
             mode = Some(e.mode);
-            let c = criterion.as_ref().unwrap();
             footnotes = a.include_footnotes;
             let current = self
                 .productivity
@@ -1670,7 +1676,11 @@ impl App {
                                 "enable operation tracking before resuming a no-editing experiment"
                             );
                         }
-                        let sprint = self.productivity.sprint.as_mut().unwrap();
+                        let sprint = self
+                            .productivity
+                            .sprint
+                            .as_mut()
+                            .context("Current sprint unavailable")?;
                         if key == Key::Char('x') {
                             sprint.stop(&now, reading);
                         } else if key == Key::Char('k') {
@@ -1982,7 +1992,7 @@ pub(super) fn calendar_grid(
     t: &Theme,
 ) -> Vec<Line<'static>> {
     let (year, month) = (selected.year(), selected.month());
-    let first = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
+    let first = NaiveDate::from_ymd_opt(year, month, 1).unwrap_or(selected);
     let normal = Style::default().fg(t.text);
     let mut lines = vec![
         Line::styled(format!("  {}", first.format("%B %Y")), normal),

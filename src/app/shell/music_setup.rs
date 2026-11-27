@@ -149,8 +149,9 @@ impl App {
                         .push("Fill in each field before confirming.");
                     return;
                 }
-                let form = self.deck.shell.music_server_form.take().unwrap();
-                self.start_music_setup(form);
+                if let Some(form) = self.deck.shell.music_server_form.take() {
+                    self.start_music_setup(form);
+                }
             }
             _ => {}
         }

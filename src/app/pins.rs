@@ -256,7 +256,10 @@ impl App {
                 label: format!(
                     "{} · {}",
                     n.title,
-                    n.path.strip_prefix(&self.project.root).unwrap().display()
+                    n.path
+                        .strip_prefix(&self.project.root)
+                        .unwrap_or(&n.path)
+                        .display()
                 ),
                 key: String::new(),
                 detail: if relink.is_some() {
@@ -848,15 +851,26 @@ impl App {
                     }
                     Key::Char('J' | 'K') => {
                         if let Err(e) = self.pins.update(|s| {
-                            let at = ids.iter().position(|&id| id == pin.id).unwrap();
+                            let at = ids
+                                .iter()
+                                .position(|&id| id == pin.id)
+                                .context("Selected pin unavailable")?;
                             let other = if key == Key::Char('J') {
                                 at + 1
                             } else {
                                 at.saturating_sub(1)
                             };
                             if let Some(id) = ids.get(other) {
-                                let a = s.pins.iter().position(|p| p.id == pin.id).unwrap();
-                                let b = s.pins.iter().position(|p| p.id == *id).unwrap();
+                                let a = s
+                                    .pins
+                                    .iter()
+                                    .position(|p| p.id == pin.id)
+                                    .context("Selected pin unavailable")?;
+                                let b = s
+                                    .pins
+                                    .iter()
+                                    .position(|p| p.id == *id)
+                                    .context("Adjacent pin unavailable")?;
                                 s.pins.swap(a, b);
                             }
                             Ok(())
@@ -1179,7 +1193,9 @@ pub fn sidebar(f: &mut Frame, app: &mut App, area: Rect, t: &Theme) -> Rect {
     let mut y = inner.y;
     let mut hits = vec![];
     for id in ids.into_iter().skip(scroll) {
-        let pin = app.pins.state().pins.iter().find(|p| p.id == id).unwrap();
+        let Some(pin) = app.pins.state().pins.iter().find(|p| p.id == id) else {
+            continue;
+        };
         let h = if pin.collapsed { 2 } else { pin.height }.min(inner.bottom().saturating_sub(y));
         if h < 2 {
             break;

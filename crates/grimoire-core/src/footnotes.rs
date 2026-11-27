@@ -44,7 +44,9 @@ pub fn analyze_footnotes(markdown: &str) -> FootnoteAnalysis {
             }
         }
     }
-    let parsed = String::from_utf8(masked).expect("masking complete UTF-8 ranges with ASCII");
+    let Ok(parsed) = String::from_utf8(masked) else {
+        return analysis;
+    };
     for (event, range) in Parser::new_ext(&parsed, Options::ENABLE_FOOTNOTES).into_offset_iter() {
         match event {
             Event::Start(Tag::CodeBlock(_)) => code = true,

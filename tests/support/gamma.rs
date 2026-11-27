@@ -1,4 +1,5 @@
 //! A private two-output Wayland server, compiled only by colour tests.
+#![cfg(test)]
 use std::{
     fs,
     io::{BufRead, BufReader},

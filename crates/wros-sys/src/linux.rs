@@ -125,8 +125,11 @@ impl Runner for ProcessRunner {
                 kept.extend_from_slice(&b[..n.min(room)]);
             }
         }
-        let out = child.stdout.take().unwrap();
-        let err = child.stderr.take().unwrap();
+        let (Some(out), Some(err)) = (child.stdout.take(), child.stderr.take()) else {
+            let _ = child.kill();
+            let _ = child.wait();
+            bail!("could not capture output from {}", cmd.program);
+        };
         let out = std::thread::spawn(move || drain(out));
         let err = std::thread::spawn(move || drain(err));
         let start = Instant::now();

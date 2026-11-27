@@ -74,14 +74,16 @@ impl Glyph {
 }
 
 fn count() -> usize {
-    u32::from_le_bytes(DATA[4..8].try_into().unwrap()) as usize
+    DATA.get(4..)
+        .and_then(|tail| tail.first_chunk())
+        .map_or(0, |bytes| u32::from_le_bytes(*bytes) as usize)
 }
 
-fn entry(i: usize) -> (u32, bool, usize) {
+fn entry(i: usize) -> Option<(u32, bool, usize)> {
     let at = 8 + i * 8;
-    let cp = u32::from_le_bytes(DATA[at..at + 4].try_into().unwrap());
-    let offset = u32::from_le_bytes(DATA[at + 4..at + 8].try_into().unwrap()) as usize;
-    (cp & 0x7fff_ffff, cp & (1 << 31) != 0, offset)
+    let cp = u32::from_le_bytes(*DATA.get(at..)?.first_chunk()?);
+    let offset = u32::from_le_bytes(*DATA.get(at + 4..)?.first_chunk()?) as usize;
+    Some((cp & 0x7fff_ffff, cp & (1 << 31) != 0, offset))
 }
 
 /// Unifont's drawing of `c` (or WrOS's one-cell drawing), if it has one.
@@ -91,7 +93,7 @@ pub fn glyph(c: char) -> Option<Glyph> {
     let target = c as u32;
     while lo < hi {
         let mid = (lo + hi) / 2;
-        let (cp, wide, offset) = entry(mid);
+        let (cp, wide, offset) = entry(mid)?;
         match cp.cmp(&target) {
             std::cmp::Ordering::Less => lo = mid + 1,
             std::cmp::Ordering::Greater => hi = mid,

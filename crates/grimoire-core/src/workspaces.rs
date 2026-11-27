@@ -291,7 +291,11 @@ impl Store {
         if text.len() > 1_048_576 {
             bail!("layout exceeds 1 MiB; original preserved");
         }
-        fs::create_dir_all(self.path.parent().unwrap())?;
+        fs::create_dir_all(
+            self.path
+                .parent()
+                .context("missing workspace state directory")?,
+        )?;
         match crate::sync::save_guarded(&self.path, &text, self.seen)? {
             SaveOutcome::Written => {
                 self.seen = Some(Fingerprint::of(&text));

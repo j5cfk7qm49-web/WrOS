@@ -1,3 +1,5 @@
+#![warn(clippy::print_stdout, clippy::print_stderr)]
+
 //! OS capabilities, not a privileged writing application.
 //!
 //! Linux commands are fixed executables and argument vectors, never shell text.

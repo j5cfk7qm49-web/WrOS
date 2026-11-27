@@ -4,6 +4,7 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
+use anyhow::Context;
 use chrono::{Local, NaiveDate};
 use grimoire_brain::bounded_store::{OutlineRow, PagedBrain};
 use grimoire_brain::library::EditionKey;
@@ -220,19 +221,25 @@ impl CommonplaceDesk {
             move_legacy_folder(&cache.with_file_name("brain"), &cache)?;
             self.store = Some(PagedBrain::open_library(&path, &cache).map_err(anyhow::Error::msg)?);
         }
-        Ok(self.store.as_mut().expect("Commonplace store was opened"))
+        self.store.as_mut().context("Commonplace store unavailable")
     }
 
     fn refresh_study(&mut self) -> anyhow::Result<()> {
         self.open_store()?;
-        self.study
-            .refresh(self.store.as_mut().expect("Commonplace store was opened"))
+        self.study.refresh(
+            self.store
+                .as_mut()
+                .context("Commonplace store unavailable")?,
+        )
     }
 
     fn refresh_read(&mut self) -> anyhow::Result<()> {
         self.open_store()?;
-        self.read
-            .refresh(self.store.as_mut().expect("Commonplace store was opened"))
+        self.read.refresh(
+            self.store
+                .as_mut()
+                .context("Commonplace store unavailable")?,
+        )
     }
 
     fn open_today(&mut self, date: NaiveDate) -> anyhow::Result<()> {
@@ -402,18 +409,22 @@ impl CommonplaceDesk {
                 }
             }
             KeyCode::Char('b') if selected.is_some() => {
-                outline.show_query(store, "Backlinks", SavedQuery::LinksTo(selected.unwrap()))?;
+                outline.show_query(
+                    store,
+                    "Backlinks",
+                    SavedQuery::LinksTo(selected.context("Select a note first")?),
+                )?;
             }
             KeyCode::Char('o') if selected.is_some() => {
                 outline.show_query(
                     store,
                     "Linked notes",
-                    SavedQuery::LinksFrom(selected.unwrap()),
+                    SavedQuery::LinksFrom(selected.context("Select a note first")?),
                 )?;
             }
             KeyCode::Char('r') if selected.is_some() => {
                 if let Some(query) = store
-                    .details(selected.unwrap())
+                    .details(selected.context("Select a note first")?)
                     .map_err(anyhow::Error::msg)?
                     .query
                 {
@@ -563,7 +574,7 @@ impl Outline {
     fn heading(&self, console: bool) -> String {
         let dot = crate::ui::info_separator(console);
         let mut path = self.ancestors.iter().chain(std::iter::once(&self.location));
-        let first = path.next().expect("current location");
+        let first = path.next().unwrap_or(&self.location);
         let mut title = if first.title == "Today" && first.query.is_none() {
             format!("Outline{dot}Today{dot}{}", self.date.format("%Y-%m-%d"))
         } else {
@@ -785,7 +796,7 @@ impl App {
             .commonplace
             .store
             .as_mut()
-            .expect("Open Commonplace store");
+            .context("Commonplace store unavailable")?;
         let tag = if let Some(tag) = &self.project.meta.outline_tag {
             tag.parse::<NodeId>().map_err(anyhow::Error::msg)?
         } else {
@@ -1054,11 +1065,9 @@ impl App {
                     self.save_outline_note();
                 }
                 KeyCode::Esc => {
-                    self.commonplace
-                        .outline
-                        .as_mut()
-                        .expect("Open Outline")
-                        .draft = None;
+                    if let Some(outline) = &mut self.commonplace.outline {
+                        outline.draft = None;
+                    }
                     self.msg.clear();
                 }
                 KeyCode::Char(c) if !c.is_control() => editor.insert(c),

@@ -415,7 +415,11 @@ impl Shell {
                 anyhow::bail!("original shell preferences preserved");
             }
             let text = serde_json::to_string_pretty(&self.nav.preferences())? + "\n";
-            fs::create_dir_all(self.path.parent().unwrap())?;
+            fs::create_dir_all(
+                self.path
+                    .parent()
+                    .ok_or_else(|| anyhow::anyhow!("missing shell preferences directory"))?,
+            )?;
             if self.path.is_symlink() {
                 anyhow::bail!("shell preference symlink preserved");
             }

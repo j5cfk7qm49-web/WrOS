@@ -1,3 +1,5 @@
+#![warn(clippy::print_stdout, clippy::print_stderr)]
+
 //! Shared presentation only. No input reader, processes, filesystem, editor,
 //! credential storage or authentication implementation belongs in this crate.
 use ratatui::{

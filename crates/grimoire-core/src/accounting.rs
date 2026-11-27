@@ -210,12 +210,13 @@ impl ActiveClock {
         let mut high = utc_ms;
         while low < high {
             let mid = low + (high - low) / 2;
-            let date = Utc
+            let Some(at) = Utc
                 .timestamp_millis_opt(old.wall.timestamp_millis() + mid)
                 .single()
-                .unwrap()
-                .with_timezone(&zone)
-                .date_naive();
+            else {
+                return vec![activity(None, elapsed)];
+            };
+            let date = at.with_timezone(&zone).date_naive();
             if date == first {
                 low = mid + 1;
             } else {
@@ -511,10 +512,14 @@ impl Ledger {
                 self.writers.insert(day, (number, store));
                 continue;
             };
-            self.writers.get_mut(&day).unwrap().1.update(|part| {
-                *part = next;
-                Ok(())
-            })?;
+            self.writers
+                .get_mut(&day)
+                .context("ledger writer unavailable")?
+                .1
+                .update(|part| {
+                    *part = next;
+                    Ok(())
+                })?;
             for pending in self.pending.drain(..count) {
                 self.known.push(pending.entry);
             }
@@ -568,7 +573,7 @@ impl Ledger {
             &self.root,
             Path::new(".grimoire/writingdeck/ledger/probe.json"),
         )?;
-        let root = probe.parent().unwrap();
+        let root = probe.parent().context("missing ledger directory")?;
         if !root.exists() {
             return Ok(vec![]);
         }
