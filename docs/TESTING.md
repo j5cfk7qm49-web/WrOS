@@ -124,22 +124,8 @@ For NixOS, build the software checks `rust-suite`, `rust-suite-no-audio`,
 .#checks.x86_64-linux.<name>`) and run `nix develop -c bash tools/nix-gates.sh`, then
 run the nine VM checks and `helpers-no-fhs` listed in `flake.nix`. Follow
 [NixOS qualification](NIXOS_QUALIFICATION.md) for the candidate procedure.
-The following `tools/rc-check.sh` and RC10 chain instructions describe the
-retained Debian checks.
 
-`tools/rc-check.sh` prints one summary line each for formatting, Clippy, the Rust
-tests, the app in a terminal, a debug build, and the Python tests with
-`GRIMOIRE_BINARY` set, so the Python screen tests (`test_*_pty.py`) run instead
-of skipping. `--vm CMD…` adds a VM chain run
-(`python3 os/tests/rc_vm_chain.py …`, for Debian builds) to the summary. Logs
-and `summary.txt` go to `target/rc-check`.
-
-For RC10 and later, the chain runs the update, installed feature checks and
-start-screen checks. The two installed phases each get a fresh overlay of the
-updated disk. The features phase asks the running logind for all four sleep
-modes and the effective key, long-press, lid and idle actions. It also checks
-that direct suspend is refused until the protected lock is in place. The
-expanded power checks passed on the saved RC9 package in
+The historical rc10 power checks used the saved rc9 package in
 `/home/builder/rc-vm-runs/rc10-power-probe-20261109T042206Z`.
 
 The rc10 gates also build the native input reader and compositor warmth. The
@@ -314,11 +300,8 @@ gamma/readback/timer/Off application; neither establishes physical qualification
 
 ## Debian-era M7b qualification
 
-Use `bash tools/test-m7b.sh` after provisioning the exact runtime described in
-[M7B](M7B.md). The unified verifier records source/tool hashes, the tested binary
-and runtime marker, exact overlapping Rust counts, ignored cases and real Python
-coverage; it refuses skipped Python methods or changed source. Custom output
-paths use `GRIMOIRE_BINARY`, `CARGO_TARGET_DIR` and `WROS_TOOLS_PYTHON`.
+The retired Debian verifier recorded the source, binary and runtime identities,
+along with the Rust and Python test results.
 Historical software totals and their source identities are recorded in
 [STATUS](archive/STATUS.md); they do not qualify later changes. The historical
 independent image audit verified Wi-Fi payloads. The 512-MiB zero-NIC TCG VM
@@ -340,15 +323,15 @@ candidate qualification.
 
 ## Commands
 
-Run as a normal user except staging/constructing the disposable rootfs/image:
+Run as a normal user in the Nix development shell:
 
 ```sh
 cargo fmt --all -- --check
 cargo test --workspace --locked --offline -j 2
 cargo test --workspace --no-default-features --locked --offline -j 2
 cargo clippy --workspace --all-targets --locked --offline -- -D warnings
-python3 -m unittest discover -s os/tests -p 'test_*.py' -v
-shellcheck os/scripts/*.sh os/config/live/9998-wros-session os/config/installer/native-crypto-passphrase tools/test-m7b.sh
+python3 tools/nix-python-suite.py
+shellcheck os/scripts/*.sh os/config/installer/native-crypto-passphrase tools/nix-gates.sh
 python3 tools/check-wros.py
 ```
 

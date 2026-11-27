@@ -59,5 +59,4 @@ and Secure Boot qualification remain separate.
 The Debian 13 choice dated 2026-10-24 served the earlier prototype, with a staged
 rootfs, package inventory and unsigned VM image; [archived STATUS](archive/STATUS.md)
 retains its results. WrOS rebased the operating-system layer on NixOS in rc14.
-The retained [Debian builder](../os/scripts/bootstrap-rootfs.sh) requires an
-explicit VM-demo mode and is historical test machinery.
+The Debian VM-demo builder is preserved in Git history.

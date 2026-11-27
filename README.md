@@ -48,8 +48,7 @@ cargo run --locked --no-default-features -- /path/to/new-demo
 The flake defines the NixOS software and VM checks. Run
 `nix build .#checks.x86_64-linux.rust-suite .#checks.x86_64-linux.app-suite` (Nix CI
 runs every software check) and follow the NixOS qualification guide for the VM
-checks. `tools/rc-check.sh`
-and the RC10 VM chain remain Debian-era checks.
+checks.
 [Testing](docs/TESTING.md) · [NixOS qualification](docs/NIXOS_QUALIFICATION.md) · [Documentation index](docs/README.md)
 
 ## Grimoire and licensing

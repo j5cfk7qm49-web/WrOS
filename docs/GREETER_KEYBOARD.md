@@ -17,8 +17,7 @@ NixOS declares the keyboard action and includes the shared
 [greeter keyboard rule](../os/config/51-wros-greeter-keyboard.rules) through
 `nixos/modules/polkit.nix`. The rule grants the active local `_greetd` account
 only the existing keyboard actions. The account is declared in
-`nixos/modules/base.nix`. The [staging script](../os/scripts/stage-greeter.sh) is
-retained for Debian builds, rc13 and earlier.
+`nixos/modules/base.nix`.
 The helper accepts only four registered IDs and bounded transaction tokens.
 See the upstream [polkit rule contract](https://www.freedesktop.org/software/polkit/docs/latest/polkit.8.html)
 and [pkexec contract](https://www.freedesktop.org/software/polkit/docs/latest/pkexec.1.html).

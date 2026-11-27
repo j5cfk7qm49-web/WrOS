@@ -84,8 +84,10 @@ unusable by this opener.
 
 The engine uses `_NoRedirect`. Every online channel file must be available directly from
 Pages. The [publishing workflow](../.github/workflows/release-updates.yml) checks the complete
-channel, rejects files matching `find -size +99M`, and deploys `nixos-updates/`, the Debian
-`updates/` and the static pages together or not at all.
+offline-signed channel, rejects files matching `find -size +99M`, and deploys
+`nixos-updates/` and the static pages together. It selects the thin release asset
+when available and falls back to the full asset. A deploy requires both the
+verified channel and the static pages.
 
 Historical measurement from publishing rc15: the rc14-to-rc15 delta contained 44 store
 paths, about 120 MiB before compression, the largest 40 MiB. These are historical sizes,

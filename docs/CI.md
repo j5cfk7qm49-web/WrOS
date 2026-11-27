@@ -11,27 +11,18 @@ ISO run in local qualification. The Debian workflow (`ci.yml`, M7b in Debian 13)
 retired in rc17, once Nix CI ran the same Rust and Python tests with the same counts; its
 runs up to rc17 remain in the repository's Actions history.
 
-The following installer-component, terminal-library verifier and matching
-kernel/initrd paragraphs describe the retired Debian workflow (`tools/test-m7b.sh`, still runnable in Debian 13). The current
-NixOS installer uses `nixos/scripts/wros-install-session`, `wros-installer-backend`
-and `wros-install-core`; its tests and build coverage are separate.
-
-The installer component is also built from pinned Debian source and tested as
-a normal user: real native TUI questions plus malformed/disconnected protocol
-cases on private noexec-compatible tmpfs. Its private configuration path requires
-no privileged test mount or disk. Source downloads happen during provisioning,
-and component qualification is mandatory in the offline gate sequence. See
-the [installer failure boundary](archive/INSTALLER_BACKEND.md).
+The NixOS installer uses `nixos/scripts/wros-install-session`, `wros-installer-backend`
+and `wros-install-core`. The [NixOS qualification guide](NIXOS_QUALIFICATION.md)
+covers the current installer checks. The Debian installer component build
+and its results are recorded in the [installer backend archive](archive/INSTALLER_BACKEND.md).
 
 The retained terminal-library gate checks all original upstream file hashes,
 the explicit local patch and offline recovery of the originals. Actual
 multi-read input, Unicode, unchanged descriptor flags and confirmation
 typeahead are covered separately by the reader/installer PTY regressions.
 
-The [matching kernel/initrd recipe](archive/LIVE_INSTALLER_IMAGE.md) has separate local
-artifact and actual-image backend qualification. Standard software CI checks its
-shell syntax and the shared drivers; it does not build or certify a complete
-live ISO or implicitly repeat that archive-backed initrd build.
+The [matching kernel/initrd recipe](archive/LIVE_INSTALLER_IMAGE.md) describes
+the historical Debian ISO and its installer backend checks.
 
 Windows and macOS jobs are removed. The imported Grimoire application release,
 package and installer workflows are retained as attributed source references in

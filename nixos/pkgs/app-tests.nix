@@ -64,7 +64,6 @@ in
       pkgs.poppler-utils
       pkgs.jre_headless
       pkgs.epubcheck
-      pkgs.dpkg
     ];
   } ''
     cp -r ${src} source
@@ -73,13 +72,9 @@ in
     export HOME="$TMPDIR/home" TMPDIR="$TMP"
     mkdir -p "$HOME"
     patchShebangs --build os/scripts nixos/scripts tools os/tests >/dev/null
-    # Debian tool paths in the source, given the store's as helpers.nix does for the installed copies.
-    sed -i -E 's#/usr/bin/gpgv#${pkgs.gnupg}/bin/gpgv#g; s#/usr/bin/gpg([^v])#${pkgs.gnupg}/bin/gpg\1#g' \
-      os/scripts/wros-update-engine.py tools/publish-updates.py tools/build-update-bundle.py \
-      os/tests/test_update_workflow.py os/tests/test_update_support.py
-    # The Debian channel's publisher (still run by release-updates.yml) builds and reads .debs.
-    sed -i -E 's#/usr/bin/(dpkg[a-z-]*)#${pkgs.dpkg}/bin/\1#g' \
-      os/scripts/wros-update-engine.py tools/build-update-bundle.py os/tests/test_update_support.py
+    # The shared updater uses an absolute path to gpgv, as on the installed system.
+    substituteInPlace os/scripts/wros-update-engine.py \
+      --replace-fail "/usr/bin/gpgv" "${pkgs.gnupg}/bin/gpgv"
     sed -i -e 's#/usr/bin/rclone#${pkgs.rclone}/bin/rclone#g' -e 's#/usr/bin/restic#${pkgs.restic}/bin/restic#g' \
       -e 's#/usr/bin/python3#${python}/bin/python3#g' \
       os/scripts/wros-backup os/scripts/wros-sync os/scripts/wros-ytm os/scripts/wros-link.py

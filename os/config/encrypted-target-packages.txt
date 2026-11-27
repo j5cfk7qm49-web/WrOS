@@ -1,7 +1,0 @@
-cryptsetup
-cryptsetup-bin
-cryptsetup-initramfs
-dmsetup
-lvm2
-systemd-cryptsetup
-dosfstools

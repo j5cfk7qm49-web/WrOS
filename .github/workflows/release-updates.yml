@@ -1,19 +1,11 @@
 name: release-updates
 
-# Publish WrOS's online updates to GitHub Pages: the NixOS channel (nixos-updates/, from rc14),
-# the Debian channel rc13 machines use (updates/, a flat apt repository), and the static pages.
-# Design: docs/archive/superpowers/specs/2026-11-01-online-wros-updates-design.md, docs/NIXOS_UPDATES.md
+# Publish the offline-signed NixOS update channel (nixos-updates/) and static pages
+# to GitHub Pages. See docs/NIXOS_UPDATES.md.
 #
-# Pages replaces the whole site on every deploy, so every deploy carries all three parts or none:
-# it names the NixOS release it serves (the pushed NixOS tag, or nixos_release when dispatched),
-# serves the Debian channel from DEBIAN_RELEASE's offline-signed asset as it is (or re-signs the
-# live one when signing is set up), and copies the static pages. A run that names no NixOS
-# release deploys nothing, since it would remove the NixOS channel.
-#
-# Until the WROS_UPDATE_SIGNING_SUBKEY secret is set, CI signs nothing: a release tag
-# (or a dispatch naming one) serves the release's wros-updates.tar asset, signed offline
-# with the pinned key, unchanged and only after checking it; other runs deploy nothing,
-# so Pages keeps serving the last deploy.
+# Pages replaces the whole site on every deploy, so both parts must be ready before
+# upload. A pushed tag or the nixos_release dispatch input selects the release.
+# The weekly run checks the published channel's expiry.
 
 on:
   push:
@@ -22,16 +14,8 @@ on:
     - cron: '17 6 * * 1'  # weekly expiry check for the published NixOS channel
   workflow_dispatch:
     inputs:
-      scratch:
-        description: Also build this ref into updates-scratch/ (updates/ is only re-signed)
-        type: boolean
-        default: true
-      release:
-        description: Serve this release tag's wros-updates.tar as updates/ (signed offline), instead
-        type: string
-        default: ''
       nixos_release:
-        description: Serve this NixOS release tag's wros-nixos-updates.tar as nixos-updates/ (needed to deploy)
+        description: Serve this release's signed NixOS update bundle as nixos-updates/
         type: string
         default: ''
 
@@ -42,7 +26,6 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    container: debian:13-slim
     timeout-minutes: 60
     environment: github-pages
     permissions:
@@ -50,22 +33,7 @@ jobs:
       pages: write
       id-token: write
       issues: write
-    env:
-      CARGO_HOME: /opt/cargo
-      RUSTUP_HOME: /opt/rustup
-      DEBIAN_FRONTEND: noninteractive
-      UPDATE_URL: https://j5cfk7qm49-web.github.io/WrOS/updates/
-      # The last Debian release; its asset is what rc13 machines keep being served.
-      DEBIAN_RELEASE: v0.1.0-rc13
-      DEBIAN_VERSION: 0.1.0~rc13
     steps:
-      - name: Debian prerequisites
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends build-essential pkg-config libasound2-dev libssl-dev libdrm-dev \
-            libinput-dev libudev-dev libseat-dev libxkbcommon-dev \
-            libwayland-dev libegl1-mesa-dev meson ninja-build libwlroots-0.18-dev \
-            python3 python3-debian ca-certificates curl gh git gnupg gpgv dpkg-dev console-setup keyboard-configuration
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
@@ -76,7 +44,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          url="${UPDATE_URL%updates/}nixos-updates/InRelease"
+          url=https://j5cfk7qm49-web.github.io/WrOS/nixos-updates/InRelease
           mkdir -p out
           curl -fsSL --proto '=https' -o out/InRelease "$url"
           expiry=$(python3 -I tools/publish-nixos-updates.py days-left out/InRelease --with-date)
@@ -100,103 +68,28 @@ jobs:
         id: plan
         shell: bash
         env:
-          SIGNING: ${{ secrets.WROS_UPDATE_SIGNING_SUBKEY != '' }}
-          SCRATCH: ${{ inputs.scratch }}
-          RELEASE: ${{ inputs.release }}
           NIXOS: ${{ inputs.nixos_release }}
         run: |
           set -euo pipefail
-          build=''
-          version=''
-          release=''
           nixos=''
           nixos_version=''
-          if [ "$GITHUB_EVENT_NAME" = push ]; then
-            tagged=$(python3 tools/publish-updates.py version "$GITHUB_REF_NAME")
-            # From 0.1.0~rc14 WrOS is NixOS: its tag publishes the NixOS channel, and Debian
-            # machines (rc13) stay on the Debian channel as it is.
-            if dpkg --compare-versions "$tagged" ge '0.1.0~rc14'; then
-              nixos=$GITHUB_REF_NAME
-              nixos_version=$tagged
-            else
-              version=$tagged
-              release=$GITHUB_REF_NAME
-            fi
-          elif [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ -n "$NIXOS" ]; then
-            nixos_version=$(python3 tools/publish-nixos-updates.py version "$NIXOS")
-            nixos=$NIXOS
-          elif [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ -n "$RELEASE" ]; then
-            version=$(python3 tools/publish-updates.py version "$RELEASE")
-            release=$RELEASE
-          elif [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "$SCRATCH" = true ] && [ "$SIGNING" = true ]; then
-            build=updates-scratch
-            version=$(head -n1 os/VERSION)
-          fi
-          sign=false
           deploy=false
-          if [ -z "$nixos" ]; then
-            # Deploying without nixos-updates/ would remove the NixOS channel from Pages.
-            echo "::notice::No NixOS release named: nothing is deployed; Pages keeps the last deploy"
-            build=''
-            version=''
-            release=''
-          else
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            nixos=$GITHUB_REF_NAME
+          elif [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            nixos=$NIXOS
+          fi
+          if [ -n "$nixos" ]; then
+            nixos_version=$(python3 tools/publish-nixos-updates.py version "$nixos")
             deploy=true
-            if [ "$SIGNING" = true ]; then
-              sign=true
-            else
-              release=$DEBIAN_RELEASE
-              version=$DEBIAN_VERSION
-            fi
+          else
+            echo "::notice::No NixOS release named: nothing is deployed; Pages keeps the last deploy"
           fi
           {
-            echo "build=$build"
-            echo "version=$version"
-            echo "release=$release"
             echo "nixos=$nixos"
             echo "nixos_version=$nixos_version"
-            echo "sign=$sign"
             echo "deploy=$deploy"
           } >> "$GITHUB_OUTPUT"
-      - name: Pinned Rust toolchain
-        if: steps.plan.outputs.build != ''
-        shell: bash
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
-          # rustup refuses a $HOME other than root's own; the toolchain still goes to RUSTUP_HOME.
-          HOME=/root sh /tmp/rustup-init.sh -y --no-modify-path --profile minimal --default-toolchain 1.99.1
-      - name: Build the wros package
-        if: steps.plan.outputs.build != ''
-        shell: bash
-        env:
-          VERSION: ${{ steps.plan.outputs.version }}
-        run: |
-          set -euo pipefail
-          export PATH="/opt/cargo/bin:$PATH"
-          cargo build --release --locked --no-default-features --features gui-drm,gui-wgpu,audio -p grimoire-tui -p wros-greeter -p wros-boot
-          mkdir -p out/bin out/new
-          cp target/release/grimoire target/release/wros-greeter target/release/wros-boot out/bin/
-          python3 -I tools/build-wros-debs.py --binaries-dir out/bin --version "$VERSION" --output out/new
-      - name: Serve the release's offline-signed bundle
-        if: steps.plan.outputs.release != ''
-        shell: bash
-        env:
-          RELEASE: ${{ steps.plan.outputs.release }}
-          VERSION: ${{ steps.plan.outputs.version }}
-        run: |
-          set -euo pipefail
-          mkdir -p out/pages
-          # The tag can arrive a moment before its release asset does.
-          for attempt in $(seq 1 30); do
-            if curl -fsSL --proto '=https' -o out/wros-updates.tar \
-                "https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE/wros-updates.tar"; then
-              break
-            fi
-            [ "$attempt" -lt 30 ] || { echo "no wros-updates.tar on release $RELEASE" >&2; exit 1; }
-            sleep 20
-          done
-          python3 -I tools/publish-updates.py check-bundle out/wros-updates.tar out/pages/updates "$VERSION"
-          find out/pages -type f | sort
       - name: Serve the NixOS release's offline-signed channel
         if: steps.plan.outputs.nixos != ''
         shell: bash
@@ -224,64 +117,6 @@ jobs:
           big=$(find out/pages/nixos-updates -type f -size +99M)
           [ -z "$big" ] || { echo "too large for Pages: $big" >&2; exit 1; }
           du -sh out/pages/nixos-updates
-      - name: Import the CI signing subkey
-        if: steps.plan.outputs.sign == 'true'
-        shell: bash
-        env:
-          SUBKEY: ${{ secrets.WROS_UPDATE_SIGNING_SUBKEY }}
-        run: |
-          set -euo pipefail
-          export GNUPGHOME
-          GNUPGHOME=$(mktemp -d "$RUNNER_TEMP/wros-gnupg.XXXXXX")
-          trap 'rm -rf -- "$GNUPGHOME"' EXIT
-          if ! printf '%s\n' "$SUBKEY" | gpg --batch --import >/dev/null 2>&1; then
-            echo 'Could not import the signing subkey.' >&2
-            exit 1
-          fi
-          if ! gpg --batch --with-colons --list-secret-keys 2>/dev/null | awk -F: '
-            $1 == "sec" { keys++; if ($15 != "#") bad = 1 }
-            $1 == "ssb" && $15 == "+" { subkeys++; if ($12 !~ /s/ || $2 ~ /[erdi]/) bad = 1 }
-            END { exit !(keys == 1 && subkeys == 1 && !bad) }
-          '; then
-            echo 'Supply an export containing only one usable signing subkey.' >&2
-            exit 1
-          fi
-          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
-          trap - EXIT
-      - name: Sign into the site
-        if: steps.plan.outputs.sign == 'true'
-        shell: bash
-        env:
-          BUILD: ${{ steps.plan.outputs.build }}
-        run: |
-          set -euo pipefail
-          PIN=$(grep -v '^#' os/config/update-trust/update-signers | tr -d ' \n')
-          sign() {
-            local out=$1
-            shift
-            python3 -I tools/build-update-bundle.py "$@" --out "$out" --gnupg-home "$GNUPGHOME" \
-              --key-id "$PIN" --expect-fingerprint "$PIN" --valid-days 21
-            keyring="$GITHUB_WORKSPACE/os/config/update-trust/wros-archive-keyring.gpg"
-            gpgv --keyring "$keyring" "$out/InRelease" >/dev/null 2>&1
-            gpgv --keyring "$keyring" "$out/Release.gpg" "$out/Release" >/dev/null 2>&1
-          }
-          mkdir -p out/pages out/live
-          live=$(python3 tools/publish-updates.py published "$UPDATE_URL" out/live)
-          [ -n "$live" ] || { echo 'No published update to refresh.' >&2; exit 1; }
-          readarray -t live_debs <<< "$live"
-          sign out/pages/updates "${live_debs[@]}"
-          if [ "$BUILD" = updates-scratch ]; then
-            sign out/pages/updates-scratch out/new/wros_*_amd64.deb
-          fi
-          find out/pages -type f | sort
-      - name: Remove signing material from the runner
-        if: always() && steps.plan.outputs.sign == 'true'
-        shell: bash
-        run: |
-          if [ -n "${GNUPGHOME:-}" ]; then
-            gpgconf --kill gpg-agent
-            rm -rf -- "$GNUPGHOME"
-          fi
       - name: Static pages
         if: steps.plan.outputs.deploy == 'true'
         shell: bash
@@ -290,7 +125,7 @@ jobs:
           mkdir -p out/pages
           cp -r pages/. out/pages/
           # All or nothing: this deploy replaces everything that was on Pages.
-          for part in index.html l/index.html updates/InRelease nixos-updates/InRelease nixos-updates/closure-manifest.json; do
+          for part in index.html l/index.html nixos-updates/InRelease nixos-updates/closure-manifest.json; do
             [ -f "out/pages/$part" ] || { echo "Pages would lack $part" >&2; exit 1; }
           done
           total=$(du -sm out/pages | cut -f1)

@@ -188,7 +188,7 @@ The current publisher serves cache files through Pages and rejects oversized
 files. The updater refuses redirects; GitHub release-asset redirects are not a
 working update download path.
 
-NetworkManager connectivity checking is disabled (`[connectivity] enabled=false` in `/etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf`), and Nix substituters and channels are disabled (`nix.channel.enable = false`, `nix.settings.substituters = lib.mkForce []`), so built-in Nix operations do not use `cache.nixos.org` as a substituter; only the update engine fetches from it, for thin bundles, through its own signature checks. The Debian channel `https://j5cfk7qm49-web.github.io/WrOS/updates/` remains untouched for `v0.1.0-rc13` systems.
+NetworkManager connectivity checking is disabled (`[connectivity] enabled=false` in `/etc/NetworkManager/conf.d/60-wros-no-connectivity-check.conf`), and Nix substituters and channels are disabled (`nix.channel.enable = false`, `nix.settings.substituters = lib.mkForce []`), so built-in Nix operations do not use `cache.nixos.org` as a substituter; only the update engine fetches from it, for thin bundles, through its own signature checks. The Debian update channel was retired after rc13, the final Debian release.
 
 ## Verification
 

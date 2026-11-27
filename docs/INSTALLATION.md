@@ -26,8 +26,7 @@ Have a verified backup of anything on the target disk. [Release checklist](RELEA
 rc13 can't update to NixOS in place: the whole system underneath changes. On rc13, make sure
 **Settings › Backups and accounts › Backups** shows a recent backup of every project. Then install
 the current NixOS release from the stick as above, set up the same backup destination (and
-recovery key) on the current NixOS release, and restore each project from it. Your Debian update
-channel stays as it was until you reinstall.
+recovery key) on the current NixOS release, and restore each project from it. The Debian update channel is retired.
 
 ## Update an installed system
 
@@ -56,25 +55,6 @@ cargo run --locked --no-default-features -- wros status --simulate
 For the native graphical build, use `--no-default-features --features gui-drm`.
 `nix develop` gives a shell with the pinned toolchain and the native display and input
 libraries. [Development shell](../flake.nix) · [Graphical design](GRAPHICAL_SESSION.md)
-
-## Build Debian media (rc13 and earlier) and qualify it in a VM
-
-For the Debian releases, use the isolated Debian 13 amd64 builder. The ordered live ISO recipe prints
-its steps with the following command. It builds the matching installer backend,
-assembles the offline package pool, audits the ISO and smoke-boots it before
-placing it under the release name. The private update-signing key stays outside
-that builder. [ISO build script](../os/scripts/build-release-iso.sh)
-
-```sh
-bash os/scripts/build-release-iso.sh --plan
-```
-
-The separate `bootstrap-rootfs.sh --vm-demo` and `assemble-image.sh` recipes
-build a disposable UEFI test disk with an automatic demo login. Use the release
-chain for an authenticated encrypted installation and package update. Test
-results refer to the exact artifacts and the checks that ran.
-[VM profile](../os/scripts/bootstrap-rootfs.sh) · [Qualification steps](TESTING.md)
-
 
 ## NixOS appliance build and installation (rc14 and later)
 

@@ -92,33 +92,12 @@ at protocol transitions and before terminal handoff. Escape on the form clears
 it in place. Escape cancels an idle PAM conversation; during an outstanding
 request it disconnects and exits for greetd to restart. SIGTERM/HUP/INT restore the terminal and exit without starting a session.
 
-## NixOS integration and Debian staging history
+## NixOS integration
 
 NixOS enables the native greeter on tty1 through `nixos/modules/session.nix`.
 The flake builds its executable and PAM configuration; no manual staging step is
 required. tty2 remains available for authenticated maintenance and tty8 is
 reserved for locking.
-
-### Historical Debian staging procedure (rc13 and earlier)
-
-For a separate isolated Debian staging root with the maintained `greetd` package
-and WrOS session already installed, explicitly run:
-
-```sh
-cargo build -p wros-greeter --locked
-sudo bash os/scripts/stage-greeter.sh STAGING_ROOT target/debug/wros-greeter
-```
-
-The script rejects `/`. It installs the native greeter as greetd's unprivileged
-`_greetd` account, owns only tty1, and keeps the authenticated tty2 maintenance
-path. `source_profile=false` avoids the legacy profile's automatic session launch.
-An explicit WrOS unit replaces the package's tty7 service configuration, orders
-after the former tty1 getty, and starts from multi-user.target. Only tty1's getty
-is masked; maintenance gettys remain available. A drop-in cannot remove the
-package's old terminal dependencies.
-There is no initial-session/autologin stanza. The image also stages power-key,
-lid/idle and sleep guards until secure locking is qualified. Never enable this
-profile on a live machine as a substitute for image qualification.
 
 ## Debian-era qualification history
 

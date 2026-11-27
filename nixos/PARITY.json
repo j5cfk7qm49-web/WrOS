@@ -2246,9 +2246,10 @@
       "note": "Replaced by nixosConfigurations.wros-live in nixos/modules/live.nix; Debian Installer initrd unpacking is not used on NixOS."
     },
     "source:os/config/installer/keymaps/": {
-      "disposition": "kept",
+      "disposition": "ported",
+      "evidence": "wros-keymaps",
       "where": [
-        "os/config/installer/keymaps/13wros-initramfs-keymap"
+        "nixos/pkgs/keymaps.nix"
       ]
     },
     "source:os/config/installer/native-crypto-passphrase": {
@@ -2456,28 +2457,20 @@
       "note": "Replaced by Nix package derivations in nixos/pkgs/default.nix."
     },
     "source:tools/audit-installer-media.py": {
-      "disposition": "kept",
-      "where": [
-        "tools/audit-installer-media.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "source:tools/audit-live-session.py": {
-      "disposition": "kept",
-      "where": [
-        "tools/audit-live-session.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "source:tools/audit-native-image.py": {
-      "disposition": "kept",
-      "where": [
-        "tools/audit-native-image.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "source:tools/audit-prose-tools.py": {
-      "disposition": "kept",
-      "where": [
-        "tools/audit-prose-tools.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "source:tools/audit-terminal-library.py": {
       "disposition": "kept",
@@ -2486,10 +2479,8 @@
       ]
     },
     "source:tools/audit-wifi-image.py": {
-      "disposition": "kept",
-      "where": [
-        "tools/audit-wifi-image.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "source:tools/audit-writing-checks-assets.py": {
       "disposition": "kept",
@@ -2557,10 +2548,8 @@
       ]
     },
     "source:tools/generate-installer-keymaps.py": {
-      "disposition": "kept",
-      "where": [
-        "tools/generate-installer-keymaps.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "source:tools/generate-keyboard-reference.py": {
       "disposition": "kept",
@@ -2585,10 +2574,8 @@
       ]
     },
     "source:tools/live-boot-menu.py": {
-      "disposition": "kept",
-      "where": [
-        "tools/live-boot-menu.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "source:tools/measure-prose-tools.py": {
       "disposition": "kept",
@@ -2634,10 +2621,8 @@
       ]
     },
     "source:tools/rc-check.sh": {
-      "disposition": "kept",
-      "where": [
-        "tools/rc-check.sh"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "source:tools/screenshots.py": {
       "disposition": "kept",
@@ -2663,32 +2648,24 @@
       ]
     },
     "source:tools/test-installer-backend.py": {
-      "disposition": "kept",
-      "where": [
-        "tools/test-installer-backend.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "source:tools/test-installer-components.py": {
-      "disposition": "kept",
-      "where": [
-        "tools/test-installer-components.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "source:tools/test-m7b.sh": {
-      "disposition": "kept",
-      "where": [
-        "tools/test-m7b.sh"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "source:tools/verify-debian-installer.py": {
       "disposition": "retired",
       "note": "Replaced by nixos/tests/install-encrypted.nix and nixos/tests/live-session.nix."
     },
     "source:tools/verify-wros.py": {
-      "disposition": "kept",
-      "where": [
-        "tools/verify-wros.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "source:tools/winget.py": {
       "disposition": "kept",
@@ -2722,10 +2699,8 @@
       ]
     },
     "test:os/tests/cdebconf_protocol.py": {
-      "disposition": "kept",
-      "where": [
-        "os/tests/cdebconf_protocol.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "test:os/tests/console_lock_vm.py": {
       "disposition": "ported",
@@ -2909,10 +2884,8 @@
       ]
     },
     "test:os/tests/rc_vm_chain.py": {
-      "disposition": "kept",
-      "where": [
-        "os/tests/rc_vm_chain.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "test:os/tests/rc_vm_explore.py": {
       "disposition": "kept",
@@ -3018,10 +2991,8 @@
       ]
     },
     "test:os/tests/test_collect_update_runtime.py": {
-      "disposition": "kept",
-      "where": [
-        "os/tests/test_collect_update_runtime.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "test:os/tests/test_compositor_preferences.py": {
       "disposition": "kept",
@@ -3108,10 +3079,8 @@
       ]
     },
     "test:os/tests/test_grub_recovery.py": {
-      "disposition": "kept",
-      "where": [
-        "os/tests/test_grub_recovery.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "test:os/tests/test_input_pty.py": {
       "disposition": "kept",
@@ -3126,10 +3095,8 @@
       ]
     },
     "test:os/tests/test_install_session.py": {
-      "disposition": "kept",
-      "where": [
-        "os/tests/test_install_session.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "test:os/tests/test_installed_boot.py": {
       "disposition": "kept",
@@ -3138,16 +3105,12 @@
       ]
     },
     "test:os/tests/test_installer_keymaps.py": {
-      "disposition": "kept",
-      "where": [
-        "os/tests/test_installer_keymaps.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "test:os/tests/test_installer_media.py": {
-      "disposition": "kept",
-      "where": [
-        "os/tests/test_installer_media.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "test:os/tests/test_installer_pty.py": {
       "disposition": "kept",
@@ -3192,22 +3155,16 @@
       ]
     },
     "test:os/tests/test_live_boot_menu.py": {
-      "disposition": "kept",
-      "where": [
-        "os/tests/test_live_boot_menu.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "test:os/tests/test_live_installer_pool.py": {
-      "disposition": "kept",
-      "where": [
-        "os/tests/test_live_installer_pool.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "test:os/tests/test_live_session.py": {
-      "disposition": "kept",
-      "where": [
-        "os/tests/test_live_session.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "test:os/tests/test_local_session_privacy_pty.py": {
       "disposition": "kept",
@@ -3240,16 +3197,12 @@
       ]
     },
     "test:os/tests/test_native_image.py": {
-      "disposition": "kept",
-      "where": [
-        "os/tests/test_native_image.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "test:os/tests/test_native_installer_capsule.py": {
-      "disposition": "kept",
-      "where": [
-        "os/tests/test_native_installer_capsule.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "test:os/tests/test_native_installer_guest.py": {
       "disposition": "kept",
@@ -3264,10 +3217,8 @@
       ]
     },
     "test:os/tests/test_packaging.py": {
-      "disposition": "kept",
-      "where": [
-        "os/tests/test_packaging.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "test:os/tests/test_passage_restore_pty.py": {
       "disposition": "kept",
@@ -3306,10 +3257,8 @@
       ]
     },
     "test:os/tests/test_prose_staging.py": {
-      "disposition": "kept",
-      "where": [
-        "os/tests/test_prose_staging.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "test:os/tests/test_rc7_pty.py": {
       "disposition": "kept",
@@ -3318,22 +3267,16 @@
       ]
     },
     "test:os/tests/test_rc_vm.py": {
-      "disposition": "kept",
-      "where": [
-        "os/tests/test_rc_vm.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "test:os/tests/test_rc_vm_chain.py": {
-      "disposition": "kept",
-      "where": [
-        "os/tests/test_rc_vm_chain.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "test:os/tests/test_rc_vm_fakes.py": {
-      "disposition": "kept",
-      "where": [
-        "os/tests/test_rc_vm_fakes.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "test:os/tests/test_recovery_menu.py": {
       "disposition": "ported",
@@ -3343,10 +3286,8 @@
       ]
     },
     "test:os/tests/test_rescue.py": {
-      "disposition": "kept",
-      "where": [
-        "os/tests/test_rescue.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "test:os/tests/test_review_notes_pty.py": {
       "disposition": "kept",
@@ -3454,10 +3395,8 @@
       ]
     },
     "test:os/tests/test_wifi_policy.py": {
-      "disposition": "kept",
-      "where": [
-        "os/tests/test_wifi_policy.py"
-      ]
+      "disposition": "retired",
+      "note": "Debian-only file removed after rc13, the last Debian release."
     },
     "test:os/tests/test_workflow_pty.py": {
       "disposition": "kept",

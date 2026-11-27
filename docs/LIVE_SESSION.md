@@ -34,13 +34,8 @@ automatic entry and installer cancellation/handoff,
 session remaining alive, and [install-encrypted](../nixos/tests/install-encrypted.nix)
 for installation and reboot.
 
-**Debian media checks, rc13 and earlier.** `tools/audit-live-session.py` checks
-the immutable staged profile. Unit tests
-exercise account/boot selection, manual-entry options, publication ordering,
-file preservation, permissions and staging leaks using private fixture files.
-`live_session_uses_shared_surfaces_and_never_requests_personal_lock` exercises
-the actual Grimoire controller and renderer at four terminal sizes. These
-checks are not evidence of an actual live boot or physical hardware support.
+The Rust test `live_session_uses_shared_surfaces_and_never_requests_personal_lock`
+exercises the Grimoire controller and renderer at four terminal sizes.
 
 ## Executed local qualification (Debian builds, rc13 and earlier)
 

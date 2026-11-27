@@ -587,7 +587,7 @@
       "area": "System",
       "capability": "Offline common-laptop Wi-Fi drivers and firmware",
       "status": "In progress",
-      "verification": "Actual staged-image package/firmware/notice/module/nmtui audit plus missing-payload policy tests",
+      "verification": "Historical Debian staged-image audit and missing-payload policy tests. NixOS declares the firmware selection in nixos/modules/hardware.nix.",
       "hardware_verified": false,
       "detail": "Intel, Realtek, Qualcomm/Atheros, Broadcom/Cypress brcm80211 and MediaTek packaged for supported kernel drivers; production installer media must retain this set; physical radio acceptance pending"
     },

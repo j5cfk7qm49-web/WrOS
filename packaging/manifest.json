@@ -85,7 +85,6 @@
     {"dest": "etc/polkit-1/rules.d/50-wros-keyboard.rules", "source": "os/config/50-wros-keyboard.rules", "mode": "0644", "class": "config"},
     {"dest": "usr/share/polkit-1/actions/org.wros.keyboard.policy", "source": "os/config/org.wros.keyboard.policy", "mode": "0644", "class": "config"},
     {"dest": "etc/polkit-1/rules.d/50-wros-display.rules", "source": "os/config/50-wros-display.rules", "mode": "0644", "class": "config"},
-    {"dest": "etc/apt/sources.list.d/wros.sources", "source": "os/config/apt/wros.sources", "mode": "0644", "class": "config"},
     {"dest": "usr/share/wros/foot.ini", "source": "os/config/foot.ini", "mode": "0644", "class": "config"},
     {"dest": "usr/share/wros/update-keyring.gpg", "source": "os/config/update-trust/wros-archive-keyring.gpg", "mode": "0644", "class": "config"},
     {"dest": "usr/lib/udev/rules.d/90-wros-backlight.rules", "source": "os/config/90-wros-backlight.rules", "mode": "0644", "class": "config"},
@@ -111,9 +110,6 @@
     {"dest": "usr/lib/systemd/system/greetd.service.d/60-wros-start-screen.conf", "source": "os/config/greetd-start-screen.conf", "mode": "0644", "class": "config"},
     {"dest": "usr/lib/systemd/system/triggerhappy.service.d/60-wros.conf", "source": "os/config/triggerhappy-wros.conf", "mode": "0644", "class": "config"},
     {"dest": "etc/pam.d/wros-recovery", "source": "os/config/wros-recovery.pam", "mode": "0644", "class": "config"},
-    {"dest": "etc/grub.d/06_wros_boot_check", "source": "os/grub/06_wros_boot_check", "mode": "0755", "class": "config"},
-    {"dest": "etc/grub.d/42_wros_recovery", "source": "os/grub/42_wros_recovery", "mode": "0755", "class": "config"},
-    {"dest": "etc/default/grub.d/60-wros.cfg", "source": "os/grub/60-wros.cfg", "mode": "0644", "class": "config"},
 
     {"dest": "etc/systemd/logind.conf.d/60-wros-power-guard.conf", "source": "os/config/60-wros-power-guard.conf", "mode": "0644", "class": "config"},
     {"dest": "etc/systemd/system/systemd-suspend.service.d/60-wros-lock.conf", "source": "os/config/wros-suspend.conf", "mode": "0644", "class": "config"},

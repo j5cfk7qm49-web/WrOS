@@ -46,9 +46,8 @@ let
   };
   hp-measure = import ./hp-measure.nix { inherit pkgs lib src hayroBench; };
 
-  # The tests for what NixOS WrOS runs. The Debian update engine's own suites (test_update,
-  # test_update_live, test_update_rollback, test_update_support, test_update_transactions) drive
-  # dpkg and apt-get against a Debian archive; they stay in the Debian builder's suite (#131).
+  # The tests for what NixOS WrOS runs. The Debian update tests exercise the shared
+  # engine's dpkg and apt-get paths and remain excluded by tools/nix-python-suite.py.
   python-suite = pkgs.runCommand "wros-python-suite" {
     nativeBuildInputs = [
       (pkgs.python3.withPackages (ps: [ ps.pillow ]))
@@ -80,7 +79,7 @@ let
     python3 -m unittest test_keyboard test_clock test_sound test_media_key test_passwd_helper \
       test_recovery_menu test_boot_settings test_boot_unlock test_session_launcher \
       test_display_manager test_nixos_update test_nixos_install_core test_nixos_installer \
-      test_update_reply_contract test_nixos_bundle_tool test_unifont_preview
+      test_update_reply_contract test_update_workflow test_nixos_bundle_tool test_unifont_preview
     mkdir -p "$out"
     echo "pass" > "$out/result"
   '';

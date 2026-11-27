@@ -1,8 +1,7 @@
 # Installer configuration
 
-WrOS 0.1.0~rc16 installs from the NixOS live image. The files in this folder
-belong to the earlier Debian installer and are not part of the NixOS build. The
-NixOS installer is described below.
+WrOS installs from the NixOS live image. This page describes the installer
+and records how the earlier Debian releases installed.
 
 ## The NixOS installer
 
@@ -39,18 +38,8 @@ covers installation, refusal of the wrong or a mounted disk, and retrying after
 an interrupted install, all on disposable disks. Installing on a physical
 laptop is checked separately for each release.
 
-## Files kept in this folder
-
-These files are used only by the retained Debian build and its checks
-(`tools/verify-wros.py` runs shellcheck on the hook; the Debian live-image audit
-in `tools/audit-live-session.py` looks for it):
-
-| File | Debian purpose |
-|---|---|
-| `cdebconf-passthrough-framing.patch` | Escapes backslashes and newlines in the passthrough module's outbound fields |
-| `debian-installer-initrd-profile.patch` | Initrd-only dependency profile for building the installer backend |
-| `native-crypto-passphrase` | partman hook that removed an unused entropy-plugin request on the passphrase path |
-| `keymaps/` | Colemak entries for Debian's keymap question and the initramfs keymap hook |
+The retained `native-crypto-passphrase` hook is a fixture used by the
+[historical Debian VM harness](../../tests/native_installer_vm.py).
 
 ## History
 
@@ -62,8 +51,7 @@ escape backslashes and newlines; the frontend decodes those fields once.
 Debian's keymap question had no Colemak, so a local udeb added `us(colemak)`,
 `us(colemak_dh)` and `us(colemak_dh_iso)`, checked byte for byte against the
 installer's own `ckbcomp-mini`. Another hook set `KEYMAP=y` so the disk
-passphrase prompt used the chosen layout. The build scripts were
-`os/scripts/build-installer-frontend.sh` and `build-live-backend.sh`.
+passphrase prompt used the chosen layout.
 [INSTALLER_BACKEND](../../../docs/archive/INSTALLER_BACKEND.md) and
 [LIVE_INSTALLER_IMAGE](../../../docs/archive/LIVE_INSTALLER_IMAGE.md) keep the
 details and their test results. Those results do not qualify the NixOS installer.
