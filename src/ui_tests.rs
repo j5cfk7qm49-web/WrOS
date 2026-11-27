@@ -505,6 +505,29 @@ fn typing_at_shows_catalogue_books_after_local_sources() {
     }));
 }
 
+/// MLA 9 lists pages that aren't consecutive with commas: (Dostoevsky 54, 56).
+#[test]
+fn a_citation_can_name_pages_that_are_not_consecutive() {
+    use crate::catalogue::{fetch::FixtureFetch, openlibrary};
+
+    let fixture = FixtureFetch::new()
+        .reply(&openlibrary::search_url(CRIME_QUERY), 200, CRIME_SEARCH)
+        .reply("https://api.crossref.org/works?", 200, CROSSREF_EMPTY);
+    let (mut desk, _folder, _) = catalogue_writer("cite-two-pages", fixture);
+    fs::write(
+        desk.root.join("sources.json"),
+        r#"[{"id":"dostoevsky-crime","type":"book","title":"Crime and Punishment Penguin 2003"}]"#,
+    )
+    .unwrap();
+    desk.typed("@crime and punishment penguin");
+    poll_catalogue(&mut desk, |desk| desk.shows("dostoevsky-crime"));
+    desk.key(KeyCode::Enter);
+    desk.typed("54, 56");
+    desk.key(KeyCode::Enter);
+    assert!(!desk.shows("Enter a page"), "{}", desk.rows().join("\n"));
+    assert_eq!(desk.app.editor.text(), "[@dostoevsky-crime, pp. 54, 56]");
+}
+
 #[test]
 fn picking_a_catalogue_book_shows_its_works_cited_line_then_cites_with_a_page() {
     use grimoire_brain::bounded_store::PagedBrain;

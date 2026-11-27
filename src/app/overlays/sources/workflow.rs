@@ -349,9 +349,9 @@ impl App {
                 if !page.is_empty() {
                     anyhow::ensure!(
                         citations::valid_page(page),
-                        "Enter a page or range, for example 194 or 12–14."
+                        "Enter a page (194), a range (12–14) or a list (54, 56)."
                     );
-                    let label = if page.contains(['-', '–', '—']) {
+                    let label = if page.contains([',', '-', '–', '—']) {
                         "pp."
                     } else {
                         "p."
