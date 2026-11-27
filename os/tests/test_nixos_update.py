@@ -1,7 +1,9 @@
 """Unit tests for the NixOS generation-based update engine (nixos/scripts/wros-update-engine.py)."""
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
 import hashlib
+import http.server
 import importlib.machinery
 import importlib.util
 import json
@@ -9,8 +11,10 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import threading
 import unittest
 from unittest import mock
+import urllib.error
 
 
 REPO = Path(__file__).resolve().parents[2]
@@ -211,7 +215,6 @@ class NixosUpdateEngineTests(unittest.TestCase):
         """fetch_online against a thin bundle: the channel from root/bundle, cache.nixos.org's
         files from root/upstream, through a mirror base named in the system configuration."""
         import io
-        import urllib.error
         bundle, keyring, signers, moment = self._make_signed_bundle(
             root, version='0.1.0~rc18', upstream=True,
             toplevel='/nix/store/0123456789abcdfghijklmnpqrsvwxyz-nixos-system-wros-0.1.0-rc18')
@@ -241,7 +244,8 @@ class NixosUpdateEngineTests(unittest.TestCase):
 
         cache = root / 'cache'
         cache.mkdir()
-        with mock.patch.object(self.engine, 'http_get', side_effect=get_metadata):
+        with mock.patch.object(self.engine, 'http_get', side_effect=get_metadata), \
+                mock.patch.object(self.engine, 'RETRY_PAUSE', 0):
             try:
                 result = self.engine.fetch_online(
                     cache=cache, keyring=keyring, signers=signers,
@@ -269,26 +273,28 @@ class NixosUpdateEngineTests(unittest.TestCase):
             bad = {'nar/' + 'q' * 52 + '.nar.xz': b'upstream-nar-paylo4d'}
             with self.assertRaisesRegex(ValueError, 'SHA-256'):
                 self._thin_fetch(Path(tmp), served=bad)
-            self.assertEqual(
-                [p.name for p in (Path(tmp) / 'cache').iterdir() if p.name != 'progress.json'], [],
-                'nothing was staged')
+            self._kept_partial(Path(tmp))
 
     def test_fetch_reports_an_unreachable_upstream_and_stages_nothing(self):
-        import urllib.error
         with tempfile.TemporaryDirectory(prefix='wros-nixos-thin-') as tmp:
             with self.assertRaisesRegex(ValueError, "^Couldn't reach cache.nixos.org for .*mpv"):
                 self._thin_fetch(Path(tmp), fail_with=urllib.error.URLError('timed out'))
-            self.assertEqual(
-                [p.name for p in (Path(tmp) / 'cache').iterdir() if p.name != 'progress.json'], [])
+            self._kept_partial(Path(tmp))
 
     def test_a_missing_upstream_file_is_named_and_stages_nothing(self):
-        import urllib.error
         with tempfile.TemporaryDirectory(prefix='wros-nixos-thin-') as tmp:
             gone = urllib.error.HTTPError('http://mirror.test/x', 404, 'Not Found', {}, None)
             with self.assertRaisesRegex(ValueError, '^cache.nixos.org no longer has .*mpv-0.41.0'):
                 self._thin_fetch(Path(tmp), fail_with=gone)
-            self.assertEqual(
-                [p.name for p in (Path(tmp) / 'cache').iterdir() if p.name != 'progress.json'], [])
+            self._kept_partial(Path(tmp))
+
+    def _kept_partial(self, root):
+        digest = hashlib.sha256((root / 'bundle/InRelease').read_bytes()).hexdigest()[:16]
+        partial = root / 'cache' / ('.partial-' + digest)
+        left = [p for p in (root / 'cache').iterdir() if p.name != self.engine.FETCH_LOCK_NAME]
+        self.assertEqual(left, [partial], 'nothing was staged')
+        self.assertTrue(partial.is_dir())
+        return partial
 
     def test_an_offline_thin_bundle_is_refused_with_a_reason(self):
         with tempfile.TemporaryDirectory(prefix='wros-nixos-thin-') as tmp:
@@ -409,6 +415,206 @@ class NixosUpdateEngineTests(unittest.TestCase):
             self.assertEqual(seen[-1]['done'], seen[-1]['total'])
             self.assertFalse((cache / 'progress.json').exists(), 'cleared when done')
             self.assertEqual([p.name for p in cache.iterdir() if p.name.startswith('.progress')], [])
+
+    def _serve_downloads(self, files, *, short=None, ignore_range=False):
+        asked = []
+        short = {} if short is None else short
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                wanted = self.headers.get('Range')
+                asked.append((self.path, wanted))
+                if self.path not in files:
+                    self.send_error(404)
+                    return
+                body = files[self.path]
+                start = 0
+                if wanted and not ignore_range:
+                    start = int(wanted.removeprefix('bytes=').removesuffix('-'))
+                self.send_response(206 if start else 200)
+                if start:
+                    self.send_header('Content-Range', f'bytes {start}-{len(body) - 1}/{len(body)}')
+                self.send_header('Content-Length', str(len(body) - start))
+                self.end_headers()
+                cuts = short.get(self.path)
+                end = cuts.pop(0) if cuts else len(body)
+                self.wfile.write(body[start:end])
+                self.close_connection = True
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        self.enterContext(mock.patch.object(self.engine, 'RETRY_PAUSE', 0))
+        return f'http://127.0.0.1:{server.server_address[1]}', asked
+
+    def _download_cut_short(self, *, ignore_range):
+        body = b'the whole archive, every byte of it'
+        url, asked = self._serve_downloads({'/archive': body}, short={'/archive': [7]},
+                                           ignore_range=ignore_range)
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / 'archive'
+            chunks = []
+            self.engine.http_stream_to_file(url + '/archive', dest, len(body),
+                                            hashlib.sha256(body).hexdigest(), on_chunk=chunks.append)
+            self.assertEqual(dest.read_bytes(), body)
+            self.assertEqual(list(Path(tmp).iterdir()), [dest])
+            self.assertEqual(sum(chunks), len(body))
+        self.assertEqual(asked, [('/archive', None), ('/archive', 'bytes=7-')])
+
+    def test_a_download_cut_short_resumes_with_a_range_request(self):
+        self._download_cut_short(ignore_range=False)
+
+    def test_a_server_that_ignores_range_starts_the_file_again(self):
+        self._download_cut_short(ignore_range=True)
+
+    def test_a_download_always_cut_short_fails_after_four_tries(self):
+        body = b'the whole archive, every byte of it'
+        url, asked = self._serve_downloads({'/archive': body}, short={'/archive': [7] * 4})
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / 'archive'
+            with self.assertRaisesRegex(ValueError, 'SHA-256 or size check.*files are kept'):
+                self.engine.http_stream_to_file(url + '/archive', dest, len(body),
+                                                hashlib.sha256(body).hexdigest())
+            self.assertFalse(dest.exists())
+            self.assertEqual((Path(tmp) / 'archive.part').read_bytes(), body[:7])
+        self.assertEqual(asked, [('/archive', None)] + [('/archive', 'bytes=7-')] * 3)
+
+    def test_a_tls_connection_closed_early_is_retried(self):
+        import ssl
+        body = b'the whole archive, every byte of it'
+        url, asked = self._serve_downloads({'/archive': body})
+        download = self.engine._stream_download
+        calls = []
+
+        def drop_first(*args):
+            calls.append(args[2])
+            if len(calls) == 1:
+                raise ssl.SSLEOFError(8, 'EOF occurred in violation of protocol')
+            return download(*args)
+
+        with tempfile.TemporaryDirectory() as tmp,                 mock.patch.object(self.engine, '_stream_download', side_effect=drop_first):
+            dest = Path(tmp) / 'archive'
+            self.engine.http_stream_to_file(url + '/archive', dest, len(body),
+                                            hashlib.sha256(body).hexdigest())
+            self.assertEqual(dest.read_bytes(), body)
+        self.assertEqual(len(calls), 2)
+
+    def test_a_second_fetch_while_one_runs_is_refused(self):
+        import fcntl
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            paths, files, _ = self._signed_download_channel(root)
+            url, asked = self._serve_downloads(files)
+            cache = root / 'cache'
+            cache.mkdir()
+            (cache / 'progress.json').write_text('{"step": "download"}')
+            with open(cache / self.engine.FETCH_LOCK_NAME, 'w') as held:
+                fcntl.flock(held, fcntl.LOCK_EX)
+                with self.assertRaisesRegex(ValueError, 'already running'):
+                    self.engine.fetch_online(**{**paths, 'base_url': url + '/', 'cache': cache})
+            self.assertEqual(asked, [], 'nothing was downloaded')
+            self.assertTrue((cache / 'progress.json').exists(), "the running fetch's progress stays")
+
+    def test_a_404_is_not_retried(self):
+        url, asked = self._serve_downloads({})
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(urllib.error.HTTPError) as caught:
+                self.engine.http_stream_to_file(url + '/archive', Path(tmp) / 'archive', 1, '0' * 64)
+            self.assertEqual(caught.exception.code, 404)
+        self.assertEqual(asked, [('/archive', None)])
+
+    def _signed_download_channel(self, root):
+        bundle, paths, _ = self._online_bundle(root, None)
+        manifest = json.loads((bundle / 'closure-manifest.json').read_bytes())
+        archives = ['/' + item['path'] for item in manifest['cache_files']]
+        files = {'/' + p.relative_to(bundle).as_posix(): p.read_bytes()
+                 for p in bundle.rglob('*') if p.is_file()}
+        return paths, files, archives
+
+    def _fetch_twice(self, *, change_kept_file):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            paths, files, archives = self._signed_download_channel(root)
+            archive = archives[2]
+            url, asked = self._serve_downloads(files, short={archive: [7] * 4})
+            cache = root / 'cache'
+            paths.update(base_url=url + '/', cache=cache)
+            with self.assertRaisesRegex(ValueError, 'files are kept'):
+                self.engine.fetch_online(**paths)
+            partial = self._kept_partial(root)
+            for name in archives[:2]:
+                self.assertEqual((partial / name[1:]).read_bytes(), files[name])
+            self.assertEqual((partial / (archive[1:] + '.part')).read_bytes(), files[archive][:7])
+            if change_kept_file:
+                kept = partial / archives[0][1:]
+                data = kept.read_bytes()
+                kept.write_bytes(bytes([data[0] ^ 1]) + data[1:])
+
+            progress = []
+            download = self.engine.http_stream_to_file
+
+            def read_progress(*args, **kwargs):
+                progress.append(json.loads((cache / 'progress.json').read_bytes()))
+                return download(*args, **kwargs)
+
+            asked.clear()
+            with mock.patch.object(self.engine, 'require_free_space', wraps=self.engine.require_free_space) as space, \
+                    mock.patch.object(self.engine, 'http_stream_to_file', side_effect=read_progress):
+                result = self.engine.fetch_online(**paths)
+            remaining = len(files[archive]) - 7
+            needed = ['/InRelease', '/closure-manifest.json', archive]
+            if change_kept_file:
+                remaining += len(files[archives[0]])
+                needed.append(archives[0])
+            self.assertEqual(Counter(path for path, _ in asked), Counter(needed))
+            self.assertIn((archive, 'bytes=7-'), asked)
+            space.assert_called_once_with(cache, remaining)
+            total = sum(len(files[path]) for path in archives)
+            self.assertEqual((progress[0]['done'], progress[0]['total']), (total - remaining, total))
+            self.assertFalse(partial.exists())
+            for name in archives:
+                self.assertEqual((Path(result['path']) / name[1:]).read_bytes(), files[name])
+
+    def test_a_second_fetch_reuses_files_already_verified(self):
+        self._fetch_twice(change_kept_file=False)
+
+    def test_a_kept_file_that_was_changed_is_fetched_again(self):
+        self._fetch_twice(change_kept_file=True)
+
+    def test_a_partial_folder_for_another_release_is_removed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            paths, files, archives = self._signed_download_channel(root)
+            url, _ = self._serve_downloads(files, short={archives[2]: [7] * 4})
+            stale = root / 'cache/.partial-0000000000000000'
+            stale.mkdir(parents=True)
+            (stale / 'archive.part').write_bytes(b'incomplete')
+            with self.assertRaisesRegex(ValueError, 'files are kept'):
+                self.engine.fetch_online(base_url=url + '/', cache=stale.parent, **paths)
+            self.assertFalse(stale.exists())
+            self._kept_partial(root)
+
+    def test_the_partial_folder_must_not_be_a_symlink(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            paths, files, _ = self._signed_download_channel(root)
+            url, asked = self._serve_downloads(files)
+            digest = hashlib.sha256(files['/InRelease']).hexdigest()[:16]
+            cache = root / 'cache'
+            cache.mkdir()
+            elsewhere = root / 'elsewhere'
+            elsewhere.mkdir()
+            partial = cache / ('.partial-' + digest)
+            partial.symlink_to(elsewhere, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, 'root-owned directory'):
+                self.engine.fetch_online(base_url=url + '/', cache=cache, **paths)
+            self.assertTrue(partial.is_symlink())
+            self.assertEqual(list(elsewhere.iterdir()), [])
+            self.assertEqual(asked, [('/InRelease', None), ('/closure-manifest.json', None)])
 
     def test_ci_accepts_a_signed_delta_without_a_nix_store(self):
         """The Pages workflow checks a release's delta bundle on a runner with no Nix store;

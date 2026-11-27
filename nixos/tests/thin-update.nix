@@ -118,31 +118,34 @@ pkgs.testers.runNixOSTest {
 
   testScript = ''
     import json
+    import os
     machine.start()
     machine.wait_for_unit("multi-user.target")
     # Copied in, not store dependencies of the machine: those would register hello and jq.
     for name, path in (("channel", "${thinBundle}"), ("cache", "${fakeCache}"), ("tampered", "${tamperedCache}")):
         machine.copy_from_host(path, f"/srv/{name}")
     machine.succeed("systemd-run --unit channel -p WorkingDirectory=/srv/channel python3 -m http.server 8000 --bind 127.0.0.1")
-    machine.succeed("systemd-run --unit cache -p WorkingDirectory=/srv/cache python3 -m http.server 8001 --bind 127.0.0.1")
+    machine.succeed("systemd-run --unit cache -p WorkingDirectory=/srv/tampered python3 -m http.server 8001 --bind 127.0.0.1")
     machine.wait_for_open_port(8000)
     machine.wait_for_open_port(8001)
 
-    with subtest("a thin update fetches cache.nixos.org's packages and imports them"):
+    with subtest("a tampered file on the cache is refused and the partial download is kept"):
+        machine.fail("nix-store --check-validity ${pkgs.hello}")
+        status, out = machine.execute("""(${fetch "/var/cache/wros-thin"}) 2>&1""")
+        assert status != 0 and "SHA-256" in out and "files are kept" in out, out
+        left = [n for n in machine.succeed("ls -A /var/cache/wros-thin").splitlines() if n != ".fetch.lock"]
+        assert len(left) == 1 and left[0].startswith(".partial-"), left
+
+    with subtest("a second fetch from a good cache finishes and imports the thin update"):
+        machine.succeed("systemctl stop cache")
+        machine.succeed("systemd-run --unit cache2 -p WorkingDirectory=/srv/cache python3 -m http.server 8001 --bind 127.0.0.1")
+        machine.wait_for_open_port(8001)
         machine.fail("nix-store --check-validity ${pkgs.hello}")
         got = json.loads(machine.succeed("""${fetch "/var/cache/wros-thin"}""").strip().splitlines()[-1])
         assert got["status"] == "fetched", got
+        left = [n for n in machine.succeed("ls -A /var/cache/wros-thin").splitlines() if n != ".fetch.lock"]
+        assert left == [os.path.basename(got["path"])], left
         machine.succeed("nix-store --check-validity ${toplevel} ${pkgs.hello} ${pkgs.jq}")
-        machine.succeed("journalctl -u cache | grep -q 'GET /nar/'")
-
-    with subtest("a tampered file on the cache is refused and nothing is staged"):
-        machine.succeed("systemctl stop cache")
-        machine.succeed("systemd-run --unit cache2 -p WorkingDirectory=/srv/tampered python3 -m http.server 8001 --bind 127.0.0.1")
-        machine.wait_for_open_port(8001)
-        machine.succeed("nix-store --delete --ignore-liveness ${toplevel} ${pkgs.hello}")
-        machine.fail("nix-store --check-validity ${pkgs.hello}")
-        status, out = machine.execute("""(${fetch "/var/cache/wros-thin-2"}) 2>&1""")
-        assert status != 0 and "SHA-256" in out, out
-        machine.succeed("test -z \"$(ls -A /var/cache/wros-thin-2 | grep -v progress.json)\"")
+        machine.succeed("journalctl -u cache2 | grep -q 'GET /nar/'")
   '';
 }

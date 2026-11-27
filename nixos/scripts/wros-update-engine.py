@@ -10,6 +10,8 @@ marked healthy.
 """
 from datetime import datetime, timedelta, timezone
 import hashlib
+import http.client
+import fcntl
 import importlib.machinery
 import importlib.util
 import json
@@ -18,6 +20,8 @@ from pathlib import Path
 import re
 import secrets
 import shutil
+import ssl
+import stat
 import subprocess
 import sys
 import tempfile
@@ -1442,6 +1446,10 @@ def check_online(*, base_url=ONLINE_URL, now=None, keyring=DEFAULT_KEYRING,
 
 
 FETCH_PROGRESS_NAME = 'progress.json'
+FETCH_TRIES = 4
+RETRY_PAUSE = 5  # seconds, doubled after each failed try
+FETCH_KEPT = 'Downloaded files are kept so the next try can continue.'
+FETCH_LOCK_NAME = '.fetch.lock'
 
 
 class FetchProgress:
@@ -1480,32 +1488,111 @@ class FetchProgress:
             pass
 
 
+def _download_matches(path, expected_sha256):
+    with regular_stream(path) as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest() == expected_sha256
+
+
+def _saved_download_size(path, size, sha256, *, allow_short=False):
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return 0
+    if (stat.S_ISREG(info.st_mode) and info.st_uid == TRUSTED_UID
+            and not info.st_mode & 0o022 and info.st_nlink == 1):
+        if ((allow_short and info.st_size < size)
+                or (info.st_size == size and _download_matches(path, sha256))):
+            return info.st_size
+    path.unlink()
+    return 0
+
+
+def _stream_download(url, part, offset, size, opener, timeout, report):
+    request = urllib.request.Request(url, headers={'Range': f'bytes={offset}-'}) if offset else url
+    with opener.open(request, timeout=timeout) as response:
+        status = getattr(response, 'status', 200)
+        if status == 200:
+            offset = 0  # The response already carries the whole file.
+        elif not (offset and status == 206 and re.fullmatch(
+                rf'bytes {offset}-[0-9]+/(?:[0-9]+|\*)', response.headers.get('Content-Range', ''))):
+            if offset:
+                part.unlink(missing_ok=True)
+            raise urllib.error.URLError(f'HTTP {status}')
+        flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | (os.O_APPEND if offset else os.O_TRUNC)
+        with os.fdopen(os.open(part, flags, 0o666), 'wb') as out_f:
+            while (chunk := response.read(65536)):
+                offset += len(chunk)
+                if offset > size or offset > ARCHIVE_LIMIT:
+                    return offset
+                out_f.write(chunk)
+                report(offset)
+            out_f.flush()
+            os.fsync(out_f.fileno())
+    return offset
+
+
 def http_stream_to_file(url, dest_path, expected_size, expected_sha256, opener=None, timeout=120,
                         on_chunk=None):
-    """Stream download to disk in 64 KiB chunks while hashing (U8: never buffer large NARs in RAM)."""
+    """Keep short downloads and publish only a complete, verified file."""
     opener = opener or urllib.request.build_opener(_base._NoRedirect)
     dest_path = Path(dest_path)
     dest_path.parent.mkdir(parents=True, mode=0o755, exist_ok=True)
-    hasher = hashlib.sha256()
-    total = 0
-    with opener.open(url, timeout=timeout) as response, open(dest_path, 'wb') as out_f:
-        if getattr(response, 'status', 200) != 200:
-            raise urllib.error.URLError(f'HTTP {response.status}')
-        while True:
-            chunk = response.read(65536)
-            if not chunk:
-                break
-            total += len(chunk)
-            if total > expected_size or total > ARCHIVE_LIMIT:
-                fail(f'downloaded file {dest_path.name} exceeds expected size')
-            hasher.update(chunk)
-            out_f.write(chunk)
+    part = dest_path.with_name(dest_path.name + '.part')
+    offset = _saved_download_size(part, expected_size, expected_sha256, allow_short=True)
+    reported = offset
+
+    def report(size):
+        nonlocal reported
+        if size > reported:
             if on_chunk is not None:
-                on_chunk(len(chunk))
-        out_f.flush()
-        os.fsync(out_f.fileno())
-    if total != expected_size or hasher.hexdigest() != expected_sha256:
-        fail(f'downloaded file {dest_path.name} failed SHA-256 or size check')
+                on_chunk(size - reported)
+            reported = size
+
+    pause = RETRY_PAUSE
+    for attempt in range(1, FETCH_TRIES + 1):
+        if offset == expected_size:
+            os.replace(part, dest_path)
+            return
+        try:
+            total = _stream_download(url, part, offset, expected_size, opener, timeout, report)
+        except urllib.error.HTTPError as error:
+            error.close()
+            if error.code == 404:
+                raise
+            if offset:
+                part.unlink(missing_ok=True)
+            elif not 500 <= error.code < 600:
+                raise
+            if attempt == FETCH_TRIES:
+                error.msg = f'{error.msg}. {FETCH_KEPT}'
+                raise
+        except (urllib.error.URLError, ConnectionError, TimeoutError, ssl.SSLError,
+                http.client.HTTPException) as error:
+            if attempt == FETCH_TRIES:
+                reason = str(getattr(error, 'reason', error)) or type(error).__name__
+                raise urllib.error.URLError(f'{reason}. {FETCH_KEPT}') from error
+        else:
+            if total == expected_size and _download_matches(part, expected_sha256):
+                os.replace(part, dest_path)
+                return
+            if total >= expected_size:
+                part.unlink()
+            if attempt == FETCH_TRIES:
+                problem = ('exceeds expected size' if total > expected_size or total > ARCHIVE_LIMIT
+                           else 'failed SHA-256 or size check')
+                fail(f'downloaded file {dest_path.name} {problem}. {FETCH_KEPT}')
+        time.sleep(pause)
+        pause *= 2
+        offset = _saved_download_size(part, expected_size, expected_sha256, allow_short=True)
+
+
+def _make_fetch_dir(path, *, parents=False):
+    try:
+        path.mkdir(parents=parents, mode=0o755)
+    except FileExistsError:
+        info = path.lstat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != TRUSTED_UID or info.st_mode & 0o022:
+            fail(f'update download directory must be a root-owned directory: {path.name}')
 
 
 def fetch_online(*, base_url=ONLINE_URL, cache=ONLINE_CACHE, now=None,
@@ -1516,7 +1603,18 @@ def fetch_online(*, base_url=ONLINE_URL, cache=ONLINE_CACHE, now=None,
     previous = os.umask(0o022)
     keyring = resolve_trust_anchor(keyring)
     signers = resolve_trust_anchor(signers)
+    cache = Path(cache)
+    lock = None
     try:
+        # One fetch at a time: every attempt for a release shares one partial folder (#179).
+        _make_fetch_dir(cache, parents=True)
+        lock = os.open(cache / FETCH_LOCK_NAME, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o644)
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            os.close(lock)
+            lock = None
+            fail('Another WrOS update download is already running.')
         FetchProgress.clear(cache)  # a killed earlier fetch may have left one
         inrelease = http_get(base_url + 'InRelease', 1024 * 1024, opener)
         _, release_text = verify_signed_metadata({'InRelease': inrelease}, keyring=keyring,
@@ -1531,60 +1629,80 @@ def fetch_online(*, base_url=ONLINE_URL, cache=ONLINE_CACHE, now=None,
         if installed is not None and not compare_versions(closure['version'], 'gt', installed):
             fail(f'WrOS is already up to date ({installed})')
         require_baseline(closure, store_dir)
-        to_download = [
-            item for item in closure['cache_files']
-            if not (item.get('store_path') and item['store_path'] != closure['toplevel']
-                    and store_has_path(item['store_path'], store_dir=store_dir))
-        ]
-        cache = Path(cache)
-        require_free_space(cache, sum(item['size'] for item in to_download))
         target = cache / hashlib.sha256(inrelease).hexdigest()[:16]
-        partial = cache / ('.partial-' + secrets.token_hex(8))
-        (partial / 'cache/nar').mkdir(parents=True, mode=0o755)
-        progress = FetchProgress(cache, closure['version'],
-                                 sum(item['size'] for item in to_download))
+        partial = cache / ('.partial-' + target.name)
+        for old in cache.glob('.partial-*'):
+            if old != partial and stat.S_ISDIR(old.lstat().st_mode):
+                shutil.rmtree(old)
+        for directory in (partial, partial / 'cache', partial / 'cache/nar'):
+            _make_fetch_dir(directory)
+
+        total = done = 0
+        to_download = []
+        for item in closure['cache_files']:
+            path = partial / item['path']
+            part = path.with_name(path.name + '.part')
+            sp = item['store_path']
+            if sp and sp != closure['toplevel'] and store_has_path(sp, store_dir=store_dir):
+                path.unlink(missing_ok=True)
+                part.unlink(missing_ok=True)
+                continue
+            size, sha256 = item['size'], item['sha256']
+            total += size
+            if _saved_download_size(path, size, sha256) == size:
+                done += size
+                part.unlink(missing_ok=True)
+            else:
+                done += _saved_download_size(part, size, sha256, allow_short=True)
+                to_download.append(item)
+
+        require_free_space(cache, total - done)
+        progress = FetchProgress(cache, closure['version'], total)
+        progress.done = done
         progress.write('download', force=True)
-        try:
-            (partial / 'InRelease').write_bytes(inrelease)
-            (partial / CLOSURE_MANIFEST_NAME).write_bytes(manifest_raw)
-            mirror = upstream_base(upstream_file)
-            for item in to_download:
-                if is_upstream(item):
-                    file_url = mirror + item['url'].removeprefix(UPSTREAM_URL)
-                    package = Path(item.get('store_path') or item['path']).name
-                    try:
-                        http_stream_to_file(
-                            file_url, partial / item['path'], item['size'], item['sha256'],
-                            opener=opener, timeout=120, on_chunk=progress.add)
-                    except urllib.error.HTTPError as error:
-                        if error.code == 404:
-                            fail(f'cache.nixos.org no longer has {package}, which this update '
-                                 'needs. Nothing was staged. Install the full bundle from the '
-                                 'release on a stick.')
-                        fail(f"Couldn't download {package} from cache.nixos.org (HTTP "
-                             f'{error.code}). Nothing was staged; try again later.')
-                    except (urllib.error.URLError, OSError, TimeoutError) as error:
-                        fail(f"Couldn't reach cache.nixos.org for {package} ({error}). Nothing "
-                             'was staged; try again later.')
-                    continue
+        atomic_write(partial / 'InRelease', inrelease, mode=0o644)
+        atomic_write(partial / CLOSURE_MANIFEST_NAME, manifest_raw, mode=0o644)
+        mirror = upstream_base(upstream_file)
+        for item in to_download:
+            upstream = is_upstream(item)
+            if upstream:
+                file_url = mirror + item['url'].removeprefix(UPSTREAM_URL)
+            else:
                 file_url = item.get('url') or (base_url + item['path'])
+            try:
                 http_stream_to_file(
                     file_url, partial / item['path'], item['size'], item['sha256'],
                     opener=opener, timeout=120, on_chunk=progress.add)
-            progress.write('verify', force=True)
-            verify_bundle(partial, keyring=keyring, signers=signers, now=now,
-                          version_file=version_file, current_system=current_system,
-                          store_dir=store_dir, package_keyring=package_keyring,
-                          allow_skipped_present=True)
-            if target.exists():
-                shutil.rmtree(target)
-            os.replace(partial, target)
-        except BaseException:
-            shutil.rmtree(partial, ignore_errors=True)
-            raise
+            except urllib.error.HTTPError as error:
+                if not upstream:
+                    raise
+                package = Path(item['store_path'] or item['path']).name
+                if error.code == 404:
+                    fail(f'cache.nixos.org no longer has {package}, which this update '
+                         'needs. Nothing was staged. Install the full bundle from the '
+                         'release on a stick.')
+                kept = f' {FETCH_KEPT}' if error.msg.endswith(FETCH_KEPT) else ''
+                fail(f"Couldn't download {package} from cache.nixos.org (HTTP "
+                     f'{error.code}). Nothing was staged; try again later.{kept}')
+            except OSError as error:
+                if not upstream:
+                    raise
+                package = Path(item['store_path'] or item['path']).name
+                fail(f"Couldn't reach cache.nixos.org for {package}. Nothing was staged. "
+                     f"{getattr(error, 'reason', error)}")
+        progress.write('verify', force=True)
+        verify_bundle(partial, keyring=keyring, signers=signers, now=now,
+                      version_file=version_file, current_system=current_system,
+                      store_dir=store_dir, package_keyring=package_keyring,
+                      allow_skipped_present=True)
+        if target.exists():
+            shutil.rmtree(target)
+        os.replace(partial, target)
         return {'status': 'fetched', 'path': str(target), 'version': closure['version']}
     finally:
-        FetchProgress.clear(cache)
+        if lock is not None:
+            FetchProgress.clear(cache)
+            os.close(lock)  # closing drops the flock
         os.umask(previous)
 
 
