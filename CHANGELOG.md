@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.1.0~rc32 · Where your project is kept, a copy in one file, Grimoire 0.9
+
+WrOS's writing app now includes Grimoire 0.8 and 0.9.
+
+**Where your project is, and a copy as one file**
+
+- *Project › This project › Where this project is kept…* shows the folder,
+  how many files it has and their size, whether it's synced to Google Drive,
+  and your last backup (or, without one, your last saved copy). `o` opens
+  the folder, `s` saves a copy, and `m` moves a project from elsewhere into
+  `Documents`.
+- *Project › This project › Save a copy (one file)* makes a ZIP of the
+  project, named for it and the day, in `Documents/Copies`. It never
+  replaces an earlier copy. If an edit is still waiting to be saved, it asks
+  you to wait a moment first.
+- *Open a copy…* on the projects list opens a ZIP as a project of its own.
+  The ZIP stays as it was, and nothing already there is touched.
+
+**New in the editor and outline**
+
+- A caret in every one-line box (names, synopsis, find and replace…):
+  `←` `→` `Home` `End` and `Delete` work in them.
+- Empty the Trash with `d` on the Trash itself, after one question. It
+  deletes only what the question named. `u` brings one scene back out of a
+  deleted chapter.
+- In the whole-project search, `Enter` in the replace box changes one match
+  and moves to the next. `Ctrl-R` still changes them all, after asking.
+- Read aloud goes slower or faster with `-` and `+`, and remembers it.
+- Template sheets: `f` on a sheet in the outline makes a new note from it.
+- On the corkboard, `c` adds a chapter and asks for its first scene.
+- Taught words: *Settings › Writing › Editor › Taught words* lists every word
+  spellcheck was told to ignore; `d` takes one back.
+- Menus take mouse clicks, and right-click in the outline opens the Project
+  menu for that row.
+
+**Your words, safer**
+
+- A paste goes only into a text field, never runs as keys over a list.
+- Renaming a note or a chapter keeps every `[[link]]` to it.
+- Chapter 100 comes after chapter 99. A scene with Windows line endings
+  keeps its front matter. Quotes in a synopsis come back as typed.
+- Exports keep every chapter of a part with a loose scene in it; Interludes
+  and Codas no longer break the EPUB; the paperback PDF has even margins.
+- Drafts in older Windows encodings or UTF-16 come in as written, and
+  hard-wrapped paragraphs are joined back up.
+- Words on a highlighted row stay readable in every theme.
+
+**Under the hood**
+
+- WrOS's system is built on the newest NixOS 26.05 and Rust 1.100, with
+  the writing app's libraries brought up to date.
+- Firmware comes in one package per driver. The installed system carries
+  only what the HP Stream 11 needs (its Wi-Fi, graphics and sound), so the
+  system is smaller; the ISO still carries Wi-Fi firmware for other laptops.
+
 ## 0.1.0~rc31 · Square view tiles
 
 - The W, r, O and S tiles at the left of the top bar, and the ⏻ tile at the
