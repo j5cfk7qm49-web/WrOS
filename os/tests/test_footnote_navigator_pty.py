@@ -29,8 +29,12 @@ class FootnoteNavigatorPTY(unittest.TestCase):
                     terminal.send(b'\x1bOP')  # F1, contextual offline help
                     terminal.screen_shows('Notes & TKs')
                     terminal.send(b'\x18\x1a')
+                    # A paste in Help goes to its search (upstream 0.8.3), never to the prose.
                     terminal.paste('hidden prose')
-                    terminal.send(b'\x1b')
+                    terminal.screen_shows('hidden prose')
+                    terminal.send(b'\x1b')  # Esc clears the search
+                    terminal.until(lambda: 'hidden prose' not in terminal.screen.text, 'Esc clears the Help search')
+                    terminal.send(b'\x1b')  # and then closes Help
                     terminal.screen_shows('Footnotes · Original Markdown')
                     terminal.send(b'd')
                     terminal.screen_shows('footnote [^note] · defined')
