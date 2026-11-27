@@ -425,6 +425,9 @@ pub struct App {
     pub book_find: Option<(String, Option<String>, usize)>,
     /// A Template Sheet's form, waiting for the note being named to fill.
     pub from_sheet: Option<String>,
+    /// The folder new projects go in, copies are saved under, and a project can
+    /// be moved to: `~/Documents`.
+    pub books_home: PathBuf,
     /// The last click on the page: when, where, and how many in a row.
     last_click: Option<(Instant, u16, u16, u8)>,
     /// What was last copied or cut, for Ctrl-V when the system clipboard
@@ -565,6 +568,7 @@ pub enum ShelfRow {
     /// The book and whether it is open now.
     Book(ShelfBook, bool),
     Import,
+    OpenCopy,
     NewBook,
 }
 
@@ -781,6 +785,7 @@ pub enum Overlay {
         words: usize,
         /// It's already in the trash, so this one really is the end of it.
         permanent: bool,
+        trash_entries: Option<Vec<PathBuf>>,
     },
     /// Words that couldn't be saved last time, offered back on launch.
     Recover {
@@ -893,7 +898,17 @@ pub enum Overlay {
         fields: Vec<String>,
         back: Option<Box<Overlay>>,
     },
-    /// Suggestions for one misspelt word, plus adding it to the book.
+    /// Where this project is kept, and what can be done about it: how many
+    /// files it is and how much room they take, counted once on opening.
+    Kept {
+        sel: usize,
+        files: usize,
+        bytes: u64,
+    },
+    CopyPath {
+        buf: String,
+        back: usize,
+    },
     /// Every word "Always ignore" taught the spellcheck, to take one back:
     /// the word, and whether it's this book's (or the writer's, everywhere).
     Taught {
@@ -1010,6 +1025,16 @@ impl App {
         let journal =
             journal::Journal::load(&project.root, complete.then(|| project.total_words()));
         let parents = project.parents();
+        // Tests keep to their own corner: beside the book they made.
+        let books_home = if setup.background {
+            grimoire_core::shelf::home()
+        } else {
+            project
+                .root
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| project.root.clone())
+        };
         // A book no one has opened yet: no day's baseline, nowhere to resume,
         // no words. It opens on the Novel Format guide instead of an empty
         // scene. Checked before load_baseline writes the first baseline.
@@ -1181,6 +1206,7 @@ impl App {
             sessions_back: None,
             book_find: None,
             from_sheet: None,
+            books_home,
             clip: String::new(),
             last_click: None,
             state_file: None,
@@ -2727,6 +2753,8 @@ impl App {
             }
             Action::Voices => self.open_voices(),
             Action::TaughtWords => self.open_taught(),
+            Action::WhereKept => self.open_kept(),
+            Action::SaveCopy => self.save_copy(),
             Action::OpenBookAt(root) => {
                 let _ = self.open_book(&root);
             }
@@ -4739,6 +4767,7 @@ impl App {
             noun: self.noun_of(idx),
             words: self.project.subtree_words(idx),
             permanent: self.project.in_trash(idx),
+            trash_entries: None,
         };
     }
 
@@ -4749,55 +4778,78 @@ impl App {
             self.msg = "the Trash is already empty".into();
             return;
         };
-        let holds = self
+        let entries: Vec<_> = self
             .project
             .nodes
             .iter()
             .filter(|n| n.path.parent() == Some(trash.as_path()))
-            .count();
-        if holds == 0 {
+            .map(|n| n.path.clone())
+            .collect();
+        if entries.is_empty() {
             self.msg = "the Trash is already empty".into();
             return;
         }
         self.overlay = Overlay::Confirm {
             path: trash,
-            name: match holds {
+            name: match entries.len() {
                 1 => "the 1 thing in the Trash".into(),
                 n => format!("all {n} things in the Trash"),
             },
             noun: "the trash".into(),
             words: self.project.subtree_words(idx),
             permanent: true,
+            trash_entries: Some(entries),
         };
     }
 
-    fn finish_delete(&mut self, path: PathBuf, name: String, permanent: bool) {
+    fn finish_delete(
+        &mut self,
+        path: PathBuf,
+        name: String,
+        permanent: bool,
+        trash_entries: Option<Vec<PathBuf>>,
+    ) {
         let before = self.project.total_words();
-        self.delete_path(path, name, permanent);
+        self.delete_path(path, name, permanent, trash_entries);
         self.keep_today(before);
     }
 
-    fn delete_path(&mut self, path: PathBuf, name: String, permanent: bool) {
+    fn delete_path(
+        &mut self,
+        path: PathBuf,
+        name: String,
+        permanent: bool,
+        trash_entries: Option<Vec<PathBuf>>,
+    ) {
         self.flush();
         if !self.commit_saves() {
             return;
         }
         let root = self.project.root.clone();
         self.close_document_views_under(&path);
-        let emptying = path == project::trash_dir(&root);
-        let done = if emptying {
-            // The Trash itself stays; everything in it goes, and its record
-            // of where things came from with them.
+        let emptying = trash_entries.is_some();
+        let done = if let Some(entries) = trash_entries {
+            // Keep anything that arrived after the question was asked.
             (|| -> Result<String> {
                 anyhow::ensure!(
                     std::fs::symlink_metadata(&path)?.is_dir(),
                     "the Trash folder changed"
                 );
-                for entry in std::fs::read_dir(&path)? {
-                    project::destroy(&entry?.path())?;
+                for entry in entries {
+                    if let Err(err) = project::destroy(&entry)
+                        && !err
+                            .downcast_ref::<std::io::Error>()
+                            .is_some_and(|err| err.kind() == std::io::ErrorKind::NotFound)
+                    {
+                        return Err(err);
+                    }
+                    self.undo_stash.retain(|p, _| !p.starts_with(&entry));
                 }
-                self.undo_stash.retain(|p, _| !p.starts_with(&path));
-                Ok(String::new())
+                Ok(if project::finish_emptying_trash(&path)? {
+                    "the Trash is empty".into()
+                } else {
+                    "deleted the items named in the prompt · other items remain in the Trash".into()
+                })
             })()
         } else if permanent {
             project::destroy(&path).map(|_| {
@@ -4847,7 +4899,7 @@ impl App {
                     return;
                 }
                 self.msg = if emptying {
-                    "the Trash is empty".into()
+                    where_to
                 } else {
                     format!("deleted {name}{where_to}")
                 };

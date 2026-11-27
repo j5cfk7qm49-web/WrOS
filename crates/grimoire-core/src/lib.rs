@@ -44,6 +44,7 @@ pub mod revision;
 pub mod search;
 pub mod sessions;
 pub mod settings;
+pub mod shelf;
 pub mod sources;
 pub mod spark;
 pub mod spell;

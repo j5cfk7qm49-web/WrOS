@@ -2,7 +2,7 @@
 
 ## Word targets
 
-*Project › Goals…* sets how many words the project is aiming for and how many a day. Type the numbers, or start from a preset:
+*Project › This project › Goals…* sets how many words the project is aiming for and how many a day. Type the numbers, or start from a preset:
 
 - **A month of drafting**: 50,000 words, about 1,667 a day for thirty days.
 - **A short story**: 5,000 words, 500 a day.

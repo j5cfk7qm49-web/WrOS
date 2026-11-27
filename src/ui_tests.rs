@@ -4543,6 +4543,10 @@ const EVERY_KEY: &[(&str, &str, &[&str])] = &[
     ("The find bar", "Ctrl-E", &[]),
     ("The find bar", "Alt-C", &[]),
     ("The corkboard", "c", &[]),
+    ("Where this project is kept", "o", &[]),
+    ("Where this project is kept", "s", &[]),
+    ("Where this project is kept", "c", &[]),
+    ("Where this project is kept", "m", &[]),
     ("Read aloud", "-", &[]),
     ("Read aloud", "+", &[]),
     ("Export results", "o", &[]),
@@ -4658,6 +4662,16 @@ fn desk_for(section: &str) -> (Desk, std::sync::mpsc::Receiver<music::Cmd>) {
             d.typed("the");
         }
         "The corkboard" => d.key(KeyCode::Char('b')),
+        "Where this project is kept" => {
+            let root = d.root.join("Draft");
+            fs::create_dir(&root).unwrap();
+            project::scaffold(&root).unwrap();
+            assert!(d.app.open_book(&root));
+            d.app.books_home = d.root.join("Documents");
+            fs::create_dir_all(d.app.books_home.join("Copies")).unwrap();
+            d.app.open_kept();
+            d.draw();
+        }
         "Read aloud" => {
             d.key(KeyCode::Tab);
             d.typed("Ada opened the door.");
@@ -5873,6 +5887,9 @@ fn the_shelf_lists_every_book_in_documents_without_typing() {
     let first = documents.join("Grimoire");
     fs::create_dir_all(&first).unwrap();
     project::scaffold(&first).unwrap();
+    let copies = grimoire_core::shelf::copies_dir(&documents);
+    fs::create_dir_all(&copies).unwrap();
+    fs::write(copies.join("Ash 2026-11-16.zip"), "a copy").unwrap();
     let clip = documents.join("WrOS/Clip says Hello World.");
     fs::create_dir_all(clip.join("manuscript")).unwrap();
     fs::write(clip.join("manuscript/01-Scene.md"), "Hello, world.\n").unwrap();
@@ -5900,6 +5917,7 @@ fn the_shelf_lists_every_book_in_documents_without_typing() {
         );
         assert!(!d.shows("A project in another folder"));
         assert!(!d.shows("Bring in a draft"));
+        assert!(!d.shows("Copies"));
     }
     assert!(d.shows(&crate::books::pretty(&clip)));
     d.key(KeyCode::Enter);
@@ -5958,9 +5976,10 @@ fn the_shelf_orders_documents_by_recent_then_title_and_keeps_outside_books() {
             (older.as_path(), false),
         ]
     );
-    assert!(matches!(rows.get(6), Some(ShelfRow::Import)));
-    assert!(matches!(rows.get(7), Some(ShelfRow::NewBook)));
-    assert_eq!(rows.len(), 8);
+    assert!(matches!(rows.get(6), Some(ShelfRow::OpenCopy)));
+    assert!(matches!(rows.get(7), Some(ShelfRow::Import)));
+    assert!(matches!(rows.get(8), Some(ShelfRow::NewBook)));
+    assert_eq!(rows.len(), 9);
     assert!(matches!(&rows[2], ShelfRow::Book(book, false) if book.title == "alpha"));
     d.menu(&["File", "Open another project…"]);
     assert!(d.shows("open now"));
@@ -5981,6 +6000,8 @@ fn the_shelf_scrolls_to_import_and_new_book_with_arrow_keys() {
         d.key(KeyCode::Down);
     }
     assert!(d.shows("▸ Book 19"));
+    d.key(KeyCode::Down);
+    assert!(d.shows("▸ Open a copy…"));
     d.key(KeyCode::Down);
     assert!(d.shows("▸ Import a project…"));
     d.key(KeyCode::Down);
@@ -6511,7 +6532,7 @@ fn the_reading_voice_is_picked_in_settings() {
 fn goals_take_a_month_of_drafting_preset_and_save_to_project_toml() {
     let root = book("goals", true);
     let mut d = Desk::open(root.clone(), 120, 35);
-    d.menu(&["Project", "Goals…"]);
+    d.menu(&["Project", "This project", "Goals…"]);
     assert!(d.shows("GOALS"));
     assert!(d.shows("The project"));
     assert!(d.shows("A month of drafting"));
@@ -12507,6 +12528,31 @@ fn the_trash_empties_after_asking_and_nothing_starts_in_it() {
     assert!(matches!(d.app.overlay, Overlay::None));
 }
 
+#[test]
+fn empty_trash_deletes_only_what_the_prompt_named() {
+    let root = book("empty-trash-after-prompt", true);
+    let scene = first_scene(&root);
+    let old = project::trash(&root, &scene).unwrap();
+    let gone = old.with_file_name("02-gone.md");
+    fs::write(&gone, "Already in the Trash when asked.").unwrap();
+    let mut d = Desk::open(root.clone(), 120, 44);
+    d.app.start_empty_trash();
+    d.draw();
+    assert!(d.shows("all 2 things in the Trash"));
+    fs::remove_file(&gone).unwrap();
+
+    let arrived = old.with_file_name("03-synced.md");
+    fs::write(&arrived, "Words parked by sync after the prompt.").unwrap();
+    d.key(KeyCode::Char('y'));
+
+    assert!(!old.exists());
+    assert_eq!(
+        fs::read_to_string(arrived).unwrap(),
+        "Words parked by sync after the prompt."
+    );
+    assert!(d.app.msg.contains("other items remain in the Trash"));
+}
+
 /// The menu answers the mouse: a click on a row chooses it; and a
 /// right-click in the outline opens what can be done with the row under the
 /// pointer.
@@ -12818,5 +12864,277 @@ fn a_chapter_is_added_from_the_corkboard_and_an_empty_one_still_shows() {
     assert!(
         !shown.iter().any(|g| g.title == "Coda"),
         "no card to stand on"
+    );
+}
+
+/// The book's place is one menu row away, and from there the whole book
+/// becomes one file, which opens again as a book of its own.
+#[test]
+fn where_the_book_is_kept_saves_a_copy_that_opens_as_a_book() {
+    let dir = std::env::temp_dir().join(format!("grimoire-ui-kept-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    let root = dir.join("code").join("My Novel");
+    fs::create_dir_all(&root).unwrap();
+    project::scaffold(&root).unwrap();
+    fs::create_dir_all(root.join(".grimoire")).unwrap();
+    fs::write(root.join(".grimoire/progress.toml"), "").unwrap();
+    let scene = first_scene(&root);
+    let text = fs::read_to_string(&scene).unwrap();
+    fs::write(&scene, format!("{text}The rain came sideways.\n")).unwrap();
+
+    let mut d = Desk::open(root.clone(), 130, 44);
+    let home = dir.join("Documents");
+    d.app.books_home = home.clone();
+    d.menu(&["Project", "This project", "Where this project is kept…"]);
+    assert!(
+        d.shows("WHERE THIS PROJECT IS KEPT"),
+        "{}",
+        d.rows().join("\n")
+    );
+    assert!(d.shows("My Novel") && d.shows("A folder of plain text files"));
+    assert!(d.shows("No copy has been saved yet") && d.shows("Local to this laptop."));
+    assert!(
+        d.shows("Move it to your projects folder"),
+        "it's kept somewhere else"
+    );
+
+    // One key: the whole book as one file.
+    d.key(KeyCode::Char('s'));
+    let copies: Vec<PathBuf> = fs::read_dir(home.join("Copies"))
+        .unwrap()
+        .flatten()
+        .map(|e| e.path())
+        .collect();
+    assert_eq!(copies.len(), 1, "{copies:?}");
+    assert!(d.app.msg.starts_with("saved a copy"), "{}", d.app.msg);
+    assert!(d.shows("Last copy saved"), "{}", d.rows().join("\n"));
+
+    let snapshots = &mut d.app.deck.shell.backup.status.snapshots;
+    snapshots.push(crate::backup_service::Snapshot {
+        id: "ours".into(),
+        time: "2026-11-16T12:00:00Z".into(),
+        _path: d.app.project.root.display().to_string(),
+        project: "My Novel".into(),
+        restore_checked_at: String::new(),
+        has_profile: false,
+    });
+    let sync_state = root.join(".grimoire/sync.json");
+    fs::write(&sync_state, "{}").unwrap();
+    d.draw();
+    assert!(d.shows("Synced with Google Drive.") && d.shows("Last backup:"));
+    assert!(!d.shows("Last copy saved"));
+    fs::remove_file(sync_state).unwrap();
+
+    // Open the archive from the shelf as a project of its own.
+    d.key(KeyCode::Esc);
+    d.menu(&["File", "Open another project…"]);
+    d.choose("Open a copy…");
+    crate::dispatch_event(
+        &mut d.app,
+        Event::Paste(copies[0].display().to_string()),
+        &mut d.armed,
+    );
+    d.draw();
+    assert!(d.shows("a copy of a project"), "{}", d.rows().join("\n"));
+    d.key(KeyCode::Enter);
+    let opened = d.app.project.root.clone();
+    assert_eq!(opened, fs::canonicalize(home.join("My Novel")).unwrap());
+    assert!(
+        fs::read_to_string(first_scene(&opened))
+            .unwrap()
+            .contains("The rain came sideways.")
+    );
+    assert!(
+        root.join("manuscript").is_dir(),
+        "the original is where it was"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// A book kept somewhere odd moves in with the others, and the writing
+/// carries on in it there. A book started by name goes there to begin with.
+#[test]
+fn a_book_moves_to_the_books_folder_and_new_ones_start_there() {
+    let dir = std::env::temp_dir().join(format!("grimoire-ui-move-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    let root = dir.join("code").join("Stray Book");
+    fs::create_dir_all(&root).unwrap();
+    project::scaffold(&root).unwrap();
+    fs::create_dir_all(root.join(".grimoire")).unwrap();
+    fs::write(root.join(".grimoire/progress.toml"), "").unwrap();
+    let mut d = Desk::open(root.clone(), 130, 44);
+    let home = dir.join("Documents");
+    d.app.books_home = home.clone();
+    let existing = home.join("Stray Book");
+    fs::create_dir_all(&existing).unwrap();
+    d.app.focus = Focus::Editor;
+    d.typed("Words written before the move.");
+
+    d.app.open_kept();
+    d.key(KeyCode::Char('m'));
+    let now = fs::canonicalize(home.join("Stray Book 2")).unwrap();
+    assert_eq!(d.app.project.root, now, "{}", d.app.msg);
+    assert_eq!(fs::read_dir(existing).unwrap().count(), 0);
+    assert!(!root.exists(), "it's in one place, not two");
+    assert!(d.app.msg.starts_with("moved"), "{}", d.app.msg);
+    assert!(
+        fs::read_to_string(first_scene(&now))
+            .unwrap()
+            .contains("Words written before the move."),
+        "what was typed was saved before it moved"
+    );
+    // Now it's home, there's nowhere to move it to.
+    d.app.books_home = fs::canonicalize(&home).unwrap();
+    d.app.open_kept();
+    d.draw();
+    assert!(!d.shows("Move it to your projects folder"));
+    d.key(KeyCode::Esc);
+
+    // A new book, by name alone.
+    d.menu(&["File", "New project…"]);
+    d.typed("The Long Night");
+    assert!(
+        // (The slash between them leans the other way on Windows.)
+        d.shows("Documents") && d.shows("The Long Night"),
+        "{}",
+        d.rows().join("\n")
+    );
+    d.key(KeyCode::Enter);
+    assert_eq!(
+        d.app.project.root,
+        fs::canonicalize(home.join("The Long Night")).unwrap()
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn save_a_copy_waits_for_pending_saves() {
+    let root = book("copy-waiting", true);
+    let home = tempfile::tempdir().unwrap();
+    let mut d = Desk::open(root.clone(), 120, 40);
+    let documents = home.path().join("Documents");
+    d.app.books_home = documents.clone();
+    d.key(KeyCode::Tab);
+    d.app.paste("Words waiting to be saved.");
+    assert!(
+        d.app.project.dirty_count() > 0,
+        "the test must have pending prose"
+    );
+    let scene = first_scene(&root);
+    let backed_up = scene.with_extension("kept");
+    // A sync client can leave the file temporarily absent during replacement.
+    fs::rename(&scene, &backed_up).unwrap();
+
+    d.app.save_copy();
+
+    assert!(
+        matches!(d.app.save_state, app::SaveState::Waiting(_)),
+        "{}",
+        d.app.msg
+    );
+    assert!(d.app.msg.starts_with("Save is waiting: ") && d.app.msg.ends_with("; copy not made"));
+    assert!(!documents.join("Copies").exists());
+    assert!(
+        fs::read_to_string(recovery::dir(&root).join(scene.strip_prefix(&root).unwrap()))
+            .unwrap()
+            .contains("Words waiting to be saved.")
+    );
+}
+
+/// The rule: what the app can do, the help says. Every row of the menu,
+/// in every group and both ways a switch can read, is named in the help's
+/// "The menu, row by row". A new row without its line there fails here.
+#[test]
+fn every_menu_row_is_in_the_menu_help() {
+    let topic = &crate::help::TOPICS[crate::help::index("menu")];
+    let body = topic.body.to_lowercase().replace(['`', '*'], "");
+    // A row's name without its key, its state or what it's set to: "Turn
+    // spellcheck off" is "spellcheck", "Line width: 72 columns" is "line
+    // width", "Corkboard…   (b)" is "corkboard".
+    let name = |label: &str| {
+        let mut n = label.to_lowercase();
+        for cut in ["  ", " (", ": "] {
+            if let Some(i) = n.find(cut) {
+                n.truncate(i);
+            }
+        }
+        let n = n.trim().trim_end_matches('…');
+        let n = n.strip_prefix("turn ").unwrap_or(n);
+        let n = n.strip_prefix("leave ").unwrap_or(n);
+        let n = n
+            .strip_suffix(" off")
+            .or(n.strip_suffix(" on"))
+            .unwrap_or(n);
+        n.to_string()
+    };
+    use crate::palette::{Side, Title};
+
+    let (root, _, _) = conflicted("menu-help");
+    let mut d = Desk::open(root, 120, 40);
+    d.app.focus = Focus::Editor;
+    d.app.deck.live_session = true;
+    d.app.deck.quit_offered = true;
+    let mut missing = Vec::new();
+    for on in [false, true] {
+        d.app.focus_mode = on;
+        d.app.echo_on = on;
+        d.app.deck.state.current_mut().outline = on;
+        d.app.views.secondary_visible = on;
+        d.app.commonplace.side_visible = on;
+        d.app.history_in_book = on;
+        d.app.cloud = on.then_some(grimoire_core::cloud::Client::Dropbox);
+        let rows = Title::ALL
+            .into_iter()
+            .flat_map(|title| d.app.bar_rows(title))
+            .chain(Side::ALL.into_iter().flat_map(|side| d.app.side_rows(side)));
+        for row in rows {
+            let n = name(&row.label);
+            if !body.contains(&n) {
+                missing.push(format!("{:?} (looked for {n:?})", row.label));
+            }
+        }
+    }
+    missing.sort();
+    missing.dedup();
+    assert!(
+        missing.is_empty(),
+        "assets/help/27-the-menu.md never names these menu rows: {missing:#?}"
+    );
+}
+
+/// The same rule for the terminal: every `grimoire <command>` that
+/// `grimoire --help` lists is explained somewhere in the help.
+#[test]
+fn every_command_is_explained_in_the_help() {
+    let words: String = crate::help::TOPICS
+        .iter()
+        .map(|t| t.body)
+        .collect::<Vec<_>>()
+        .join("\n");
+    // Read the advertised commands directly from the CLI usage text.
+    let mut commands: Vec<String> = Vec::new();
+    for line in include_str!("main.rs").lines() {
+        if let Some(usage) = line
+            .trim_start()
+            .strip_prefix("\"  grimoire ")
+            .or_else(|| line.trim_start().strip_prefix("println!(\"  grimoire "))
+            && !usage.starts_with(' ')
+            && let Some(cmd) = usage.split_ascii_whitespace().next()
+            && cmd.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+        {
+            commands.push(cmd.to_string());
+        }
+    }
+    assert!(
+        commands.len() >= 9,
+        "the commands weren't found: {commands:?}"
+    );
+    let missing: Vec<&String> = commands
+        .iter()
+        .filter(|c| !words.contains(&format!("grimoire {c}")))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "no help topic mentions these commands: {missing:?}"
     );
 }

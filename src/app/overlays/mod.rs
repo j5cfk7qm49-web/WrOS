@@ -24,6 +24,7 @@ mod footnote_reader;
 mod footnotes;
 mod help;
 pub(crate) mod import;
+mod kept;
 mod line;
 mod looks;
 mod marks;
@@ -62,6 +63,7 @@ impl App {
     pub fn overlay_takes_text(&self) -> bool {
         match &self.overlay {
             Overlay::NewBook { .. }
+            | Overlay::CopyPath { .. }
             | Overlay::Create { .. }
             | Overlay::Rename { .. }
             | Overlay::Marks { .. }
@@ -181,6 +183,8 @@ impl App {
             Overlay::Details { .. } => self.on_details_key(key),
             Overlay::Voices { .. } => self.on_voices_key(key),
             Overlay::Taught { .. } => self.on_taught_key(key),
+            Overlay::Kept { .. } => self.on_kept_key(key),
+            Overlay::CopyPath { .. } => self.on_copy_path_key(key),
             Overlay::Progress => match key {
                 Key::Char('g') => self.run_action(Action::Goals),
                 Key::Esc | Key::Enter | Key::Char('q' | ' ') => self.overlay = Overlay::None,
@@ -340,6 +344,8 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, info: Rect, t: &Theme) {
         Overlay::Details { .. } => details::draw_details(f, app, area, t),
         Overlay::Voices { .. } => reading::draw_voices(f, app, area, t),
         Overlay::Taught { .. } => spelling::draw_taught(f, app, area, t),
+        Overlay::Kept { .. } => kept::draw_kept(f, app, area, t),
+        Overlay::CopyPath { .. } => shelf::draw_copy_path(f, app, area, t),
         Overlay::Player { .. } => player::draw_player(f, app, area, t),
         Overlay::Create { .. } => naming::draw_create(f, app, area, t),
         Overlay::Rename { .. } => naming::draw_rename(f, app, area, t),

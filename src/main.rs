@@ -188,10 +188,14 @@ fn main() -> Result<()> {
         println!("usage:");
         println!("  grimoire                    open your current manuscript");
         println!("  grimoire <dir>              open a specific one");
-        println!("  grimoire new <dir>          start a new one: a novel, or add");
+        println!("  grimoire new [dir]         start a new one: a novel, or add");
         println!("                              --short-story, --essay or --blank");
         println!("  grimoire import <draft>     bring in a draft (Word, Markdown or");
         println!("                              text) as a new project beside it");
+        println!("  grimoire where [dir]        say where your project is kept");
+        println!("  grimoire copy [dir]         the whole project as one .zip, to keep or");
+        println!("                              send, in ~/Documents/Copies");
+        println!("  grimoire <copy.zip>         open a copy as a project of its own");
         println!("  grimoire index              refresh project.md, the project map");
         println!("  grimoire compile            assemble the manuscript");
         println!("  grimoire export [dir]       DOCX + EPUB into exports/; pick formats");
@@ -210,6 +214,60 @@ fn main() -> Result<()> {
         println!("With no arguments grimoire opens the current directory if it is a");
         println!("manuscript, otherwise the last one you had open, otherwise it creates");
         println!("{}.", pretty(&default_root()));
+        return Ok(());
+    }
+
+    // Where the project is, without opening it: the answer to "where did I
+    // put that?" from any terminal.
+    if first.as_deref() == Some("where") {
+        let Some(root) = project_in_hand(args.next().map(PathBuf::from)) else {
+            println!("No project has been opened on this computer yet.");
+            println!(
+                "New projects are kept in {}.",
+                pretty(&grimoire_core::shelf::home())
+            );
+            return Ok(());
+        };
+        let facts = grimoire_core::shelf::facts(&root);
+        let title = books::title(&root);
+        println!("{title}");
+        println!("  {}", root.display());
+        println!(
+            "  a folder of plain text files: {} files, {} KB",
+            facts.files,
+            facts.bytes.div_ceil(1024)
+        );
+        let copies = grimoire_core::shelf::copies_dir(&grimoire_core::shelf::home());
+        match grimoire_core::shelf::newest_copy(&copies, &title, &root) {
+            Some((file, _)) => println!("  newest copy: {}", file.display()),
+            None => println!("  no copy saved yet · grimoire copy makes one"),
+        }
+        return Ok(());
+    }
+
+    // The whole project as one file, to keep somewhere safe or to send.
+    if first.as_deref() == Some("copy") {
+        let dir = args.next();
+        if dir.as_deref().is_some_and(|s| s.starts_with('-')) || args.next().is_some() {
+            anyhow::bail!("usage: grimoire copy [project folder]");
+        }
+        let dir = dir.map(PathBuf::from);
+        let root = project_in_hand(dir).context(
+            "which project? No project has been opened here yet\n\n  grimoire copy <project folder>",
+        )?;
+        let into = grimoire_core::shelf::copies_dir(&books::documents());
+        let file = grimoire_core::shelf::save_copy(
+            &root,
+            &books::title(&root),
+            &into,
+            chrono::Local::now().date_naive(),
+        )?;
+        println!("Saved a copy of {}:", books::title(&root));
+        println!("  {}", file.display());
+        println!(
+            "Open it on any computer with:  grimoire \"{}\"",
+            pretty(&file)
+        );
         return Ok(());
     }
 
@@ -253,7 +311,9 @@ fn main() -> Result<()> {
                 None => dir = Some(PathBuf::from(a)),
             }
         }
-        let dir = dir.unwrap_or_else(default_root);
+        // No folder named: in the books folder, never over a book there.
+        let dir =
+            dir.unwrap_or_else(|| grimoire_core::shelf::unique(&books::documents(), "New Project"));
         std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
         shape.scaffold(&dir, None)?;
         println!("Started a manuscript in {}", pretty(&dir));
@@ -265,7 +325,22 @@ fn main() -> Result<()> {
     if let Some(option) = first.as_deref().filter(|a| a.starts_with('-')) {
         anyhow::bail!("there's no option '{option}' · grimoire --help lists what there is");
     }
-    let (root, opening_msg) = resolve_project(first.map(PathBuf::from))?;
+    // A .zip copy opens as a project of its own, in the projects
+    // folder; the copy is left as it was.
+    let mut from_copy = None;
+    let first = match first.map(PathBuf::from) {
+        Some(p) if grimoire_core::shelf::is_copy(&p) => {
+            let root = grimoire_core::shelf::open_copy(&p, &grimoire_core::shelf::home())?;
+            from_copy = Some(format!(
+                "opened the copy as a project of its own · it lives in {}",
+                pretty(&root)
+            ));
+            Some(root)
+        }
+        other => other,
+    };
+    let (root, opening_msg) = resolve_project(first)?;
+    let opening_msg = from_copy.or(opening_msg);
     remember(&root);
 
     let stranded = project::restore_stranded(&root);
@@ -580,9 +655,22 @@ fn remember(root: &Path) {
     books::remember(&books::state_path(), root);
 }
 
-/// Decide what `grimoire` with no arguments should open. In order: the current
-/// directory, the last manuscript you had open, or a fresh one.
-/// Find the book to open, and bring it into the current shape first (once).
+/// The project a command means when it's given a folder, or none: that
+/// folder, else the folder you're standing in, else the one last open.
+/// Never makes a project; `None` if there isn't one.
+fn project_in_hand(arg: Option<PathBuf>) -> Option<PathBuf> {
+    let real = |p: PathBuf| std::fs::canonicalize(&p).unwrap_or(p);
+    if let Some(p) = arg {
+        return is_project(&p).then(|| real(p));
+    }
+    let cwd = std::env::current_dir().ok()?;
+    if is_project(&cwd) {
+        return Some(real(cwd));
+    }
+    books::last(&books::state_path()).filter(|p| is_project(p))
+}
+
+/// Find the project to open and bring it into the current shape first.
 fn resolve_project(arg: Option<PathBuf>) -> Result<(PathBuf, Option<String>)> {
     let (root, msg) = find_project(arg)?;
     // Something the upgrade can't reach (a folder not downloaded yet) mustn't

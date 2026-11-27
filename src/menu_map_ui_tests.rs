@@ -97,3 +97,19 @@ fn back_retraces_the_maps_path_from_a_lesson() {
     desk.key(KeyCode::Esc);
     assert_eq!(desk.app.deck.shell.nav.current(), Route::Settings);
 }
+
+#[test]
+fn where_this_project_is_kept_is_in_the_esc_menu_map() {
+    use crate::palette::Action;
+
+    let mut desk = settings("menu-where-kept");
+    for action in [Action::WhereKept, Action::SaveCopy] {
+        assert_eq!(
+            desk.app.bar_path(&action).as_deref(),
+            Some("Project › This project")
+        );
+    }
+    desk.menu(&["Project", "This project", "Where this project is kept…"]);
+    assert!(matches!(desk.app.overlay, Overlay::Kept { .. }));
+    assert!(desk.shows("WHERE THIS PROJECT IS KEPT"));
+}

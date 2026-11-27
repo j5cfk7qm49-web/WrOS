@@ -1,6 +1,6 @@
 # On disk
 
-A project is an ordinary folder you can open, copy and back up without WrOS.
+A project is an ordinary folder you can open, copy and back up without WrOS. *Project › This project › Where this project is kept…* shows its location, sync and backup information. From there you can save a ZIP copy in `~/Documents/Copies` or move a project into `~/Documents`. See *Your projects*.
 
 ## The folder
 
@@ -28,8 +28,8 @@ Before rc22, `.grimoire/project-id` was `.grimoire/book-id`, and `Project-Format
 
 Both are in `Ctrl-K`:
 
-- *Update project map* writes `project.md`: every part, chapter and scene, with word counts and a link to each file, in a marked block WrOS rewrites each time. Anything you write above or below the block is left alone.
-- *Compile manuscript (Markdown)* writes the whole project as one Markdown file, `title-manuscript.md` beside `project.toml`, through the same compile as Export.
+- *Update project map* writes `project.md`: every part, chapter and scene, with word counts and a link to each file, in a marked block WrOS rewrites each time. Anything you write above or below the block is left alone. From a terminal, run `grimoire index`.
+- *Compile manuscript (Markdown)* writes the whole project as one Markdown file, `title-manuscript.md` beside `project.toml`, through the same compile as Export. From a terminal, run `grimoire compile`.
 
 ## A scene's frontmatter
 

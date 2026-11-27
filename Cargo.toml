@@ -18,7 +18,7 @@ path = "src/main.rs"
 
 [dependencies]
 grimoire-brain = { path = "crates/grimoire-brain", features = ["runtime"] }
-grimoire-core = { path = "crates/grimoire-core", version = "0.8" }
+grimoire-core = { path = "crates/grimoire-core", version = "0.9" }
 wros-sys = { path = "crates/wros-sys" }
 wros-shell = { path = "crates/wros-shell" }
 anyhow = "1.0.104"
@@ -139,4 +139,4 @@ crossterm = { path = "crates/crossterm-upstream" }
 
 # One version for the terminal app and the crates under it; bump it here.
 [workspace.package]
-version = "0.8.3"
+version = "0.9.1"

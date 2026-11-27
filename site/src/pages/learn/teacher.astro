@@ -5,7 +5,7 @@ import KeyCard from '../../components/KeyCard.astro';
 const toc = [
   ['glance', 'The week at a glance'],
   ['before', 'Before the week'],
-  ['day-1', 'Day 1 · Open the project'],
+  ['day-1', 'Day 1 · Open the book'],
   ['day-2', 'Day 2 · Build the bones'],
   ['day-3', 'Day 3 · Draft'],
   ['day-4', 'Day 4 · Revise'],
@@ -58,7 +58,7 @@ const toc = [
             <table class="table">
               <thead><tr><th>Day</th><th>Students learn to</th><th>By the end they have</th></tr></thead>
               <tbody>
-                <tr><td><strong>1</strong> Open the project</td><td>open a terminal, make a project, move around the desk, write and quit</td><td>a project of their own and a first freewrite</td></tr>
+                <tr><td><strong>1</strong> Open the book</td><td>open a terminal, make a book, move around the desk, write and quit</td><td>a book of their own and a first freewrite</td></tr>
                 <tr><td><strong>2</strong> Build the bones</td><td>plan in three movements, shape the outline, use the corkboard</td><td>a story plan and a scene card for every scene</td></tr>
                 <tr><td><strong>3</strong> Draft</td><td>run sprints, write in focus mode, leave notes and TKs</td><td>a messy, brave first draft of most of the story</td></tr>
                 <tr><td><strong>4</strong> Revise</td><td>clear notes, fix spelling and names, trade feedback, read history</td><td>a revised draft and a partner's notes</td></tr>
@@ -70,7 +70,7 @@ const toc = [
             <span class="label">Why a terminal?</span>
             <p>
               It's calm. There are no tabs, notifications or fonts to fiddle with, only the words and
-              the shape of the project. Students also meet a real tool that professionals use every day,
+              the shape of the book. Students also meet a real tool that professionals use every day,
               and they learn that their work is a folder of files they can open with anything.
             </p>
           </div>
@@ -94,16 +94,17 @@ const toc = [
 
           <h3>2. Do a practice run <span class="tag">15 minutes</span></h3>
           <ul class="check">
-            <li>Make a test project: <code>grimoire new --short-story ~/Documents/practice</code>, then open it with <code>grimoire ~/Documents/practice</code>.</li>
+            <li>Make a test book: <code>grimoire new --short-story ~/Documents/practice</code>, then open it with <code>grimoire ~/Documents/practice</code>.</li>
             <li>Walk through the Day 1 student handout yourself. You'll spot anything your machines do differently.</li>
             <li>Try <kbd>F1</kbd>, <kbd>F2</kbd> and <kbd>F9</kbd>. On some laptops the F-keys need <kbd>Fn</kbd> held down; note which ones do.</li>
-            <li>Export once (<em>File › Export…</em>, then <kbd>x</kbd>) and open the Word file, so Day 5 holds no surprises.</li>
+            <li>Export once (<kbd>Esc</kbd> › <em>Export…</em> › <kbd>x</kbd>) and open the Word file, so Day 5 holds no surprises.</li>
           </ul>
 
           <h3>3. Decide a few things</h3>
           <ul>
             <li><strong>Story length.</strong> 1,500 to 2,500 words suits most high school classes. Younger writers might aim for 800 to 1,200.</li>
-            <li><strong>Where projects live.</strong> Each student's Documents folder is simplest. On shared computers, put the student's name in the folder: <code>~/Documents/story-avery</code>. School cloud folders (Google Drive, OneDrive, Dropbox) are fine too: Grimoire never writes over a copy made by another device.</li>
+            <li><strong>Where books live.</strong> Each student's Documents folder is simplest. On shared computers, put the student's name in the folder: <code>~/Documents/story-avery</code>. School cloud folders (Google Drive, OneDrive, Dropbox) are fine too: Grimoire never writes over a copy made by another device. Anyone who loses track of a book can ask Grimoire: <em>Esc › This book › Where this book is kept…</em> shows the folder and opens it.</li>
+            <li><strong>Collecting work.</strong> A book is a folder of small files, so for handing in or backing up, have students use <em>Esc › This book › Save a copy</em>. It makes one file, named for the book and the day, in <code>Documents/Grimoire Books/Copies</code>. Any computer with Grimoire opens that file as a book again.</li>
             <li><strong>PDFs or not.</strong> Word files always work, and Google Docs opens them. For PDFs, install LibreOffice (free) on the machines.</li>
             <li><strong>Music.</strong> Grimoire can play music, but it's off until someone turns it on. Leave it off in class.</li>
           </ul>
@@ -118,7 +119,7 @@ const toc = [
             <span class="label">Good to know</span>
             <p>
               Grimoire needs no account, collects nothing, and works without the internet once it's
-              installed. Everything a student writes stays in their project's folder as plain text.
+              installed. Everything a student writes stays in their book's folder as plain text.
             </p>
           </div>
           <div class="note tip">
@@ -137,7 +138,7 @@ const toc = [
           <div class="day-head">
             <span class="day-num" aria-hidden="true">1</span>
             <span class="day-kicker">Day 1 · setup, the desk, first words</span>
-            <h2>Open the project</h2>
+            <h2>Open the book</h2>
           </div>
           <div class="day-tools no-print">
             <button class="btn small" data-print="day-1">⎙ Print this day</button>
@@ -145,7 +146,7 @@ const toc = [
           </div>
 
           <div class="glance">
-            <div><span class="k">Goal</span><p>Every student makes a project of their own, finds their way around, writes a first scene, and sees that it saves itself.</p></div>
+            <div><span class="k">Goal</span><p>Every student makes a book of their own, finds their way around, writes a first scene, and sees that it saves itself.</p></div>
             <div><span class="k">You'll need</span><ul><li>Grimoire installed</li><li>Day 1 handout + key card</li><li>a projector</li></ul></div>
             <div><span class="k">Words to know</span><p>terminal, command, outline, scene, pane, autosave</p></div>
           </div>
@@ -156,11 +157,11 @@ const toc = [
             <tbody>
               <tr><td>0–5</td><td>Warm-up</td><td>Ask: where does your writing live? In an app, a website, a notebook? Most apps keep your work somewhere you can't see. This week, you can.</td></tr>
               <tr><td>5–12</td><td>Meet the terminal</td><td>Open a terminal on the projector. It's a window where you type commands instead of clicking. Everyone types <code>grimoire --version</code> and presses <kbd>Enter</kbd>.</td></tr>
-              <tr><td>12–20</td><td>Make a project</td><td>Together: <code>grimoire new --short-story ~/Documents/my-story</code>, then <code>grimoire ~/Documents/my-story</code>. The project opens on <em>Project Format</em>, a short guide to how it's laid out. Read it aloud.</td></tr>
+              <tr><td>12–20</td><td>Make a book</td><td>Together: <code>grimoire new --short-story ~/Documents/my-story</code>, then <code>grimoire ~/Documents/my-story</code>. The book opens on <em>Novel Format</em>, a short guide to how it's laid out. Read it aloud.</td></tr>
               <tr><td>20–28</td><td>Tour the desk</td><td>Point out the outline (left), the page (right), the Pomodoro (under the outline) and the status bar. Show <kbd>Tab</kbd>, <kbd>Esc</kbd> for the menu, <kbd>F1</kbd> for help, and <kbd>↑</kbd> <kbd>↓</kbd> <kbd>Enter</kbd> in the outline.</td></tr>
               <tr><td>28–40</td><td>First words</td><td>Everyone opens <em>Chapter One › Scene One</em>, presses <kbd>Tab</kbd> and freewrites for ten minutes: <em>someone finds a door that shouldn't be open.</em></td></tr>
               <tr><td>40–45</td><td>Scavenger hunt</td><td>The checklist on the handout: find Quit in the menu, read a help topic, read what the <em>Writing tools</em> rows do, try <kbd>Ctrl-K</kbd>, find the Trash, pick a theme.</td></tr>
-              <tr><td>45–48</td><td>Quit and come back</td><td><kbd>Ctrl-Q</kbd>, then open the project again. It opens right where they left off. If there's time, open the project's folder and show the scene as a plain <code>.md</code> file.</td></tr>
+              <tr><td>45–48</td><td>Quit and come back</td><td><kbd>Ctrl-Q</kbd>, then open the book again. It opens right where they left off. If there's time, open the book's folder and show the scene as a plain <code>.md</code> file.</td></tr>
               <tr><td>48–50</td><td>Exit ticket</td><td>Four quick questions on the handout.</td></tr>
             </tbody>
           </table>
@@ -178,7 +179,7 @@ const toc = [
           <h3>Demo, step by step</h3>
           <ol class="steps">
             <li>Open a terminal. On Windows the command is <code>grimoire new --short-story $HOME\Documents\my-story</code>; the <code>~</code> form works on macOS and Linux.</li>
-            <li>After <code>grimoire new</code>, Grimoire prints the command to open the project. Type it.</li>
+            <li>After <code>grimoire new</code>, Grimoire prints the command to open the book. Type it.</li>
             <li>In the outline, move down to <em>Manuscript</em> and open <em>Part One › Chapter One › Scene One</em> with <kbd>Enter</kbd>.</li>
             <li>Press <kbd>Tab</kbd> to move to the page. The empty page says <em>Start writing</em>. Type a sentence and wait for <em>saved</em>.</li>
             <li>Press <kbd>Esc</kbd> to show the menu, then <kbd>Esc</kbd> to close it. Press <kbd>F1</kbd> for help, and <kbd>F1</kbd> to close it.</li>
@@ -190,7 +191,7 @@ const toc = [
             <ul>
               <li><strong>"command not found"</strong>: the terminal was open before installing. Open a new window.</li>
               <li><strong>Typing does nothing on the page</strong>: the outline has the focus. Press <kbd>Tab</kbd> or click the page.</li>
-              <li><strong>F-keys open the laptop's own controls</strong>: hold <kbd>Fn</kbd>, or use <em>Help › Help…</em> instead of <kbd>F1</kbd>.</li>
+              <li><strong>F-keys open the laptop's own controls</strong>: hold <kbd>Fn</kbd>, or use <kbd>Esc</kbd> › <em>Help &amp; about</em> › <em>Help…</em> instead of <kbd>F1</kbd>.</li>
               <li><strong><kbd>?</kbd> types a question mark</strong>: on the page it's meant to. Use <kbd>F1</kbd> there.</li>
               <li><strong>A small, crowded window</strong>: make the terminal bigger or full screen; Grimoire tidies itself up to fit.</li>
             </ul>
@@ -198,7 +199,7 @@ const toc = [
 
           <h3>Support and stretch</h3>
           <div class="glance">
-            <div><span class="k">Support</span><ul><li>Pair a confident student with a nervous one.</li><li>Make the project ahead of time for anyone who struggles with commands.</li><li>Hand out the key card on day one.</li></ul></div>
+            <div><span class="k">Support</span><ul><li>Pair a confident student with a nervous one.</li><li>Make the book ahead of time for anyone who struggles with commands.</li><li>Hand out the key card on day one.</li></ul></div>
             <div><span class="k">Stretch</span><ul><li>Try all nineteen themes with <kbd>F9</kbd>.</li><li>Use <kbd>Ctrl-K</kbd> to find something without the menu.</li><li>Read the <em>On disk</em> help topic.</li></ul></div>
           </div>
 
@@ -235,8 +236,8 @@ const toc = [
             <tbody>
               <tr><td>0–5</td><td>Warm-up</td><td>Pick any story everyone knows and tell it in three sentences: a beginning, a middle and an end.</td></tr>
               <tr><td>5–13</td><td>Three movements</td><td><strong>Beginning</strong>: who wants what, and where. <strong>Middle</strong>: what gets in the way, and how it gets worse. <strong>End</strong>: what changes. Students fill in the story planner.</td></tr>
-              <tr><td>13–25</td><td>Shape the outline</td><td>The project started as a short story: three chapters, one for each movement. Rename them with <kbd>r</kbd> if students like. Show <kbd>n</kbd> adding a scene, <kbd>d</kbd> then <kbd>y</kbd> sending one to the Trash, and <kbd>Ctrl-Z</kbd> bringing it back.</td></tr>
-              <tr><td>25–33</td><td>Under the hood</td><td><kbd>Ctrl-Q</kbd> to quit. Open the project's folder and open <code>project.toml</code> in a plain text editor. Change <code>title</code>, <code>target_words</code> (say 2000) and <code>daily_target</code> (say 500). Save, reopen Grimoire, and the status bar shows the new target.</td></tr>
+              <tr><td>13–25</td><td>Shape the outline</td><td>The book started as a short story: three chapters, one for each movement. Rename them with <kbd>r</kbd> if students like. Show <kbd>n</kbd> adding a scene, <kbd>d</kbd> then <kbd>y</kbd> sending one to the Trash, and <kbd>Ctrl-Z</kbd> bringing it back.</td></tr>
+              <tr><td>25–33</td><td>Under the hood</td><td><kbd>Ctrl-Q</kbd> to quit. Open the book's folder and open <code>novel.toml</code> in a plain text editor. Change <code>title</code>, <code>target_words</code> (say 2000) and <code>daily_target</code> (say 500). Save, reopen Grimoire, and the status bar shows the new target.</td></tr>
               <tr><td>33–45</td><td>Scene cards</td><td>In the outline press <kbd>b</kbd> for the corkboard. On each card: <kbd>e</kbd> for a one-sentence synopsis, <kbd>v</kbd> for whose eyes we're behind, <kbd>s</kbd> to set the status to <em>outline</em>. Aim for two or three scenes per chapter; <kbd>n</kbd> in the outline adds one.</td></tr>
               <tr><td>45–48</td><td>Pitch</td><td>Partners walk each other through their corkboard in one minute.</td></tr>
               <tr><td>48–50</td><td>Exit ticket</td><td>On the handout.</td></tr>
@@ -258,7 +259,7 @@ const toc = [
             <span class="label">Common hiccups</span>
             <ul>
               <li><strong>Leftover empty chapters</strong> (Four to Nine): they can stay. Empty chapters and scenes are left out when the story is exported.</li>
-              <li><strong>A word processor opens <code>project.toml</code></strong> and tries to format it: use a plain editor (TextEdit is fine on a Mac, Notepad on Windows, Text Editor on Linux).</li>
+              <li><strong>A word processor opens <code>novel.toml</code></strong> and tries to format it: use a plain editor (TextEdit is fine on a Mac, Notepad on Windows, Text Editor on Linux).</li>
               <li><strong>Each scene says 1,500 words</strong>: that's the scene's suggested target, set in its file. For a short story it's only a suggestion, so tell students to aim for a few hundred words per scene.</li>
               <li><strong>Typing lands in the prose instead of a card</strong>: press <kbd>e</kbd> or <kbd>v</kbd> first, type, then <kbd>Enter</kbd> to keep it.</li>
             </ul>
@@ -266,7 +267,7 @@ const toc = [
 
           <h3>Support and stretch</h3>
           <div class="glance">
-            <div><span class="k">Support</span><ul><li>Do the <code>project.toml</code> step for them beforehand, or skip it.</li><li>Fill scene cards on paper first, then type them in.</li></ul></div>
+            <div><span class="k">Support</span><ul><li>Do the <code>novel.toml</code> step for them beforehand, or skip it.</li><li>Fill scene cards on paper first, then type them in.</li></ul></div>
             <div><span class="k">Stretch</span><ul><li>Move scenes with <kbd>K</kbd> and <kbd>J</kbd> to try a different order.</li><li>Press <kbd>p</kbd> on the corkboard to see one character's scenes lit up.</li></ul></div>
           </div>
 
@@ -301,7 +302,7 @@ const toc = [
             <thead><tr><th>Min</th><th>What</th><th>How</th></tr></thead>
             <tbody>
               <tr><td>0–5</td><td>Permission slip</td><td>A first draft is allowed to be bad. Today's rule: don't fix, don't delete. Mark it and keep going.</td></tr>
-              <tr><td>5–12</td><td>Show the tools</td><td>Demo <em>Tools › Start a sprint…</em>, then <kbd>Ctrl-D</kbd> for focus mode. Type a note between <code>%%</code> marks and a <code>TK</code>, and show they're dimmed or bold, and don't count as words.</td></tr>
+              <tr><td>5–12</td><td>Show the tools</td><td>Demo <kbd>Esc</kbd> › <em>Writing tools</em> › <em>Start a sprint…</em>, then <kbd>Ctrl-D</kbd> for focus mode. Type a note between <code>%%</code> marks and a <code>TK</code>, and show they're dimmed or bold, and don't count as words.</td></tr>
               <tr><td>12–32</td><td>Sprint one</td><td>Everyone starts a sprint: about 300 words in 20 minutes (<kbd>Tab</kbd> switches between the two numbers, <kbd>Enter</kbd> starts). The status bar counts the sprint. The Pomodoro's sun crosses the sky as the time goes.</td></tr>
               <tr><td>32–37</td><td>Stretch and share</td><td>Stand up. Read one sentence you like to your partner, no explaining.</td></tr>
               <tr><td>37–47</td><td>Sprint two</td><td>Ten more minutes, into Chapter Two. Log both sprints on the handout.</td></tr>
@@ -382,7 +383,7 @@ const toc = [
           <div class="note watch">
             <span class="label">Common hiccups</span>
             <ul>
-              <li><strong>A made-up name is underlined</strong>: add a note for the character, or choose <em>Always ignore — this project</em> under the suggestions.</li>
+              <li><strong>A made-up name is underlined</strong>: add a note for the character, or choose <em>Always ignore: this book</em> under the suggestions.</li>
               <li><strong>A partner typed outside the <code>%%</code> marks</strong>: <kbd>Ctrl-Z</kbd> undoes it, a word at a time.</li>
               <li><strong>Restored an old version by mistake</strong>: restoring is undoable, and today's words go into history first.</li>
             </ul>
@@ -425,8 +426,8 @@ const toc = [
             <thead><tr><th>Min</th><th>What</th><th>How</th></tr></thead>
             <tbody>
               <tr><td>0–8</td><td>Last look</td><td><kbd>Ctrl-T</kbd> should be nearly empty. Check the word count in the status bar. Read the ending one more time.</td></tr>
-              <tr><td>8–13</td><td>Author details</td><td><em>Settings › Writing › Manuscript › Author details…</em>. The byline is the name on the story. <kbd>↑</kbd> <kbd>↓</kbd> move between fields, <kbd>Esc</kbd> saves.</td></tr>
-              <tr><td>13–23</td><td>Export</td><td><em>File › Export…</em>. Make sure <em>Word manuscript</em> is ticked (and <em>PDF</em>, if LibreOffice is installed); <kbd>Space</kbd> ticks and unticks. Then press <kbd>x</kbd>. The files land in the project's <code>exports</code> folder. Open one together: the title page with the word count, the name and title at the top of each page, a <code>#</code> between scenes, and END.</td></tr>
+              <tr><td>8–13</td><td>Author details</td><td><kbd>Esc</kbd> › <em>Settings</em> › <em>Author details…</em>. The byline is the name on the story. <kbd>↑</kbd> <kbd>↓</kbd> move between fields, <kbd>Esc</kbd> saves.</td></tr>
+              <tr><td>13–23</td><td>Export</td><td><kbd>Esc</kbd> › <em>Export…</em>. Make sure <em>Word manuscript</em> is ticked (and <em>PDF</em>, if LibreOffice is installed); <kbd>Space</kbd> ticks and unticks. Then press <kbd>x</kbd>. The files land in the book's <code>exports</code> folder. Open one together: the title page with the word count, the name and title at the top of each page, a <code>#</code> between scenes, and END.</td></tr>
               <tr><td>23–33</td><td>Reader's eyes</td><td>Swap and read a partner's manuscript. One compliment, one question, on the handout.</td></tr>
               <tr><td>33–38</td><td>Make it yours</td><td><kbd>F9</kbd> and pick a theme to celebrate. The brave can try <em>Custom…</em>.</td></tr>
               <tr><td>38–45</td><td>Showcase</td><td>Two or three volunteers read their first paragraph aloud.</td></tr>
@@ -449,7 +450,7 @@ const toc = [
               <li><strong>Export stops and lists TKs</strong>: that's on purpose, so nothing half-finished slips out. Fill them, or press export again to go ahead anyway.</li>
               <li><strong>No PDF</strong>: LibreOffice isn't installed. The Word file is there; Word or Google Docs can save it as a PDF.</li>
               <li><strong>Missing chapters in the manuscript</strong>: empty scenes are left out on purpose. Check they have words in them.</li>
-              <li><strong>Can't find the file</strong>: it's in the project's folder, inside <code>exports</code>, named like <code>Surname_Title_Manuscript.docx</code>.</li>
+              <li><strong>Can't find the file</strong>: it's in the book's folder, inside <code>exports</code>, named like <code>Surname_Title_Manuscript.docx</code>.</li>
             </ul>
           </div>
 
@@ -461,7 +462,7 @@ const toc = [
 
           <h3>Exit ticket, with answers</h3>
           <ol>
-            <li>Where do exported files go? <em>The exports folder inside the project.</em></li>
+            <li>Where do exported files go? <em>The exports folder inside the book.</em></li>
             <li>What's on a manuscript's title page? <em>Contact details, a rounded word count, the title and the byline.</em></li>
             <li>Why did the export stop to list TKs? <em>So nothing unfinished goes out by accident.</em></li>
           </ol>
@@ -507,8 +508,9 @@ const toc = [
                 <tr><td>F-keys change volume or brightness</td><td>Hold <kbd>Fn</kbd>, or use the menu (<kbd>Esc</kbd>) or <kbd>Ctrl-K</kbd>.</td></tr>
                 <tr><td>Something got deleted</td><td><kbd>Ctrl-Z</kbd> in the outline, or open the Trash at the bottom of the outline.</td></tr>
                 <tr><td>A scene looks wrong after an edit</td><td><kbd>Ctrl-Z</kbd> on the page, or <kbd>H</kbd> in the outline for an earlier version.</td></tr>
-                <tr><td>The laptop died mid-sentence</td><td>Open the project again. Autosave means only the last few seconds can be missing, and anything Grimoire couldn't save is offered back from recovery.</td></tr>
-                <tr><td>Grimoire opens a different project</td><td>Open the right one by name: <code>grimoire ~/Documents/my-story</code>.</td></tr>
+                <tr><td>The laptop died mid-sentence</td><td>Open the book again. Autosave means only the last few seconds can be missing, and anything Grimoire couldn't save is offered back from recovery.</td></tr>
+                <tr><td>Grimoire opens a different book</td><td>Open the right one by name: <code>grimoire ~/Documents/my-story</code>, or pick it from <em>Esc › Open another book…</em>.</td></tr>
+                <tr><td>"Where did my story go?"</td><td><code>grimoire where</code> in a terminal names the folder of the last book opened. Inside Grimoire it's <em>Esc › This book › Where this book is kept…</em>.</td></tr>
                 <tr><td>Everything is tiny, or crowded</td><td>Zoom the terminal (<kbd>Ctrl</kbd> <kbd>+</kbd> or <kbd>Cmd</kbd> <kbd>+</kbd>) and make the window bigger.</td></tr>
                 <tr><td>Anything else</td><td><kbd>F1</kbd> opens the help on the topic for wherever you are, and typing searches every topic. In the menu, <kbd>?</kbd> opens the help for the highlighted row.</td></tr>
               </tbody>
@@ -523,12 +525,12 @@ const toc = [
         <section id="adapt" class="block" data-printable>
           <h2>Adapting the week</h2>
           <ul>
-            <li><strong>Younger writers (ages 11 to 13)</strong>: make the projects ahead of time, skip the <code>project.toml</code> step, and aim for 800 to 1,200 words.</li>
+            <li><strong>Younger writers (ages 11 to 13)</strong>: make the books ahead of time, skip the <code>novel.toml</code> step, and aim for 800 to 1,200 words.</li>
             <li><strong>College and adult workshops</strong>: aim for 3,000 to 5,000 words, add the EPUB and paperback exports on Day 5, and turn on <em>Writing sessions</em> (it needs Git) to see what changed in each sitting.</li>
             <li><strong>Short on time</strong>: fold Day 4 into Day 3's second half and Day 5.</li>
             <li><strong>One computer per pair</strong>: one student types while the other plans and watches the clock, swapping each sprint.</li>
-            <li><strong>Longer projects</strong>: the same project keeps growing, with <kbd>c</kbd> for chapters and <kbd>p</kbd> for parts. Or start a project from the Novel template (leave off <code>--short-story</code>), with room for 81 scenes in three parts.</li>
-            <li><strong>Students with a story already started</strong>: choose <em>File › Open another project…</em>, then <em>Import a project…</em> and <em>A draft (Word, Markdown, text)</em> to bring in a Word, Markdown or text file, split into chapters and scenes. From Google Docs, download it as Word first.</li>
+            <li><strong>Longer projects</strong>: the same book keeps growing, with <kbd>c</kbd> for chapters and <kbd>p</kbd> for parts. Or start a novel-shaped book (leave off <code>--short-story</code>), with room for 81 scenes in three parts.</li>
+            <li><strong>Students with a story already started</strong>: <kbd>Esc</kbd> › <em>Open another book…</em> › <em>Bring in a draft…</em> brings in a Word, Markdown or text file, split into chapters and scenes. From Google Docs, download it as Word first.</li>
           </ul>
         </section>
 

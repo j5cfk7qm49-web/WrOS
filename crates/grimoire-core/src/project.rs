@@ -2489,6 +2489,21 @@ pub fn restore_with_note(root: &Path, trashed: &Path) -> Result<(PathBuf, Option
     Ok((target, note))
 }
 
+/// Remove the restore record only when the Trash contains nothing else.
+pub fn finish_emptying_trash(trash: &Path) -> Result<bool> {
+    for entry in fs::read_dir(trash)? {
+        if entry?.file_name() != ORIGINS {
+            return Ok(false);
+        }
+    }
+    match fs::remove_file(trash.join(ORIGINS)) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => return Err(e.into()),
+    }
+    Ok(true)
+}
+
 /// Remove something for good. Only ever reached for what is already in the
 /// trash — everywhere else, deleting moves things there instead.
 pub fn destroy(path: &Path) -> Result<()> {

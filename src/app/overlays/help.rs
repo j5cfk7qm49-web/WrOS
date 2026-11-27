@@ -53,6 +53,8 @@ impl App {
             Overlay::NewBook { .. }
             | Overlay::Books { .. }
             | Overlay::Import(_)
+            | Overlay::Kept { .. }
+            | Overlay::CopyPath { .. }
             | Overlay::DeleteBook { .. } => "books",
             Overlay::Themes { .. } | Overlay::Custom { .. } => "themes",
             Overlay::Sources { .. } | Overlay::Player { .. } => "music",

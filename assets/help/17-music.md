@@ -20,6 +20,8 @@ The same choices are in *Settings › Music*, and *Music source* in the menu pic
 
 The YouTube Music player isn't an official app. A change on YouTube's side can stop it working until a WrOS update fixes it.
 
+From a terminal, `grimoire music-setup <source>` configures a music source. If YouTube Music stops answering after an update (it asks to be paired again now and then), `grimoire music-auth` pairs it again without setting anything else up.
+
 ## From anywhere
 
 - `F5` play / pause, `F4` previous, `F6` next.

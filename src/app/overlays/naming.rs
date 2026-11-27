@@ -49,6 +49,7 @@ impl App {
             path,
             name,
             permanent,
+            trash_entries,
             ..
         } = &mut self.overlay
         else {
@@ -57,8 +58,9 @@ impl App {
         match key {
             Key::Char('y') | Key::Char('Y') => {
                 let (path, name, permanent) = (path.clone(), name.clone(), *permanent);
+                let trash_entries = trash_entries.take();
                 self.overlay = Overlay::None;
-                self.finish_delete(path, name, permanent);
+                self.finish_delete(path, name, permanent, trash_entries);
             }
             Key::Esc | Key::Enter | Key::Char('n') | Key::Char('N') | Key::Char('q') => {
                 self.overlay = Overlay::None;

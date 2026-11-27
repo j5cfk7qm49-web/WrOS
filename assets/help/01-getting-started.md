@@ -2,6 +2,8 @@
 
 WrOS is a writing desk for one project at a time. The project is a folder of plain Markdown files, so everything you write can be read, copied and backed up without WrOS. You can have as many projects as you like: *File › New project…* starts another, and *File › Open another project…* switches (see *Your projects*).
 
+Projects you start by name go in `~/Documents/Grimoire`. *Project › This project › Where this project is kept…* shows the current folder. From there you can open it or save a ZIP copy.
+
 ## The desk
 
 - **The outline**, on the left, headed by the project's title: parts, chapters and scenes, then the notebook (Characters, Places, Notes, Research) and the rest of the project's sections.
@@ -29,7 +31,11 @@ Installed WrOS hides Quit and shows a short message when you press `Ctrl-Q`, kee
 
 ## The mouse
 
-Click a pane to move to it, a chapter to fold it, a scene to open it, and the prose to put the cursor there. Drag across the prose to select. The wheel scrolls whatever is under the pointer.
+Click a pane to move to it, a chapter to fold it, a scene to open it, and the prose to put the cursor there. Drag across the prose to select; double-click picks a word, and a third click the paragraph. The wheel scrolls whatever is under the pointer.
+
+Click a row in the menu to choose it. Right-click a row in the outline to open the *Project* menu for it: rename, delete, details, a new scene.
+
+From a terminal, `grimoire wros help` lists the WrOS appliance commands.
 
 ## About WrOS
 

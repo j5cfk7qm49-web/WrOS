@@ -19,14 +19,18 @@ enum Where {
     Taken(PathBuf),
     /// A Word, Markdown or text file to bring in as a new book.
     Draft(PathBuf),
+    /// A copy of a book (one .zip), to open as a book of its own.
+    Copy(PathBuf),
 }
 
-fn look(beside: &Path, typed: &str) -> Where {
-    let Some(p) = books::typed_path(beside, typed) else {
+fn look(home: &Path, typed: &str) -> Where {
+    let Some(p) = books::typed_path(home, typed) else {
         return Where::Nothing;
     };
     if books::is_book(&p) {
         Where::Book(p)
+    } else if grimoire_core::shelf::is_copy(&p) {
+        Where::Copy(p)
     } else if import::is_draft(&p) {
         Where::Draft(p)
     } else if p.is_file() || fs::read_dir(&p).is_ok_and(|mut d| d.next().is_some()) {
@@ -102,6 +106,7 @@ impl App {
                 rows.push(ShelfRow::Book(book(root.clone()), *root == here));
             }
         }
+        rows.push(ShelfRow::OpenCopy);
         rows.push(ShelfRow::Import);
         rows.push(ShelfRow::NewBook);
         rows
@@ -151,6 +156,13 @@ impl App {
                     let root = book.root.clone();
                     self.overlay = Overlay::None;
                     let _ = self.open_book(&root);
+                }
+                Some(ShelfRow::OpenCopy) => {
+                    self.caret = None;
+                    self.overlay = Overlay::CopyPath {
+                        buf: String::new(),
+                        back: *sel,
+                    };
                 }
                 Some(ShelfRow::Import) => {
                     if self.background {
@@ -243,6 +255,45 @@ impl App {
         }
     }
 
+    pub(super) fn on_copy_path_key(&mut self, key: Key) {
+        let Overlay::CopyPath { buf, back } = &mut self.overlay else {
+            return;
+        };
+        match key {
+            Key::Enter => match look(&self.books_home, buf) {
+                Where::Copy(file) => self.open_copy(&file),
+                Where::Nothing => {}
+                _ => self.msg = "Choose a project copy (.zip).".into(),
+            },
+            Key::Esc => self.overlay = Overlay::Books { sel: *back },
+            k => edit(buf, &mut self.caret, k),
+        }
+    }
+
+    fn open_copy(&mut self, file: &Path) {
+        if !self.save_before_leaving() {
+            self.msg = format!("{} · so the copy stays unopened for now", self.msg);
+            return;
+        }
+        let root = match grimoire_core::shelf::open_copy(file, &self.books_home) {
+            Ok(root) => root,
+            Err(e) => {
+                self.msg = format!("{e:#}");
+                return;
+            }
+        };
+        self.overlay = Overlay::None;
+        match self.load_book(&root) {
+            Ok(()) => {
+                self.msg = format!(
+                    "opened the copy as a project of its own · it lives in {}",
+                    books::pretty(&root)
+                )
+            }
+            Err(why) => self.msg = why,
+        }
+    }
+
     /// Remove a book that isn't open, folder and all. It is first renamed to a
     /// hidden name beside itself, so a half-finished delete never looks like a book.
     fn delete_book(&mut self, root: &Path) -> Result<(), String> {
@@ -301,8 +352,12 @@ impl App {
 
     /// Start a whole new book from what was typed, and switch to it.
     fn create_book(&mut self, typed: &str, shape: project::Template) {
-        let root = match look(&self.project.root, typed) {
+        let root = match look(&self.books_home, typed) {
             Where::Nothing => return,
+            Where::Copy(file) => {
+                self.open_copy(&file);
+                return;
+            }
             Where::Taken(p) => {
                 self.msg = format!(
                     "{} already has other things in it · try another name",
@@ -392,6 +447,15 @@ impl App {
         if !self.save_before_leaving() {
             return Err(format!("{} · so this project stays open for now", self.msg));
         }
+        self.load_book(&root).map(|()| true)
+    }
+
+    /// Open the book at `root` in place of this one, which has already been
+    /// saved and put away.
+    pub(crate) fn load_book(&mut self, root: &Path) -> Result<(), String> {
+        let root = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+        let here =
+            fs::canonicalize(&self.project.root).unwrap_or_else(|_| self.project.root.clone());
         let stranded = project::restore_stranded(&root);
         let updated = project::upgrade(&root).unwrap_or_else(|e| {
             vec![format!(
@@ -417,6 +481,7 @@ impl App {
             background: self.background,
         };
         let mut next = App::with(project, setup).map_err(cant)?;
+        next.books_home = self.books_home.clone();
         next.commonplace = std::mem::take(&mut self.commonplace);
         next.commonplace.close_project_pane();
         if let (Some(next), Some(previous)) = (&mut next.timeline, &self.timeline) {
@@ -461,7 +526,7 @@ impl App {
         if self.overlay == Overlay::None {
             self.review_library_changes(false);
         }
-        Ok(true)
+        Ok(())
     }
 }
 
@@ -523,11 +588,11 @@ pub(super) fn draw_new_book(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         return;
     };
     let dim = Style::default().fg(t.dim);
-    let found = look(&app.project.root, buf);
+    let found = look(&app.books_home, buf);
     // The shapes, one chosen, and what the chosen one starts with; a draft
     // brings its own shape, so they step aside for one.
     let mut extra = Vec::new();
-    if !matches!(found, Where::Draft(_) | Where::Book(_)) {
+    if !matches!(found, Where::Draft(_) | Where::Book(_) | Where::Copy(_)) {
         extra.push(Line::from(""));
         use project::Template::{Blank, Essay, Novel, ShortStory};
         for (group, shapes) in [
@@ -592,6 +657,7 @@ pub(super) fn draw_new_book(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             " try another name   esc cancel",
         ),
         Where::Draft(p) => draft_line(&p, t),
+        Where::Copy(p) => copy_line(&p, t),
     };
     typed_box(
         f,
@@ -605,6 +671,46 @@ pub(super) fn draw_new_book(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         under,
         extra,
     );
+}
+
+pub(super) fn draw_copy_path(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
+    let Overlay::CopyPath { buf, .. } = &app.overlay else {
+        return;
+    };
+    let dim = Style::default().fg(t.dim);
+    let under = match look(&app.books_home, buf) {
+        Where::Copy(p) => copy_line(&p, t),
+        Where::Nothing => (Line::from(""), " type or drop in a .zip file   esc back"),
+        _ => (
+            Line::from(Span::styled(" choose a project copy (.zip)", dim)),
+            " esc back",
+        ),
+    };
+    typed_box(
+        f,
+        area,
+        t,
+        ("OPEN A COPY", "The path to a project copy (.zip)"),
+        (buf, app.caret),
+        under,
+        Vec::new(),
+    );
+}
+
+/// What a copy typed into a box says before ↵ is pressed.
+fn copy_line<'a>(p: &Path, t: &Theme) -> (Line<'a>, &'static str) {
+    (
+        Line::from(vec![
+            Span::styled(" a copy of a project: ", Style::default().fg(t.dim)),
+            Span::styled(
+                p.file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default(),
+                Style::default().fg(t.accent),
+            ),
+        ]),
+        " ↵ open it as a project of its own   esc cancel",
+    )
 }
 
 /// A draft that's there to bring in, by its file name.
@@ -642,6 +748,7 @@ pub(super) fn draw_books(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
                 };
                 (name, books::pretty(&book.root), *open)
             }
+            ShelfRow::OpenCopy => ("Open a copy…".into(), String::new(), false),
             ShelfRow::Import => ("Import a project…".into(), String::new(), false),
             ShelfRow::NewBook => ("New project…".into(), String::new(), false),
         })

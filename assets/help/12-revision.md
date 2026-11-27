@@ -18,7 +18,7 @@ Hearing your prose catches what the eye skips: the missing word, the sentence th
 - `←` and `→` go back or forward a sentence; `↑` and `↓` do too.
 - `Esc` stops. The cursor stays where it stopped, so you can fix what you heard.
 - `m` marks the sentence in Revision notes.
-- `-` and `+` slow down or speed up by a tenth, from 0.5× to 2.0×. WrOS remembers the pace.
+- `-` and `+` slow down or speed up by a tenth, from 0.5× to 2.0×. The bottom line shows the current speed, and WrOS remembers it for next time.
 - With Read chapter aloud or Read manuscript aloud, `n` and `p` move between queued scenes.
 
 Notes (`%% … %%`) are never read out, and neither are the `*` and `_` around italics.

@@ -36,6 +36,10 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
             "Backs this project up now, to the places Settings › Backups and accounts names.",
             "sync",
         ),
+        Action::Side(crate::palette::Side::ThisProject) => (
+            "Where the project is kept, saving a copy, and setting its goals.",
+            "books",
+        ),
         Action::Side(crate::palette::Side::Revision) => (
             "Notes and TKs, footnotes, names, continuity, milestones and the revision dashboard.",
             "writing",
@@ -277,6 +281,14 @@ pub fn about_row(action: &Action, part: &str) -> (String, &'static str) {
         Action::Spellcheck => (
             "Underlines words that might be misspelt as you write.",
             "spelling",
+        ),
+        Action::WhereKept => (
+            "Shows the project folder, sync and backup status. Opens the folder or moves the project into the projects folder.",
+            "books",
+        ),
+        Action::SaveCopy => (
+            "The whole project as one .zip, named for the project and today. Keep it somewhere safe or send it.",
+            "books",
         ),
         Action::TaughtWords => (
             "Every word you told spellcheck to always ignore, in this project and in every project. Take one back and it's underlined again.",

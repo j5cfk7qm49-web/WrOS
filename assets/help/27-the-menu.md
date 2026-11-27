@@ -15,7 +15,8 @@ The mouse works everywhere on the bar: click a view tile to switch views, click 
 ## File
 
 - **Settle conflicts…**: only there when a sync service has left two copies of a scene that disagree. See *Sync & conflicts*.
-- **New project…** and **Open another project…**: see *Your projects*. On the shelf, *Import a project…* brings in a project from Google Drive, a USB stick or this laptop. Choose *A draft (Word, Markdown, text)* there for a draft file.
+- **New project…** and **Open another project…**: see *Your projects*. On the shelf, *Import a project…* brings in a project from Google Drive, a USB stick or this laptop. Choose *A draft (Word, Markdown, text)* there for a draft file, or *Open a copy…* on the shelf for a project ZIP.
+- **MLA 9 paper details…**: set up the details for an MLA paper before export.
 - **Export…**: the manuscript as a Word file, a PDF, an EPUB or a paperback. See *Compile*.
 - **Compile to Markdown** and **Update the project map**: see *On disk*.
 - **Back up now**: the open project, to the places Settings › Backups and accounts names.
@@ -43,36 +44,40 @@ The mouse works everywhere on the bar: click a view tile to switch views, click 
 - **Focus mode** (`Ctrl-D`): the page fills the screen. Urgent warnings appear on the bottom line when needed. `Ctrl-D` again brings back the bars and panes.
 - **Show the outline** / **Hide the outline**: the outline column, without entering focus mode. It has no key of its own unless you give it one in Settings › Look and keyboard › Keyboard.
 - **Show the pins sidebar** / **Hide the pins sidebar**. See *Pins*.
+- **Hide Outline beside Write** closes the project notes pane.
 - **Open a scene beside…** (`v`).
-- **Show the second pane** (`F11`) and **Choose second document…**: a second document you can edit beside the first.
+- **Show the second pane** / **Hide the second pane** (`F11`) and **Choose second document…**: a second document you can edit beside the first.
 - **Themes…** (`F9`) and **Workspaces…**.
 
 ## Project
 
 - **New scene…** (`n`), **New chapter…** (`c`), **New part…** (`p`) and **New folder…** (`N`). If your project calls its parts acts, the row says so.
 - **Rename…** (`r`) and **Delete…** (`d`): the file is renamed to match; deleting moves it to the Trash and asks first.
-- **Empty the Trash…** replaces Delete when the Trash itself is selected. It asks before permanently removing the contents.
+- **Empty the Trash…** replaces Delete when the Trash itself is selected. It permanently removes the items counted when the question appeared.
 - **Restore from the Trash** (`u`): with something in the Trash selected.
 - **Move up** (`K`) and **Move down** (`J`): you can also drag rows with the mouse.
 - Switch to Write to move, rename, restore or delete a selected project item.
 - **Scene details…**: status, POV, synopsis, word target, and whether it goes in exports. See *The outline*.
 - **Scene history…** (`H`): the scene's versions from the timeline and saved copies. See *History & recovery*.
-- **Goals…**: how many words the project is aiming for, and each day.
+- **This project ›** opens these rows:
+  - **Where this project is kept…** shows the folder, sync and backup status, and lets you open the folder or move the project into `~/Documents`.
+  - **Save a copy (one file)** saves a ZIP with the project name and date in `~/Documents/Copies`.
+  - **Goals…** sets the word targets for the project and for each day.
 
 ## Tools
 
 - **Start a sprint…** / **Stop the sprint**: see *Sprints & targets*.
-- **Start the timer** (`F2`) and **Reset the timer** (`F3`): the Pomodoro.
+- **Start the timer** / **Pause the timer** (`F2`) and **Reset the timer** (`F3`): the Pomodoro.
 - **Read aloud**, **Read chapter aloud** and **Read manuscript aloud**. See *Revision*.
 - **Music player…** (`F7`): while music is on.
 - **Dictionary and thesaurus…** and **Writing checks…**.
-- **Revision ›**: Notes and TKs (`Ctrl-T`), the next TK or note, the next scene still in draft, echo words, Check names, the corkboard, the footnote navigator, the continuity tracker, draft milestones, revision notes and the prose and revision dashboard.
-- **Notes ›**: read (`Super+2`), Look up the name here (`Ctrl-O`), the Pinboard, Pin this document, the writing journal, the scratchpad and the session handoff.
+- **Revision ›**: Notes and TKs (`Ctrl-T`), Next TK or note, Next scene still in draft, Turn echo words on or off, Check names, Corkboard, Footnote navigator, Read footnote at caret, Continuity tracker, Draft milestones, Revision notes and Prose and revision dashboard.
+- **Notes ›**: read (`Super+2`), Look up the name here (`Ctrl-O`), Pinboard, Pin this document, Writing journal, Scratchpad, Session handoff, Project sources, Add a source, Import sources, Project sources timeline and Resolve source conflict.
 - **Progress ›** holds Progress (the project's word count and pace), Goals, Calendar, Sprints, Edits, Collection, Challenges and Story Spark.
 
 ## Settings
 
-**Writing**, **Look and keyboard**, **System**, **Backups and accounts** and **Updates and recovery**: each opens Settings on that group, in a box over the page. See *Settings*.
+**Writing**, **Look and keyboard**, **System**, **Backups and accounts**, **Updates and recovery** and **Music**: each opens Settings on that group, in a box over the page. See *Settings*.
 
 ## Help
 

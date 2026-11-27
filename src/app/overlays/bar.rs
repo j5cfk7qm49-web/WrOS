@@ -260,7 +260,11 @@ impl App {
                 if writing || !self.visible.is_empty() {
                     rows.push(BarRow::new("Scene history…", "H", Action::History));
                 }
-                rows.push(BarRow::new("Goals…", "", Action::Goals));
+                rows.push(BarRow::new(
+                    Side::ThisProject.label(),
+                    "›",
+                    Action::Side(Side::ThisProject),
+                ));
                 rows
             }
             Title::Tools => {
@@ -301,7 +305,7 @@ impl App {
                     Action::Lexicon,
                 ));
                 rows.push(BarRow::new("Writing checks…", "", Action::WritingChecks));
-                for side in Side::ALL {
+                for side in [Side::Revision, Side::Notes, Side::Practice] {
                     rows.push(BarRow::new(side.label(), "›", Action::Side(side)));
                 }
                 rows
@@ -374,6 +378,11 @@ impl App {
         let m = self.mod_label();
         let writing = self.open.is_some();
         let rows = match side {
+            Side::ThisProject => vec![
+                BarRow::new("Where this project is kept…", "", Action::WhereKept),
+                BarRow::new("Save a copy (one file)", "", Action::SaveCopy),
+                BarRow::new("Goals…", "", Action::Goals),
+            ],
             Side::Revision => {
                 let mut rows = vec![BarRow::new(
                     "Notes and TKs…",
@@ -501,14 +510,19 @@ impl App {
 
     /// Tools, with one of its side groups open beside it.
     pub fn open_side(&mut self, side: Side) {
+        let title = if side == Side::ThisProject {
+            Title::Book
+        } else {
+            Title::Tools
+        };
         let sel = self
-            .bar_rows(Title::Tools)
+            .bar_rows(title)
             .iter()
             .position(|r| r.action == Action::Side(side))
             .unwrap_or(0);
-        self.bar_last = Title::Tools;
+        self.bar_last = title;
         self.overlay = Overlay::Bar {
-            title: Title::Tools,
+            title,
             tile: None,
             open: true,
             sel,

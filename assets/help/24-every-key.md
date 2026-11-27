@@ -133,6 +133,23 @@ each answer line in a child note.
 
 Click to place the cursor, drag to select, double-click for a word and click once more for the paragraph. Click or right-click an underlined word for its spellings.
 
+## In any box you type in
+
+Renaming, a synopsis, an author's details, find and replace, a path to a project copy: `←` and `→` move through what's typed, `Home` and `End` go to its ends, and `Backspace` and `Delete` take a letter away either side. `Ctrl-V` pastes into it.
+
+## The menu and the mouse
+
+A click on a menu row chooses it. Right-click a row in the outline to open the *Project* menu for that row.
+
+## Where this project is kept
+
+| Key | Does |
+|---|---|
+| `o` | open the project folder |
+| `s` | save a ZIP copy |
+| `c` | show the Copies folder, when it exists |
+| `m` | move the project into the projects folder, if it lives elsewhere |
+
 ## The find bar
 
 | Key | Does |

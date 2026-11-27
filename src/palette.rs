@@ -160,6 +160,10 @@ pub enum Action {
     /// Which voice reads aloud.
     Voices,
     TaughtWords,
+    /// Where the book's folder is, and what can be done with it.
+    WhereKept,
+    /// The whole book as one file.
+    SaveCopy,
     OpenBookAt(std::path::PathBuf),
 }
 
@@ -228,9 +232,10 @@ impl Title {
     }
 }
 
-/// Tools' side groups, which open beside its dropdown.
+/// Groups that open beside a dropdown.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Side {
+    ThisProject,
     Revision,
     Notes,
     /// Labelled "Progress" (rc23): the progress tools, Story Spark and the challenges.
@@ -238,10 +243,17 @@ pub enum Side {
 }
 
 impl Side {
-    pub const ALL: [Side; 3] = [Side::Revision, Side::Notes, Side::Practice];
+    #[cfg(test)]
+    pub const ALL: [Side; 4] = [
+        Side::ThisProject,
+        Side::Revision,
+        Side::Notes,
+        Side::Practice,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
+            Side::ThisProject => "This project",
             Side::Revision => "Revision",
             Side::Notes => "Notes",
             Side::Practice => "Progress",
@@ -478,6 +490,16 @@ pub fn entries(app: &crate::app::App) -> Vec<Entry> {
             format!("Spelling: {} (change)", app.spell_lang.name()),
             "",
             Action::SpellingLanguage,
+        ),
+        Entry::new(
+            "Where this project is kept (its folder, copies, moving it)",
+            "",
+            Action::WhereKept,
+        ),
+        Entry::new(
+            "Save a copy of this project (one file to keep or send)",
+            "",
+            Action::SaveCopy,
         ),
         Entry::new(
             "Words spellcheck was taught (take one back)",

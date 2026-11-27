@@ -24,6 +24,8 @@ If a save fails or WrOS catches an application crash, it tries to keep unsaved w
 - **Keep the saved versions**: the recovered words go to the Trash, not away.
 - **Decide later**: asked again next time.
 
+If the scene some of those words belonged to has gone since (deleted, or renamed on another computer), they're still offered. Restoring keeps them in the Trash as a file marked *recovered*, to read, copy from, or bring back with `u`.
+
 Choose with `↑` `↓` and press `Enter`; no other key decides, so a stray keystroke at launch can't lose anything.
 
 ## The Trash
