@@ -9,6 +9,7 @@ firmware_dir=$2
 driver=$3
 module_glob=$4
 fallback=$5
+also=${6:-}
 
 cd "$modules_dir"
 # Expand the module pattern from the Nix driver table without splitting on spaces.
@@ -98,6 +99,26 @@ else
     fi
   fi
 fi
+
+# Drivers with a folder per chip (ath10k/QCA9377/hw1.0) choose files in it at run time, such as
+# board-2.bin where modinfo names board.bin, so a chip folder that any request names comes whole.
+# ALSO adds chip folders the driver supports but modinfo doesn't name (ath11k/QCA2066).
+dirs=()
+for file in "${files[@]}"; do
+  [[ $file == */*/* ]] && dirs+=("${file%/*}")
+done
+# ALSO is a space-separated list of globs; IFS is empty, so each word is only globbed.
+IFS=' ' read -ra words <<< "$also"
+for word in "${words[@]}"; do
+  for dir in $word; do
+    dirs+=("$dir")
+  done
+done
+for dir in "${dirs[@]}"; do
+  while IFS= read -r -d '' file; do
+    files+=("$file")
+  done < <(find -L "$dir" -type f -print0)
+done
 
 if (( ! ${#files[@]} )); then
   printf 'no firmware found for %s\n' "$driver" >&2

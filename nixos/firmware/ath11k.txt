@@ -1,7 +1,16 @@
+ath11k/QCA2066/hw2.1/Notice.txt
+ath11k/QCA2066/hw2.1/amss.bin
+ath11k/QCA2066/hw2.1/board-2.bin
+ath11k/QCA2066/hw2.1/m3.bin
 ath11k/QCA6390/hw2.0/Notice.txt
 ath11k/QCA6390/hw2.0/amss.bin
 ath11k/QCA6390/hw2.0/board-2.bin
 ath11k/QCA6390/hw2.0/m3.bin
+ath11k/QCA6698AQ/hw2.1/Notice.txt
+ath11k/QCA6698AQ/hw2.1/amss.bin
+ath11k/QCA6698AQ/hw2.1/board-2.bin
+ath11k/QCA6698AQ/hw2.1/m3.bin
+ath11k/QCN9074/hw1.0/.notice
 ath11k/QCN9074/hw1.0/Notice.txt
 ath11k/QCN9074/hw1.0/amss.bin
 ath11k/QCN9074/hw1.0/board-2.bin

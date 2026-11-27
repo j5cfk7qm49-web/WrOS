@@ -1,0 +1,13 @@
+rtlwifi/rtl8188eufw.bin
+rtlwifi/rtl8188fufw.bin
+rtlwifi/rtl8192cufw_A.bin
+rtlwifi/rtl8192cufw_B.bin
+rtlwifi/rtl8192cufw_TMSC.bin
+rtlwifi/rtl8192eu_nic.bin
+rtlwifi/rtl8192fufw.bin
+rtlwifi/rtl8710bufw_SMIC.bin
+rtlwifi/rtl8710bufw_UMC.bin
+rtlwifi/rtl8723aufw_A.bin
+rtlwifi/rtl8723aufw_B.bin
+rtlwifi/rtl8723aufw_B_NoBT.bin
+rtlwifi/rtl8723bu_nic.bin

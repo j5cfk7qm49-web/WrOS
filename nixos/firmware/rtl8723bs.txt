@@ -1,0 +1,4 @@
+rtlwifi/rtl8723bs_ap_wowlan.bin
+rtlwifi/rtl8723bs_bt.bin
+rtlwifi/rtl8723bs_nic.bin
+rtlwifi/rtl8723bs_wowlan.bin

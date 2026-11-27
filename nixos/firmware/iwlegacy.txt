@@ -1,0 +1,2 @@
+iwlwifi-3945-2.ucode
+iwlwifi-4965-2.ucode

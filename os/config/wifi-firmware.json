@@ -8,13 +8,17 @@
   ],
   "live_iso_firmware": [
     {"vendor": "Intel Wi-Fi", "package": "wros-firmware-iwlwifi"},
+    {"vendor": "Intel Wi-Fi (3945, 4965)", "package": "wros-firmware-iwlegacy"},
     {"vendor": "Realtek", "package": "wros-firmware-rtlwifi"},
+    {"vendor": "Realtek USB", "package": "wros-firmware-rtl8xxxu"},
+    {"vendor": "Realtek SDIO (RTL8723BS)", "package": "wros-firmware-rtl8723bs"},
     {"vendor": "Realtek", "package": "wros-firmware-rtw88"},
     {"vendor": "Realtek", "package": "wros-firmware-rtw89"},
     {"vendor": "Atheros USB", "package": "wros-firmware-ath9k_htc"},
     {"vendor": "Qualcomm/Atheros", "package": "wros-firmware-ath10k"},
     {"vendor": "Qualcomm/Atheros", "package": "wros-firmware-ath11k"},
     {"vendor": "Broadcom/Cypress", "package": "wros-firmware-brcmfmac"},
+    {"vendor": "Broadcom (brcmsmac)", "package": "wros-firmware-brcmsmac"},
     {"vendor": "MediaTek", "package": "wros-firmware-mt76"},
     {"vendor": "Intel graphics", "package": "wros-firmware-i915"}
   ],

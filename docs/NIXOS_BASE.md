@@ -112,9 +112,14 @@ Because Nix cannot be executed inside the authoring container, the new post-trim
      `nix build .#wros-firmware-lists` and copy `result/*.txt` into `nixos/firmware/`.
      Some drivers (iwlwifi) name only their newest firmware API, and it may not be in
      linux-firmware yet: the list keeps the newest older version linux-firmware has, the one
-     the kernel steps down to. Requests nothing in linux-firmware can serve are printed as
-     warnings in the build log.
-     [The size check](../tools/check-firmware-sizes.sh) measures the compressed packages for thin updates.
+     the kernel steps down to. Drivers with a folder per chip (ath10k, ath11k, mt76) get each
+     named chip's whole folder, because they choose files in it at run time (`board-2.bin`
+     where modinfo names `board.bin`). Requests nothing in linux-firmware can serve are printed
+     as warnings in the build log. The installed system won't evaluate if the HP Stream's
+     `rtw8822b_fw.bin` or `glk_dmc_ver1_04.bin` ever leaves its list.
+     [The size check](../tools/check-firmware-sizes.sh) measures the compressed packages; run it
+     by hand after regenerating the lists. Every package must stay under 95 MB for thin updates,
+     and `sign-thin.sh` refuses a bundle with a file over GitHub Pages' 100 MB limit.
 5. **Disable XDG desktop sound/icon/menu/mime/autostart generators (`xdg.{sounds,icons,menus,mime,autostart}.enable = false;` in `nixos/modules/base.nix`) and drop the unused `pythonWithQr` (`qrcode` + `pillow`) wrapper in `nixos/pkgs/helpers.nix`**:
    - **Expected saving**: Removes `freedesktop` sound/icon themes and the duplicate `python3.withPackages (ps: [ ps.qrcode ps.pillow ])` environment (since `os/scripts/wros-link.py` renders QR codes in pure Python stdlib).
    - **Feature impact**: WrOS defaults to Grimoire's native DRM renderer. Cage remains available for explicitly selected compositor trials. Neither requires a desktop application menu or XDG icon theme.
