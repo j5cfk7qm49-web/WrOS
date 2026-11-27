@@ -12773,6 +12773,26 @@ fn a_taught_word_can_be_taken_back() {
     assert_eq!(words, &vec![("Oren".to_string(), true)]);
 }
 
+/// With nothing taught yet, the list says how a word gets there, whole: the
+/// sentence is wider than the box, so it takes two lines.
+#[test]
+fn an_empty_taught_list_says_how_words_get_there() {
+    let root = book("taught-none", true);
+    let _ = fs::remove_file(root.join("dictionary.txt"));
+    let mut d = Desk::open(root, 120, 40);
+    d.app.open_taught();
+    d.draw();
+    let Overlay::Taught { words, .. } = &d.app.overlay else {
+        panic!("the list is up");
+    };
+    assert!(words.is_empty(), "{words:?}");
+    assert!(
+        d.shows("None yet. Always ignore, on a word's spellings,") && d.shows("adds one."),
+        "{}",
+        d.rows().join("\n")
+    );
+}
+
 /// `f` on a Template Sheet makes a note that starts as a copy of the form,
 /// in the section the form is for; the sheet stays as it was.
 #[test]
