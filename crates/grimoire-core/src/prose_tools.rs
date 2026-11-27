@@ -688,14 +688,21 @@ mod tests {
         .enumerate()
         {
             let path = dir.path().join(format!("prose-exit-{iteration}"));
-            let mut script = std::fs::File::create(&path).unwrap();
-            writeln!(
-                script,
-                "#!/bin/sh\necho 'synthetic stderr must not be forwarded' >&2\n{body}"
-            )
-            .unwrap();
-            script.sync_all().unwrap();
-            drop(script);
+            let script =
+                format!("#!/bin/sh\necho 'synthetic stderr must not be forwarded' >&2\n{body}");
+            // A parallel fork can retain a writable descriptor even after this test closes it.
+            // Open the fixture only in a separate process and wait for that process to exit.
+            let written = Command::new("/bin/sh")
+                .args([
+                    "-c",
+                    "printf '%s\\n' \"$1\" > \"$2\"",
+                    "write-prose-fixture",
+                ])
+                .arg(script)
+                .arg(&path)
+                .status()
+                .unwrap();
+            assert!(written.success(), "fixture writer exited with {written}");
             std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
             let report = analyze(
                 source("in order to see."),
@@ -709,7 +716,7 @@ mod tests {
                 Arc::new(AtomicBool::new(false)),
             )
             .unwrap();
-            assert_eq!(report.status, status);
+            assert_eq!(report.status, status, "{body} returned {}", report.notice);
             assert!(report.findings.is_empty());
             assert!(report.notice.contains(notice), "{}", report.notice);
             assert!(!report.notice.contains("synthetic stderr"));
