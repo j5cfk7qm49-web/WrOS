@@ -1,7 +1,14 @@
 //! Named draft milestones and reversible scene variants TUI workflow.
 //! Integrates with existing editor undo and `history::diff` without replacing
 //! per-scene dated history.
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use super::*;
+use crate::geometry::to_u16;
 use anyhow::{Result, ensure};
 use grimoire_core::{
     milestones::{MilestoneStore, VariantStore},
@@ -804,10 +811,11 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
             let mut max_scroll = 0;
             for (area, text) in wording {
                 let paragraph = Paragraph::new(text).wrap(Wrap { trim: false }).style(style);
-                let limit = paragraph
-                    .line_count(area.width)
-                    .saturating_sub(area.height as usize)
-                    .min(u16::MAX as usize) as u16;
+                let limit = to_u16(
+                    paragraph
+                        .line_count(area.width)
+                        .saturating_sub(usize::from(area.height)),
+                );
                 max_scroll = max_scroll.max(limit);
                 f.render_widget(paragraph.scroll((m.scroll.min(limit), 0)), area);
             }
@@ -860,10 +868,11 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
             }));
             lines.extend(diff);
             let paragraph = Paragraph::new(lines).style(Style::default().fg(theme.text));
-            let max = paragraph
-                .line_count(body.width)
-                .saturating_sub(body.height as usize)
-                .min(u16::MAX as usize) as u16;
+            let max = to_u16(
+                paragraph
+                    .line_count(body.width)
+                    .saturating_sub(usize::from(body.height)),
+            );
             m.max_scroll.set(max);
             f.render_widget(paragraph.scroll((m.scroll.min(max), 0)), body);
         }

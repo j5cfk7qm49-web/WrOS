@@ -1,3 +1,10 @@
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
+use crate::geometry::to_u16;
 use chrono::Local;
 use grimoire_brain::bounded_store::{DueCards, PagedBrain};
 use grimoire_brain::schema::SavedQuery;
@@ -141,7 +148,7 @@ impl StudyDesk {
             KeyCode::Down => self.scroll(true),
             KeyCode::Char(c @ '0'..='5') if key.kind == KeyEventKind::Press && self.revealed => {
                 if let Some(card) = &self.due.next {
-                    let grade = c as u8 - b'0';
+                    let grade = u8::try_from(u32::from(c) - u32::from('0')).unwrap_or(0);
                     store
                         .grade_card(card.key, grade, Local::now().fixed_offset())
                         .map_err(anyhow::Error::msg)?;
@@ -227,15 +234,13 @@ pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) 
         Some(card) => card.prompt.clone(),
         None => "No cards due.".into(),
     };
-    let width = usize::from(body.width.max(1));
+    let width = body.width.max(1);
     let content = Paragraph::new(text)
         .wrap(Wrap { trim: false })
         .style(Style::default().fg(theme.text));
     let max_scroll = content
-        .line_count(width as u16)
+        .line_count(width)
         .saturating_sub(usize::from(body.height));
-    desk.scroll = desk
-        .scroll
-        .min(max_scroll.min(usize::from(u16::MAX)) as u16);
+    desk.scroll = desk.scroll.min(to_u16(max_scroll));
     frame.render_widget(content.scroll((desk.scroll, 0)), body);
 }

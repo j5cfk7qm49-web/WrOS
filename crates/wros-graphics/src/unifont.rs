@@ -5,6 +5,12 @@
 //!
 //! A cell never paints outside the cells it was given: a glyph wider than its
 //! cells is squeezed into them, never spilled onto a neighbour.
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use ratatui::{
     buffer::Cell,
     style::{Color, Modifier},
@@ -126,7 +132,7 @@ fn rgb(colour: Color, foreground: bool) -> [u8; 3] {
 
 fn dim(c: [u8; 3]) -> [u8; 3] {
     // soft_ratatui's own dimming, so DIM looks as it did.
-    c.map(|v| ((v as u32 * 77 + 127) / 255) as u8)
+    c.map(|v| u8::try_from((u32::from(v) * 77 + 127) / 255).unwrap_or(77))
 }
 
 /// Is pixel (x, y) of a `span`-pixel-wide cell set for `symbol`, before
@@ -212,9 +218,11 @@ impl RasterBackend for Unifont {
         }
         let symbol = cell.symbol();
         let cells = symbol.width().clamp(1, 2);
-        let span =
-            (char_width * cells).min(pixmap.width().saturating_sub(xik as usize * char_width));
-        let (left, top) = (xik as usize * char_width, yik as usize * char_height);
+        let (left, top) = (
+            usize::from(xik) * char_width,
+            usize::from(yik) * char_height,
+        );
+        let span = (char_width * cells).min(pixmap.width().saturating_sub(left));
         let ink = ink(symbol, span);
         let lit = lit_tile_side(symbol);
         let bold = m.contains(Modifier::BOLD);
@@ -247,6 +255,7 @@ impl RasterBackend for Unifont {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::geometry::to_u16;
     use ratatui::style::Color;
 
     fn inked(symbol: &str, span: usize) -> Vec<bool> {
@@ -292,9 +301,11 @@ mod tests {
     }
 
     fn cell_width(c: char) -> u16 {
-        unicode_width::UnicodeWidthChar::width(c)
-            .unwrap_or(1)
-            .max(1) as u16
+        to_u16(
+            unicode_width::UnicodeWidthChar::width(c)
+                .unwrap_or(1)
+                .max(1),
+        )
     }
 
     fn cell_pixels(p: &soft_ratatui::SoftBackend<Unifont>, col: usize) -> Vec<[u8; 3]> {
@@ -364,7 +375,7 @@ mod tests {
             let rows = slot(TILES[n]);
             for y in 2..14 {
                 assert_eq!(
-                    ((rows[y - 1] & !frame(y - 1)) >> 4) as u8,
+                    ((rows[y - 1] & !frame(y - 1)) >> 4).to_le_bytes()[0],
                     original.rows[y],
                     "{letter:?}, row {y}"
                 );
@@ -375,7 +386,7 @@ mod tests {
         let rows = slot(TILE_POWER);
         for (y, row) in rows.iter().enumerate().take(14).skip(2) {
             assert_eq!(
-                ((row & !frame(y)) >> 4) as u8,
+                ((row & !frame(y)) >> 4).to_le_bytes()[0],
                 power.rows[y],
                 "power row {y}"
             );
@@ -399,7 +410,7 @@ mod tests {
             .collect();
         ratatui::backend::Backend::draw(
             &mut pixels,
-            cells.iter().enumerate().map(|(x, c)| (x as u16, 0, c)),
+            cells.iter().enumerate().map(|(x, c)| (to_u16(x), 0, c)),
         )
         .unwrap();
         let rows = slot(TILES[0]);

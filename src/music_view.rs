@@ -1,10 +1,17 @@
 //! The clearing's Music view: what is playing, and rows to open the player, change the
 //! source and sign in or out, so music never needs Settings for those.
 
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 
 use crate::app::App;
+use crate::geometry::{to_u16, to_u16_f64};
 use crate::music::{Source, State};
 use crate::theme::Theme;
 use crate::ui::truncate;
@@ -86,7 +93,7 @@ pub fn view(
             ));
             let artist = (!tr.artist.is_empty())
                 .then(|| Line::from(Span::styled(truncate(&tr.artist, w), dim)));
-            (head, artist, Some(progress_line(app, tr, w, t)))
+            (head, artist, Some(progress_line(app, tr, width, t)))
         }
     };
 
@@ -121,7 +128,7 @@ pub fn view(
             (true, false) => Style::default().fg(t.text),
             (false, _) => Style::default().fg(t.dim),
         };
-        hits.push((lines.len() as u16, i));
+        hits.push((to_u16(lines.len()), i));
         lines.push(Line::from(Span::styled(
             truncate(&format!("{mark}{label}"), w),
             style,
@@ -131,7 +138,7 @@ pub fn view(
 }
 
 /// The progress bar, its time, and the player's badges (repeat, shuffle, volume).
-fn progress_line(app: &App, tr: &crate::music::Track, w: usize, t: &Theme) -> Line<'static> {
+fn progress_line(app: &App, tr: &crate::music::Track, width: u16, t: &Theme) -> Line<'static> {
     let frac = if tr.duration > 0.0 {
         (tr.progress / tr.duration).clamp(0.0, 1.0)
     } else {
@@ -143,8 +150,9 @@ fn progress_line(app: &App, tr: &crate::music::Track, w: usize, t: &Theme) -> Li
     } else {
         badges.chars().count() + 1
     };
-    let barw = w.saturating_sub(7 + extra).max(4);
-    let filled = (frac * barw as f64).round() as usize;
+    let barw = width.saturating_sub(to_u16(7 + extra)).max(4);
+    let filled = usize::from(to_u16_f64((frac * f64::from(barw)).round()));
+    let barw = usize::from(barw);
     let mins = |s: f64| format!("{:.0}:{:02.0}", (s / 60.0).floor(), s % 60.0);
     // Different weights, not just different colours, so the bar still reads on a
     // monochrome terminal.

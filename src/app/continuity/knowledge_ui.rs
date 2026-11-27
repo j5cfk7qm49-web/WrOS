@@ -1,5 +1,12 @@
 //! Author-entered knowledge, separate from prose and the canonical fact store.
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use super::*;
+use crate::geometry::to_u16;
 use grimoire_core::knowledge::{self as model, Entry, Knowledge, Moment, State, Version};
 
 pub(super) struct Draft {
@@ -652,10 +659,11 @@ pub(super) fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
             let paragraph = Paragraph::new(text)
                 .wrap(Wrap { trim: false })
                 .style(Style::default().fg(theme.text));
-            let max = paragraph
-                .line_count(body.width)
-                .saturating_sub(body.height as usize)
-                .min(u16::MAX as usize) as u16;
+            let max = to_u16(
+                paragraph
+                    .line_count(body.width)
+                    .saturating_sub(usize::from(body.height)),
+            );
             c.knowledge_max_scroll.set(max);
             f.render_widget(paragraph.scroll((c.scroll.min(max), 0)), body);
         }

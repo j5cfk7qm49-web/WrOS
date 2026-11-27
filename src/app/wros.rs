@@ -1,5 +1,11 @@
 //! WritingDeck layouts, tutorial and narrow system settings.
 //! Render/input paths never run a system command. A single bounded worker does.
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use super::*;
 use grimoire_core::{
     tutorial,
@@ -1852,11 +1858,18 @@ impl App {
                     self.overlay = Overlay::Deck(Page::Tutorial { sel });
                     return;
                 }
+                let lesson = tutorial::lessons().get(sel);
                 match key {
-                    Key::Enter => self.overlay = Overlay::Deck(Page::Lesson { id: sel as u8 + 1 }),
+                    Key::Enter => {
+                        if let Some(lesson) = lesson {
+                            self.overlay = Overlay::Deck(Page::Lesson { id: lesson.id });
+                        }
+                    }
                     Key::Char('s') => {
-                        self.deck.progress.skip(sel as u8 + 1);
-                        self.deck.save_progress();
+                        if let Some(lesson) = lesson {
+                            self.deck.progress.skip(lesson.id);
+                            self.deck.save_progress();
+                        }
                     }
                     Key::Char('d') => self.start_tutorial_demo(),
                     Key::Esc => self.overlay = Overlay::None,
@@ -1867,11 +1880,11 @@ impl App {
                 Key::Enter => self.start_deck_lesson(id),
                 Key::Esc => {
                     self.overlay = Overlay::Deck(Page::Tutorial {
-                        sel: id as usize - 1,
+                        sel: usize::from(id) - 1,
                     })
                 }
                 Key::Char('h') => {
-                    let topic = &tutorial::lessons()[id as usize - 1].help_topic;
+                    let topic = &tutorial::lessons()[usize::from(id) - 1].help_topic;
                     let topic = crate::help::TOPICS
                         .iter()
                         .find(|t| t.id == topic)
@@ -2355,7 +2368,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             hint = "↑↓ choose  Enter lesson  d demo project  s skip  Esc close";
         }
         Page::Lesson { id } => {
-            let l = &tutorial::lessons()[*id as usize - 1];
+            let l = &tutorial::lessons()[usize::from(*id) - 1];
             title = format!("Lesson {} · {}", id, l.title);
             rows = crate::ui::wrap_words(&l.instructions, inner.width.saturating_sub(4) as usize);
             rows.push(String::new());

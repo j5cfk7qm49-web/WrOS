@@ -1,6 +1,12 @@
 //! The progress screen after the unlock: the logo and a bar in the logo's own
 //! style, filled from systemd's boot progress, until the login screen starts.
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
 
+use crate::geometry::to_u16;
 use crate::logo::Logo;
 use ratatui::{
     Frame,
@@ -72,6 +78,11 @@ pub fn overall(stage: Stage, start: f64, first: f64, p: f64) -> f64 {
 
 /// The bar's three lines, `inner` columns wide: `filled` columns of `#` between `+ - |` lines.
 pub fn bar(progress: f64, inner: usize) -> [String; 3] {
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "clamped progress fills at most the available columns, and NaN fills none"
+    )]
     let filled = ((progress.clamp(0.0, 1.0) * inner as f64).round() as usize).min(inner);
     let rule = format!("+{}+", "-".repeat(inner));
     [
@@ -132,7 +143,7 @@ pub fn draw(frame: &mut Frame, theme: &Theme, progress: f64) {
     frame.render_widget(Logo { theme }, logo);
     // The bar starts in the logo's own first column, worked out the way the logo works it out.
     // (Paragraph's centring rounds the other way on even widths: half a column off.)
-    let bar_width = (inner as u16 + 2).min(area.width);
+    let bar_width = to_u16(inner + 2).min(area.width);
     let bar_area = Rect {
         x: area.x + area.width.saturating_sub(bar_width) / 2,
         width: bar_width,
@@ -143,7 +154,7 @@ pub fn draw(frame: &mut Frame, theme: &Theme, progress: f64) {
     if below.height == BELOW {
         // The caption is centred the same way, so all three share one centre.
         const CAPTION: &str = "Starting WrOS";
-        let width = (CAPTION.len() as u16).min(area.width);
+        let width = to_u16(CAPTION.len()).min(area.width);
         let caption = Rect {
             x: area.x + area.width.saturating_sub(width) / 2,
             y: below.y + 4,

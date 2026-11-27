@@ -1,5 +1,11 @@
 //! The Today outline on the writing desk.
 
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -21,6 +27,7 @@ use ratatui::text::Line;
 use ratatui::widgets::{Block, Paragraph};
 
 use super::{App, Overlay, read::ReadDesk, study::StudyDesk};
+use crate::geometry::to_u16;
 use crate::theme::Theme;
 
 pub(super) mod commands;
@@ -621,7 +628,10 @@ impl Outline {
             anyhow::bail!("Open the note's page to change its place");
         }
         let parent = self.location.parent;
-        let current = self.location.offset + self.location.selected as u32;
+        let current = self
+            .location
+            .offset
+            .saturating_add(u32::try_from(self.location.selected).unwrap_or(u32::MAX));
         let sibling = |store: &mut PagedBrain, offset| -> anyhow::Result<Option<NodeId>> {
             let page = if parent.is_some() {
                 store.children(parent, offset, 1)
@@ -1212,7 +1222,7 @@ pub(crate) fn draw(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme, side
                 .selected
                 .saturating_sub(height.saturating_sub(1));
             for (index, row) in outline.rows.iter().enumerate().skip(first).take(height) {
-                let y = inner.y + (index - first) as u16;
+                let y = inner.y + to_u16(index - first);
                 let line = Rect::new(inner.x, y, inner.width, 1);
                 app.commonplace.note_hits.push((line, index));
                 let (marker, style) = if index == outline.location.selected {
@@ -1285,8 +1295,8 @@ pub(super) fn draw_draft(
     f.render_widget(Paragraph::new(lines), area);
     if focused {
         f.set_cursor_position((
-            area.x + (col.min(usize::from(area.width - 1))) as u16,
-            area.y + (row - editor.scroll) as u16,
+            area.x + to_u16(col).min(area.width - 1),
+            area.y + to_u16(row - editor.scroll),
         ));
     }
 }

@@ -17,6 +17,10 @@ pub mod logo;
 pub mod look;
 pub mod paths;
 
+fn to_u16(n: usize) -> u16 {
+    u16::try_from(n).unwrap_or(u16::MAX)
+}
+
 const HISTORY_LIMIT: usize = 16;
 const ROUTE_LIMIT: usize = 64;
 
@@ -324,6 +328,11 @@ pub fn render_panel(
 
 /// [`render_panel`] with up to `max_notice` lines for a wrapped notice. Callers whose content has
 /// a fixed height pass 1 (the notice is cut at the box's edge, as before).
+#[warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
 fn render_panel_lines(
     frame: &mut Frame,
     area: Rect,
@@ -345,7 +354,7 @@ fn render_panel_lines(
     }
     let [body, status, help] = Layout::vertical([
         Constraint::Min(0),
-        Constraint::Length(notice_lines.len() as u16),
+        Constraint::Length(to_u16(notice_lines.len())),
         Constraint::Length(1),
     ])
     .areas(inner);

@@ -1,5 +1,12 @@
 //! A public-footnote snapshot beside the retained original editor.
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use super::*;
+use crate::geometry::to_u16;
 use grimoire_core::footnote_context;
 use ratatui::widgets::Wrap;
 
@@ -208,10 +215,11 @@ pub(super) fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
         .style(Style::default().fg(theme.text));
     // Use the pinned renderer's own wrapping calculation, not an approximate
     // character/word count, so End and PageDown keep the final text visible.
-    let max = paragraph
-        .line_count(body.width)
-        .saturating_sub(body.height as usize)
-        .min(u16::MAX as usize) as u16;
+    let max = to_u16(
+        paragraph
+            .line_count(body.width)
+            .saturating_sub(usize::from(body.height)),
+    );
     reader.max_scroll.set(max);
     f.render_widget(paragraph.scroll((reader.scroll.min(max), 0)), body);
 }

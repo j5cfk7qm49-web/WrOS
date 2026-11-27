@@ -1,9 +1,16 @@
 //! The quick controls above the info bar's Wi-Fi, sound, battery and clock gauges.
 
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use super::{TYPED, bar, list_nav};
 use crate::app::shell::{Panel, Route, WIFI_SCAN_FAILED, path_to};
 use crate::app::{App, Key, Overlay, hit, productivity};
 use crate::gauges::{Widget, Wifi};
+use crate::geometry::to_u16;
 use crate::music::State;
 use crate::theme::Theme;
 use chrono::NaiveDate;
@@ -272,12 +279,12 @@ impl App {
             }
             (Choice::Wifi(on), Key::Enter) => Request::Wifi(on),
             (Choice::Mute(muted), Key::Enter) => Request::SetMute(muted),
-            (Choice::Volume(current), Key::Left | Key::Right) => {
-                Request::SetVolume((i16::from(current) + adjustment).clamp(0, 100) as u8)
-            }
-            (Choice::Brightness(current), Key::Left | Key::Right) => {
-                Request::Brightness((i16::from(current) + adjustment).clamp(5, 100) as u8)
-            }
+            (Choice::Volume(current), Key::Left | Key::Right) => Request::SetVolume(
+                u8::try_from((i16::from(current) + adjustment).clamp(0, 100)).unwrap_or(100),
+            ),
+            (Choice::Brightness(current), Key::Left | Key::Right) => Request::Brightness(
+                u8::try_from((i16::from(current) + adjustment).clamp(5, 100)).unwrap_or(100),
+            ),
             (Choice::PlayPause, Key::Enter) => return self.on_function_key(5),
             (Choice::NextTrack, Key::Enter) => return self.on_function_key(6),
             (Choice::Settings(route), Key::Enter) => {
@@ -319,15 +326,16 @@ pub(super) fn draw(
     let sel = sel.min(rows.len() - 1);
     let right = anchor.right().min(area.right());
     let width = rows.iter().map(|row| row.line.width()).max().unwrap_or(0) + 5;
-    let width = width.min(usize::from(right.saturating_sub(area.x))) as u16;
+    let width = to_u16(width).min(right.saturating_sub(area.x));
     let room = usize::from(anchor.y.saturating_sub(area.y));
     let shown = rows.len().min(bar::MAX_ROWS).min(room);
     let start = (sel + 1).saturating_sub(shown);
-    let panel = Rect::new(right - width, anchor.y - shown as u16, width, shown as u16);
+    let h = to_u16(shown);
+    let panel = Rect::new(right - width, anchor.y - h, width, h);
     app.widget_panel.set((panel, start));
     let (inner, band) = bar::draw_panel(f, area, panel, app.linux_console, t);
     for (offset, row) in rows.into_iter().skip(start).take(shown).enumerate() {
-        let at = Rect::new(inner.x, inner.y + offset as u16, inner.width, 1);
+        let at = Rect::new(inner.x, inner.y + to_u16(offset), inner.width, 1);
         let mut line = row.line;
         let marker = if start + offset == sel {
             let style = bar::light_panel_row(f, panel, at.y, app.linux_console, t);

@@ -2,9 +2,16 @@
 //! groups: the one way into everything. Esc lights the bar; the letters,
 //! arrows and the mouse open a menu; the highlighted row's line of
 //! explanation shows on the status line.
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use super::*;
 use crate::app::outline::DeskView;
 use crate::app::shell::Category;
+use crate::geometry::to_u16;
 use crate::palette::{Side, Title};
 use crate::ui::{TILE_POWER, TILE_POWER_LIT, TILES, TILES_LIT};
 use ratatui::style::Color;
@@ -974,7 +981,7 @@ pub fn draw_bar_line(f: &mut Frame, app: &App, area: Rect, t: &Theme, show_marks
         .into_iter()
         .take_while(|&title| title != Title::Power)
     {
-        let w = title.label().chars().count() as u16 + 2;
+        let w = to_u16(title.label().chars().count()).saturating_add(2);
         if w > titles_end - x {
             break;
         }
@@ -1078,7 +1085,7 @@ fn list_width(rows: &[BarRow]) -> u16 {
         .max()
         .unwrap_or(0);
     // Side padding, marker, label, a gap, the key, a space, side padding.
-    (1 + 2 + label + 3 + key + 1 + 1) as u16
+    to_u16(1 + 2 + label + 3 + key + 1 + 1)
 }
 
 /// One dropdown box at (x, y), clamped into `area`, scrolled so row `sel`
@@ -1099,9 +1106,9 @@ fn draw_list(
     let w = list_width(rows).min(area.width);
     // The status line stays visible under a menu.
     let y = y.min(area.bottom().saturating_sub(2)).max(area.y);
-    let room = area.bottom().saturating_sub(1).saturating_sub(y) as usize;
+    let room = usize::from(area.bottom().saturating_sub(1).saturating_sub(y));
     let shown = rows.len().min(MAX_ROWS).min(room);
-    let h = shown as u16;
+    let h = to_u16(shown);
     let x = x.min(area.right().saturating_sub(w));
     let rect = Rect::new(x, y, w, h);
     let (inner, band) = draw_panel(f, area, rect, linux_console, t);
@@ -1114,15 +1121,13 @@ fn draw_list(
         } else {
             Style::default().fg(t.text)
         };
-        let r = Rect::new(inner.x, inner.y + line as u16, inner.width, 1);
+        let r = Rect::new(inner.x, inner.y + to_u16(line), inner.width, 1);
         let style = match (on, lit) {
             (true, true) => light_panel_row(f, rect, r.y, linux_console, t),
             (true, false) => base.bg(t.sel),
             _ => base.bg(band),
         };
-        let label_w = inner
-            .width
-            .saturating_sub(row.key.chars().count() as u16 + 5) as usize;
+        let label_w = usize::from(inner.width).saturating_sub(row.key.chars().count() + 5);
         let text = format!(
             "{}{:<label_w$}  {} ",
             if on && lit {

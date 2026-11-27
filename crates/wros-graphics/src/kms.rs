@@ -1,5 +1,12 @@
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use super::TextSize;
 use crate::Pixels;
+use crate::geometry::to_u16;
 use drm::{
     Device as _,
     buffer::{Buffer, DrmFourcc},
@@ -105,9 +112,9 @@ fn acquire_master(
 
 fn raster_for_mode(size: TextSize, width: u16, height: u16) -> Pixels {
     let probe = size.raster(1, 1);
-    let cols = width as usize / probe.get_pixmap_width();
-    let rows = height as usize / probe.get_pixmap_height();
-    size.raster(cols as u16, rows as u16)
+    let cols = usize::from(width) / probe.get_pixmap_width();
+    let rows = usize::from(height) / probe.get_pixmap_height();
+    size.raster(to_u16(cols), to_u16(rows))
 }
 
 /// The VT is in text mode: the console, not another program, owns what is on screen.
@@ -288,8 +295,8 @@ impl Display {
     fn take_vt(&mut self) -> io::Result<()> {
         let vt = VtMode {
             mode: 1,
-            release: libc::SIGUSR1 as i16,
-            acquire: libc::SIGUSR2 as i16,
+            release: i16::try_from(libc::SIGUSR1).unwrap_or_default(),
+            acquire: i16::try_from(libc::SIGUSR2).unwrap_or_default(),
             ..VtMode::default()
         };
         if unsafe { libc::ioctl(self.tty.as_raw_fd(), VT_SETMODE, &vt) } < 0 {
@@ -400,7 +407,7 @@ impl Display {
             return Ok(());
         }
         let pitch = self.buffer.pitch() as usize;
-        let height = self.mode.size().1 as usize;
+        let height = usize::from(self.mode.size().1);
         let mut mapping = self.card.map_dumb_buffer(&mut self.buffer)?;
         super::copy_rgb(
             self.pixels.get_pixmap_data(),
@@ -415,7 +422,7 @@ impl Display {
                 mapping.as_mut(),
                 pitch,
                 height,
-                self.mode.size().0 as usize,
+                usize::from(self.mode.size().0),
                 position,
             );
         }
@@ -515,12 +522,12 @@ impl Display {
         let cells = self.pixels.size().unwrap();
         self.pointer = position.map(|p| {
             (
-                p.x.saturating_mul(
-                    (self.pixels.get_pixmap_width() / usize::from(cells.width)) as u16,
-                ),
-                p.y.saturating_mul(
-                    (self.pixels.get_pixmap_height() / usize::from(cells.height)) as u16,
-                ),
+                p.x.saturating_mul(to_u16(
+                    self.pixels.get_pixmap_width() / usize::from(cells.width),
+                )),
+                p.y.saturating_mul(to_u16(
+                    self.pixels.get_pixmap_height() / usize::from(cells.height),
+                )),
             )
         });
     }

@@ -7,6 +7,12 @@
 //!   glyph is two cells wide), `u32` offset into the bitmaps
 //! - the bitmaps: 16 rows of one byte (one cell) or two bytes (two cells),
 //!   most significant bit leftmost.
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use std::{collections::BTreeMap, env, fs, io::Read, path::PathBuf};
 
 const HEX: &str = "../../assets/fonts/unifont-18.0.01.hex.gz";
@@ -52,6 +58,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // renderer fills the E130 copy's square (the current view) and draws its lines in black.
     let symbols = [('W', 1), ('r', 1), ('O', 1), ('S', 1), ('\u{E114}', 0)];
     for (n, (symbol, lift)) in symbols.into_iter().enumerate() {
+        let tile = 2 * u32::try_from(n)?;
         let rows = glyphs
             .get(&(symbol as u32))
             .unwrap_or_else(|| panic!("tile symbol {symbol:?} is missing"))
@@ -63,8 +70,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         let (left, right) = tile_halves(&rows, lift);
         for base in [0xE120, 0xE130] {
-            glyphs.insert(base + 2 * n as u32, left.clone());
-            glyphs.insert(base + 2 * n as u32 + 1, right.clone());
+            glyphs.insert(base + tile, left.clone());
+            glyphs.insert(base + tile + 1, right.clone());
         }
     }
 
@@ -73,11 +80,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for (cp, rows) in &glyphs {
         let wide = if rows.len() == 32 { 1 << 31 } else { 0 };
         index.extend_from_slice(&(cp | wide).to_le_bytes());
-        index.extend_from_slice(&(blob.len() as u32).to_le_bytes());
+        index.extend_from_slice(&u32::try_from(blob.len())?.to_le_bytes());
         blob.extend_from_slice(rows);
     }
     let mut out = b"WUF1".to_vec();
-    out.extend_from_slice(&(glyphs.len() as u32).to_le_bytes());
+    out.extend_from_slice(&u32::try_from(glyphs.len())?.to_le_bytes());
     out.extend(index);
     out.extend(blob);
     let path = PathBuf::from(env::var("OUT_DIR")?).join("unifont.bin");
@@ -108,8 +115,8 @@ fn tile_halves(symbol: &[u8], lift: usize) -> (Vec<u8>, Vec<u8>) {
         }
     }
     (
-        slot.iter().map(|r| (r >> 8) as u8).collect(),
-        slot.iter().map(|r| *r as u8).collect(),
+        slot.iter().map(|r| r.to_be_bytes()[0]).collect(),
+        slot.iter().map(|r| r.to_be_bytes()[1]).collect(),
     )
 }
 
@@ -121,6 +128,15 @@ type Grid = Vec<Vec<bool>>;
 
 /// Unifont's own one-cell symbols use seven of the eight columns.
 const FIT_WIDTH: usize = 7;
+
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "dimensions and checked pixel indices in a 16 by 16 glyph fit in usize"
+)]
+fn pixel_index(n: f32) -> usize {
+    n as usize
+}
 
 /// A 16x16 drawing fitted into an 8x16 cell at the original's own height and
 /// proportions: scaled evenly by only as much as it needs to be seven pixels
@@ -145,8 +161,8 @@ fn one_cell_from(rows: &[u8]) -> Vec<u8> {
     let (iw, ih) = (x1 - x0 + 1, y1 - y0 + 1);
     let s = (FIT_WIDTH as f32 / iw as f32).min(1.0);
     let (wc, hc) = (
-        (iw as f32 * s).round().max(1.0) as usize + 1,
-        (ih as f32 * s).round().max(1.0) as usize + 1,
+        pixel_index((iw as f32 * s).round().max(1.0)) + 1,
+        pixel_index((ih as f32 * s).round().max(1.0)) + 1,
     );
     let want = shape(&orig);
     let skeleton = thin(&orig);
@@ -168,7 +184,7 @@ fn one_cell_from(rows: &[u8]) -> Vec<u8> {
                                     let (ix, iy) = (fx.floor(), fy.floor());
                                     if (0.0..16.0).contains(&ix)
                                         && (0.0..16.0).contains(&iy)
-                                        && orig[iy as usize][ix as usize]
+                                        && orig[pixel_index(iy)][pixel_index(ix)]
                                     {
                                         ink += 1;
                                     }
@@ -187,8 +203,8 @@ fn one_cell_from(rows: &[u8]) -> Vec<u8> {
                     }
                     let fx = ((x as f32 + 0.5 - x0 as f32) * s + ox).floor();
                     let fy = ((y as f32 + 0.5 - y0 as f32) * s + oy).floor();
-                    if fx >= 0.0 && fy >= 0.0 && (fx as usize) < wc && (fy as usize) < hc {
-                        line[fy as usize][fx as usize] = true;
+                    if (0.0..wc as f32).contains(&fx) && (0.0..hc as f32).contains(&fy) {
+                        line[pixel_index(fy)][pixel_index(fx)] = true;
                     }
                 }
             }
@@ -233,9 +249,11 @@ fn one_cell_from(rows: &[u8]) -> Vec<u8> {
     // Columns 1-7, like Unifont's own one-cell symbols, at the original's height.
     let left = 1 + (FIT_WIDTH - w) / 2;
     let centre = (y0 + y1) as f32 / 2.0;
-    let top = (centre - (h as f32 - 1.0) / 2.0)
-        .round()
-        .clamp(0.0, (16 - h) as f32) as usize;
+    let top = pixel_index(
+        (centre - (h as f32 - 1.0) / 2.0)
+            .round()
+            .clamp(0.0, (16 - h) as f32),
+    );
     let mut cell = vec![0u8; 16];
     for y in 0..h {
         for x in 0..w {
@@ -259,19 +277,26 @@ fn ink_box(g: &Grid) -> Option<(usize, usize, usize, usize)> {
 /// Zhang-Suen thinning: each stroke down to its one-pixel centre line.
 fn thin(g: &Grid) -> Grid {
     let mut g = g.clone();
-    let (h, w) = (g.len() as i32, g[0].len() as i32);
     loop {
         let mut changed = false;
         for step in 0..2 {
             let at = |g: &Grid, y: i32, x: i32| {
-                (0..h).contains(&y) && (0..w).contains(&x) && g[y as usize][x as usize]
+                let (Ok(y), Ok(x)) = (usize::try_from(y), usize::try_from(x)) else {
+                    return false;
+                };
+                g.get(y)
+                    .and_then(|row| row.get(x))
+                    .copied()
+                    .unwrap_or(false)
             };
             let mut kill = vec![];
-            for y in 0..h {
-                for x in 0..w {
-                    if !g[y as usize][x as usize] {
+            for (row, pixels) in g.iter().enumerate() {
+                let y = i32::try_from(row).unwrap_or(i32::MAX);
+                for (column, &on) in pixels.iter().enumerate() {
+                    if !on {
                         continue;
                     }
+                    let x = i32::try_from(column).unwrap_or(i32::MAX);
                     let p = [
                         at(&g, y - 1, x),
                         at(&g, y - 1, x + 1),
@@ -293,7 +318,7 @@ fn thin(g: &Grid) -> Grid {
                         p[0] && p[2] && p[6] || p[0] && p[4] && p[6]
                     };
                     if !keep {
-                        kill.push((y as usize, x as usize));
+                        kill.push((row, column));
                     }
                 }
             }
@@ -316,25 +341,26 @@ fn to_f32(g: &Grid) -> Vec<Vec<f32>> {
 
 /// Two passes of a 3x3 binomial filter.
 fn blur(grid: &[Vec<f32>]) -> Vec<Vec<f32>> {
-    let (h, w) = (grid.len() as i32, grid[0].len() as i32);
     let k = [[1.0, 2.0, 1.0], [2.0, 4.0, 2.0], [1.0, 2.0, 1.0]];
     let mut g = grid.to_vec();
     for _ in 0..2 {
-        let mut out = vec![vec![0.0f32; w as usize]; h as usize];
-        for y in 0..h {
-            for x in 0..w {
+        let mut out = vec![vec![0.0f32; grid[0].len()]; grid.len()];
+        for (y, row) in out.iter_mut().enumerate() {
+            for (x, pixel) in row.iter_mut().enumerate() {
                 let (mut total, mut weight) = (0.0, 0.0);
-                for dy in -1..=1 {
-                    for dx in -1..=1 {
-                        let (yy, xx) = (y + dy, x + dx);
-                        if (0..h).contains(&yy) && (0..w).contains(&xx) {
-                            let c = k[(dy + 1) as usize][(dx + 1) as usize];
-                            total += c * g[yy as usize][xx as usize];
+                for (dy, weights) in (-1..=1).zip(k) {
+                    let Some(source) = y.checked_add_signed(dy).and_then(|yy| g.get(yy)) else {
+                        continue;
+                    };
+                    for (dx, c) in (-1..=1).zip(weights) {
+                        if let Some(&value) = x.checked_add_signed(dx).and_then(|xx| source.get(xx))
+                        {
+                            total += c * value;
                             weight += c;
                         }
                     }
                 }
-                out[y as usize][x as usize] = total / weight;
+                *pixel = total / weight;
             }
         }
         g = out;

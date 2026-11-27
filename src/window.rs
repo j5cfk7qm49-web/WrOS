@@ -1,5 +1,11 @@
 //! The optional Wayland window and its input queue. Rendering uses OpenGL first.
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
 
+use crate::geometry::{to_u16_f, to_u16_f64};
 use ratatui::{
     backend::Backend,
     crossterm::event::{
@@ -249,12 +255,17 @@ impl State {
                 }
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                let y = match delta {
-                    MouseScrollDelta::LineDelta(_, y) => y as f64,
-                    MouseScrollDelta::PixelDelta(p) => p.y / 24.0,
+                let (steps, up) = match delta {
+                    MouseScrollDelta::LineDelta(_, y) => {
+                        (to_u16_f(y.abs().ceil().min(24.0)), y > 0.0)
+                    }
+                    MouseScrollDelta::PixelDelta(p) => {
+                        let y = p.y / 24.0;
+                        (to_u16_f64(y.abs().ceil().min(24.0)), y > 0.0)
+                    }
                 };
-                for _ in 0..y.abs().ceil().min(24.0) as usize {
-                    self.mouse(if y > 0.0 {
+                for _ in 0..steps {
+                    self.mouse(if up {
                         MouseEventKind::ScrollUp
                     } else {
                         MouseEventKind::ScrollDown
@@ -279,8 +290,8 @@ impl State {
 }
 
 fn cell_position(position: (f64, f64), pixels: (u16, u16), cells: (u16, u16)) -> (u16, u16) {
-    let x = (position.0.max(0.0) / pixels.0.max(1) as f64) as u16;
-    let y = (position.1.max(0.0) / pixels.1.max(1) as f64) as u16;
+    let x = to_u16_f64(position.0 / f64::from(pixels.0.max(1)));
+    let y = to_u16_f64(position.1 / f64::from(pixels.1.max(1)));
     (
         x.min(cells.0.saturating_sub(1)),
         y.min(cells.1.saturating_sub(1)),

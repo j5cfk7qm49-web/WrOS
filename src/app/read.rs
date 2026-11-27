@@ -1,3 +1,9 @@
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::sync::{
@@ -27,6 +33,7 @@ use super::outline::{commands, draw_draft};
 use super::{App, Theme};
 use crate::app::overlays::catalogue_row;
 use crate::catalogue::{self, Fetch, Hit, Search, SearchStatus, names};
+use crate::geometry::to_u16;
 
 mod lookup;
 use lookup::Kind as LookupKind;
@@ -967,9 +974,7 @@ pub(crate) fn draw(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) 
         .wrap(Wrap { trim: true });
     let editing = u16::from(desk.prompt.is_some());
     let max_footer = inner.height.saturating_sub(editing + 1);
-    let footer_height = controls
-        .line_count(inner.width)
-        .min(usize::from(max_footer)) as u16;
+    let footer_height = to_u16(controls.line_count(inner.width)).min(max_footer);
     let [entry, body, footer] = Layout::vertical([
         Constraint::Length(editing),
         Constraint::Min(1),

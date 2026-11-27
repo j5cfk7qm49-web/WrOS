@@ -1,6 +1,13 @@
 //! Adapter from shared presentation to retained editor state and existing services.
 //! No manuscript context is swapped, reopened or cloned to navigate Settings.
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use super::*;
+use crate::geometry::{to_u16, to_u16_i};
 use grimoire_core::tutorial;
 use serde::{Deserialize, Serialize};
 use wros_shell::{Navigation, Notices, Preferences};
@@ -2910,7 +2917,8 @@ impl App {
                             && audio.available
                             && let Some(current) = audio.volume_percent
                         {
-                            let next = (i16::from(current) + delta).clamp(0, 100) as u8;
+                            let next = u8::try_from((i16::from(current) + delta).clamp(0, 100))
+                                .unwrap_or(100);
                             self.deck.request(wros_sys::Request::SetVolume(next));
                         } else {
                             self.deck.note =
@@ -2953,10 +2961,12 @@ impl App {
                     Choice::Information => self.deck.shell.notices.push(&row.label),
                     Choice::WarmAdjust(kelvin, strength) if !self.deck.busy => {
                         let choice = &mut self.deck.shell.warmth;
-                        choice.kelvin =
-                            (i32::from(choice.kelvin) + i32::from(kelvin)).clamp(1000, 6500) as u16;
+                        choice.kelvin = to_u16_i(
+                            (i32::from(choice.kelvin) + i32::from(kelvin)).clamp(1000, 6500),
+                        );
                         choice.strength =
-                            (i16::from(choice.strength) + strength).clamp(0, 100) as u8;
+                            u8::try_from((i16::from(choice.strength) + strength).clamp(0, 100))
+                                .unwrap_or(100);
                     }
                     Choice::WarmToggle if !self.deck.busy => {
                         self.deck.shell.warmth.enabled = !self.deck.shell.warmth.enabled
@@ -3266,10 +3276,10 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App, area: Rect, theme: &Theme) {
     );
     let mut hits = app.settings_hits.borrow_mut();
     hits.clear();
-    for line in 0..body.height as usize {
-        let i = offset + line;
+    for line in 0..body.height {
+        let i = offset + usize::from(line);
         if i < rows.len() {
-            hits.push((Rect::new(body.x, body.y + line as u16, body.width, 1), i));
+            hits.push((Rect::new(body.x, body.y + line, body.width, 1), i));
         }
     }
 }
@@ -3283,9 +3293,9 @@ pub(crate) fn settings_box(screen: Rect, rows: usize, widest: usize) -> Rect {
     }
     // The menu bar above and the status line below stay in view.
     let room = Rect::new(screen.x, screen.y + 1, screen.width, screen.height - 2);
-    let w = (widest as u16 + 6).clamp(56, room.width - 4);
+    let w = to_u16(widest).saturating_add(6).clamp(56, room.width - 4);
     // Rows, the border, the notice and the hint line, and a line of air.
-    let h = (rows as u16 + 5).clamp(10, room.height);
+    let h = to_u16(rows).saturating_add(5).clamp(10, room.height);
     Rect::new(
         room.x + (room.width - w) / 2,
         room.y + (room.height - h) / 2,
@@ -3390,12 +3400,16 @@ fn draw_link_offer(
     use ratatui::style::{Color, Style};
     use ratatui::text::{Line, Span};
     use ratatui::widgets::{Clear, Paragraph, Wrap};
-    let modules = offer.qr.first().map_or(0, String::len) as u16;
-    let rows = offer.qr.len() as u16;
-    let (compact, width, height) = if area.width >= modules * 2 + 30 && area.height >= rows {
-        (false, modules * 2, rows)
-    } else if !linux_console && area.width >= modules + 30 && area.height >= rows.div_ceil(2) {
-        (true, modules, rows.div_ceil(2))
+    let modules = offer.qr.first().map_or(0, String::len);
+    let rows = offer.qr.len();
+    let Some(code_width) = area.width.checked_sub(30).map(usize::from) else {
+        return false;
+    };
+    let code_height = usize::from(area.height);
+    let (compact, width, height) = if modules <= code_width / 2 && rows <= code_height {
+        (false, to_u16(modules * 2), to_u16(rows))
+    } else if !linux_console && modules <= code_width && rows.div_ceil(2) <= code_height {
+        (true, to_u16(modules), to_u16(rows.div_ceil(2)))
     } else {
         return false;
     };

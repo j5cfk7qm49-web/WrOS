@@ -1,9 +1,11 @@
 //! Independent greetd conversation and bounded wire protocol. No editor state,
 //! password verification, command selection, or persistent credentials.
+use geometry::to_u16;
 use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize, Zeroizing};
 
 pub mod form;
+mod geometry;
 pub mod keyboard;
 pub mod power;
 
@@ -461,6 +463,11 @@ pub fn render_lock(
 
 /// The logo, with the clock beside it when there is room, at the top of the login and lock
 /// screens. Returns the area under it.
+#[warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
 fn render_header(
     frame: &mut ratatui::Frame,
     palette: &wros_shell::grimoire_theme::Theme,
@@ -482,7 +489,7 @@ fn render_header(
     let logo_width = match height {
         h if h == wros_shell::logo::FULL.1 => wros_shell::logo::FULL.0,
         1 => 4,
-        _ => wros_shell::logo::compact()[0].len() as u16,
+        _ => to_u16(wros_shell::logo::compact()[0].len()),
     };
     if let Some(time) =
         time.filter(|_| logo.width >= logo_width + 3 + Clock::WIDTH && logo.height >= Clock::HEIGHT)

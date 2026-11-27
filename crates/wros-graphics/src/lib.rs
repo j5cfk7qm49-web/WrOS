@@ -1,4 +1,9 @@
 #![warn(clippy::print_stdout, clippy::print_stderr)]
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
 
 //! Pixel output for the early screens. Keyboard input stays on the console.
 
@@ -64,8 +69,8 @@ impl TextSize {
             frame_count: 0,
             blink_config: soft_ratatui::BlinkConfig::default(),
             rgb_pixmap: soft_ratatui::RgbPixmap::new(
-                unifont::CELL_WIDTH * columns as usize,
-                unifont::CELL_HEIGHT * rows as usize,
+                unifont::CELL_WIDTH * usize::from(columns),
+                unifont::CELL_HEIGHT * usize::from(rows),
             ),
             always_redraw_list: rustc_hash::FxHashSet::default(),
             raster_backend: unifont::Unifont,
@@ -81,6 +86,9 @@ impl TextSize {
 pub type Pixels = soft_ratatui::SoftBackend<unifont::Unifont>;
 
 pub mod unifont;
+
+#[cfg(any(target_os = "linux", test))]
+mod geometry;
 
 pub fn raster(columns: u16, rows: u16) -> Pixels {
     TextSize::Startup.raster(columns, rows)
@@ -134,10 +142,10 @@ fn colour(colour: ratatui::style::Color, foreground: bool) -> ratatui::style::Co
         Indexed(index) => index,
     };
     let (r, g, b) = match index {
-        0..=15 => ANSI[index as usize],
+        0..=15 => ANSI[usize::from(index)],
         16..=231 => {
             let cube = [0, 95, 135, 175, 215, 255];
-            let n = (index - 16) as usize;
+            let n = usize::from(index - 16);
             (cube[n / 36], cube[n / 6 % 6], cube[n % 6])
         }
         _ => {

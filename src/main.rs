@@ -12,6 +12,7 @@ mod compositor_warmth;
 mod console_lock;
 mod display;
 mod gauges;
+mod geometry;
 mod help;
 mod library;
 mod lid;

@@ -1,4 +1,9 @@
 //! The picture shown as the graphical writing session opens.
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
 
 use ratatui::{
     Frame,
@@ -18,7 +23,7 @@ const SHOW_FOR: Duration = Duration::from_millis(1500);
 /// half of its steps, less so each time it is drawn, and sharp from the middle step on.
 const STEPS: i32 = 14;
 /// Draws from the first, darkest, to the first sharp one.
-const FRAMES: u32 = STEPS as u32 / 2;
+const FRAMES: u32 = STEPS.unsigned_abs() / 2;
 
 pub struct Splash {
     picture: SplashScreen,

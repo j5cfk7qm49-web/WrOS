@@ -1,6 +1,12 @@
 //! The disk password screen: the logo, the prompt, a dot per key, and what the
 //! last try did. The password itself is never drawn.
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
 
+use crate::geometry::to_u16;
 use crate::keys::Key;
 use crate::logo::Logo;
 use ratatui::{
@@ -91,16 +97,17 @@ impl Unlock {
             Line::from(""),
             Line::styled("Esc: plain text prompt", dim),
         ];
+        let prompt_height = to_u16(lines.len());
         let logo_height = Logo::height_for(Rect {
-            height: area.height.saturating_sub(lines.len() as u16 + 1),
+            height: area.height.saturating_sub(prompt_height + 1),
             ..area
         });
-        let used = logo_height + 1 + lines.len() as u16;
+        let used = logo_height + 1 + prompt_height;
         let [_, logo, _, prompt, _] = Layout::vertical([
             Constraint::Length(area.height.saturating_sub(used) / 2),
             Constraint::Length(logo_height),
             Constraint::Length(1),
-            Constraint::Length(lines.len() as u16),
+            Constraint::Length(prompt_height),
             Constraint::Min(0),
         ])
         .areas(area);

@@ -1,6 +1,13 @@
 //! Sticky cards are cached readers of Project nodes. Only explicit source
 //! editing enters the existing guarded editor/registry; rendering does no I/O.
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use super::*;
+use crate::geometry::to_u16;
 use anyhow::{Context, bail};
 use grimoire_core::pins::{
     self, Anchor, Color, Life, Mode as ScrollMode, Pin, Resolution, Scope, State, Store,
@@ -1287,7 +1294,7 @@ pub fn draw_board(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         .skip(scroll)
         .take(usable as usize)
         .enumerate()
-        .map(|(row, &id)| (id, Rect::new(list.x, list.y + row as u16, list.width, 1)))
+        .map(|(row, &id)| (id, Rect::new(list.x, list.y + to_u16(row), list.width, 1)))
         .collect();
     f.render_widget(Paragraph::new(rows), list);
     if let Some(pin) = selected.and_then(|id| app.pins.state().pins.iter().find(|p| p.id == id)) {

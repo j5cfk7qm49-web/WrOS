@@ -1,4 +1,10 @@
 //! Exact glyph templates for VM screenshot OCR, rendered by the production backend.
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use ratatui::{
     backend::Backend,
     buffer::Cell,
@@ -18,7 +24,7 @@ fn main() -> io::Result<()> {
         .chain("▸●›→↑↓←✓✗…•·—–│─┌┐└┘├┤┬┴┼⚠○◌⇅▂▄▆⊘♪▮☀".chars())
         .collect();
     let rows = glyphs.len().div_ceil(16);
-    let mut pixels = size.raster(16, rows as u16 * 3);
+    let mut pixels = size.raster(16, u16::try_from(rows * 3).map_err(io::Error::other)?);
     let mut cells = vec![];
     for (style, modifier) in [Modifier::empty(), Modifier::BOLD, Modifier::ITALIC]
         .into_iter()
@@ -30,7 +36,9 @@ fn main() -> io::Result<()> {
                 .set_fg(Color::White)
                 .set_bg(Color::Black);
             cell.modifier = modifier;
-            cells.push(((i % 16) as u16, (style * rows + i / 16) as u16, cell));
+            let x = u16::try_from(i % 16).map_err(io::Error::other)?;
+            let y = u16::try_from(style * rows + i / 16).map_err(io::Error::other)?;
+            cells.push((x, y, cell));
         }
     }
     pixels

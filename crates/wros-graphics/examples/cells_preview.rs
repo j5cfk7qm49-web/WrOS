@@ -1,6 +1,12 @@
 //! Paint frames of cells (the JSON `src/shots.rs` writes) with the native
 //! session's renderer, one binary PPM per frame, into a folder.
 //! `cargo run -p wros-graphics --example cells_preview -- frames.json out/`
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use ratatui::{
     backend::Backend,
     buffer::Cell,
@@ -13,7 +19,8 @@ fn colour(v: &serde_json::Value) -> Color {
     v.as_str()
         .and_then(|s| u32::from_str_radix(s.trim_start_matches('#'), 16).ok())
         .map_or(Color::Reset, |n| {
-            Color::Rgb((n >> 16) as u8, (n >> 8) as u8, n as u8)
+            let [_, r, g, b] = n.to_be_bytes();
+            Color::Rgb(r, g, b)
         })
 }
 
@@ -35,10 +42,12 @@ fn main() -> std::io::Result<()> {
         let (w, h) = (
             frame["w"]
                 .as_u64()
-                .ok_or_else(|| invalid("expected frame width"))? as u16,
+                .and_then(|n| u16::try_from(n).ok())
+                .ok_or_else(|| invalid("expected a u16 frame width"))?,
             frame["h"]
                 .as_u64()
-                .ok_or_else(|| invalid("expected frame height"))? as u16,
+                .and_then(|n| u16::try_from(n).ok())
+                .ok_or_else(|| invalid("expected a u16 frame height"))?,
         );
         let mut pixels = TextSize::Writing.raster(w, h);
         let mut cells = vec![];
@@ -48,6 +57,7 @@ fn main() -> std::io::Result<()> {
             .iter()
             .enumerate()
         {
+            let y = u16::try_from(y).map_err(std::io::Error::other)?;
             for (x, c) in row
                 .as_array()
                 .ok_or_else(|| invalid("expected a row of cells"))?
@@ -78,7 +88,7 @@ fn main() -> std::io::Result<()> {
                     m |= Modifier::UNDERLINED;
                 }
                 cell.modifier = m;
-                cells.push((x as u16, y as u16, cell));
+                cells.push((u16::try_from(x).map_err(std::io::Error::other)?, y, cell));
             }
         }
         pixels

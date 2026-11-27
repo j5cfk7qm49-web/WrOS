@@ -1,7 +1,14 @@
 //! Explicit, cache-only revision reader over the existing exclusive editors.
 //! One active job and one newest queued request; no editor or manuscript save
 //! owner here. Model permission is separate from Harper and never persisted.
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use super::*;
+use crate::geometry::to_u16;
 use anyhow::{Context, bail, ensure};
 use grimoire_core::{
     diagnostics::{self as diag, Diagnostic, Profile, RuleKey, Snapshot, SourceRole, SourceUnit},
@@ -1427,7 +1434,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, theme: &Theme) {
     d.fit.set((at, max));
     f.render_widget(
         Paragraph::new(lines)
-            .scroll((at.min(u16::MAX as usize) as u16, 0))
+            .scroll((to_u16(at), 0))
             .style(Style::default().fg(theme.text)),
         body,
     );

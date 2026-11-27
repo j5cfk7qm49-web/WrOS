@@ -2,6 +2,7 @@
 //! password in the boot image, and later the progress bar up to the login.
 //! Debian's own prompt always stands behind them.
 
+mod geometry;
 pub mod keys;
 pub use wros_shell::logo;
 pub mod splash;

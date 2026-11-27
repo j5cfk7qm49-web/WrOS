@@ -1,6 +1,13 @@
 //! Cached scratchpad/handoff readers. All mutations are explicit and use the
 //! original Project/editor ownership/save/recovery path; never draw-time I/O.
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use super::*;
+use crate::geometry::to_u16;
 use anyhow::{Context, bail};
 use grimoire_core::{
     documents::Pane,
@@ -815,7 +822,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
             )));
         }
     }
-    let top_height = (top.len() as u16).min(inner.height.saturating_sub(3));
+    let top_height = to_u16(top.len()).min(inner.height.saturating_sub(3));
     f.render_widget(
         Paragraph::new(top).style(Style::default().fg(t.dim)),
         Rect::new(inner.x, inner.y, inner.width, top_height),

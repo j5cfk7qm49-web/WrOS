@@ -3,8 +3,14 @@
 //! console font has them and the logo looks the same on the console before the
 //! disk is unlocked as in a terminal later. The letters take the theme's accent
 //! and the box its border. Where the full logo doesn't fit, a half-size copy does.
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
 
 use crate::grimoire_theme::Theme;
+use crate::to_u16;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -83,12 +89,12 @@ impl Logo<'_> {
     /// The rows the logo will take in an area this size.
     pub fn height_for(area: Rect) -> u16 {
         let compact = compact();
+        let compact_height = to_u16(compact.len());
         if area.width >= FULL.0 && area.height >= FULL.1 {
             FULL.1
-        } else if area.width >= compact[0].chars().count() as u16
-            && area.height >= compact.len() as u16
+        } else if area.width >= to_u16(compact[0].chars().count()) && area.height >= compact_height
         {
-            compact.len() as u16
+            compact_height
         } else {
             1
         }
@@ -99,8 +105,8 @@ impl Logo<'_> {
     pub fn width_for(area: Rect) -> u16 {
         match Self::height_for(area) {
             h if h == FULL.1 => FULL.0,
-            1 => "WrOS".len() as u16,
-            _ => compact()[0].chars().count() as u16,
+            1 => to_u16("WrOS".len()),
+            _ => to_u16(compact()[0].chars().count()),
         }
     }
 }
@@ -112,12 +118,12 @@ impl Widget for Logo<'_> {
             1 => vec!["WrOS".to_string()],
             _ => compact(),
         };
-        let width = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0) as u16;
+        let width = to_u16(lines.iter().map(|l| l.chars().count()).max().unwrap_or(0));
         let left = area.x + area.width.saturating_sub(width) / 2;
-        let top = area.y + area.height.saturating_sub(lines.len() as u16) / 2;
+        let top = area.y + area.height.saturating_sub(to_u16(lines.len())) / 2;
         for (dy, line) in lines.iter().enumerate() {
             for (dx, ch) in line.chars().enumerate() {
-                let (x, y) = (left + dx as u16, top + dy as u16);
+                let (x, y) = (left + to_u16(dx), top + to_u16(dy));
                 if ch == ' ' || x >= area.right() || y >= area.bottom() {
                     continue;
                 }

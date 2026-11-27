@@ -7,6 +7,12 @@
 //! zeroized buffer and removed characters are wiped; the password field shows a
 //! constant mark instead of one per character; Up and Down in the account field
 //! pick a local account; there are no power commands and no configuration file.
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+
 use ratatui::{
     Frame,
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
@@ -17,7 +23,7 @@ use ratatui::{
 };
 use zeroize::{Zeroize, Zeroizing};
 
-use crate::{MAX_INPUT, Session, display_text};
+use crate::{MAX_INPUT, Session, display_text, geometry::to_u16};
 
 /// What the password field shows, whatever was typed.
 pub const HIDDEN: &str = "[hidden]";
@@ -300,16 +306,18 @@ impl Form {
         };
     }
 
-    fn pick_account(&mut self, step: isize) {
-        if self.accounts.is_empty() {
+    fn pick_account(&mut self, backwards: bool) {
+        let len = self.accounts.len();
+        if len == 0 {
             return;
         }
-        let len = self.accounts.len() as isize;
-        let index = match self.account {
-            None if step < 0 => len - 1,
-            None => 0,
-            Some(i) => (i as isize + step).rem_euclid(len),
-        } as usize;
+        let index = match (self.account, backwards) {
+            (None | Some(0), true) => len - 1,
+            // Wraps like rem_euclid did, even for an index past the end.
+            (Some(i), true) => (i % len + len - 1) % len,
+            (None, false) => 0,
+            (Some(i), false) => (i + 1) % len,
+        };
         self.account = Some(index);
         self.username.set(&self.accounts[index]);
     }
@@ -341,8 +349,8 @@ impl Form {
                         &mut self.password
                     };
                     match key.code {
-                        KeyCode::Up if username => self.pick_account(-1),
-                        KeyCode::Down if username => self.pick_account(1),
+                        KeyCode::Up if username => self.pick_account(true),
+                        KeyCode::Down if username => self.pick_account(false),
                         KeyCode::Up => self.prev(),
                         KeyCode::Down => {}
                         KeyCode::Left => field.left(),
@@ -406,14 +414,14 @@ impl Form {
                         theme.border
                     }));
             let inner = block.inner(rect);
-            let (text, cursor) = field.shown(inner.width as usize, focused);
+            let (text, cursor) = field.shown(usize::from(inner.width), focused);
             let style = Style::default().fg(if field.secret { theme.dim } else { theme.text });
             frame.render_widget(Paragraph::new(text).style(style).block(block), rect);
             if let Some(column) = cursor
                 && inner.width > 0
                 && inner.height > 0
             {
-                frame.set_cursor_position(Position::new(inner.x + column as u16, inner.y));
+                frame.set_cursor_position(Position::new(inner.x + to_u16(column), inner.y));
             }
         }
     }
