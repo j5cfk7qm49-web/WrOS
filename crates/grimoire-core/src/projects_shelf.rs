@@ -1,4 +1,5 @@
 //! Finding books on disk and naming incoming copies.
+//! WrOS's own module; upstream Grimoire 0.9 has a different `shelf` (its books folder and copies).
 
 use chrono::NaiveDateTime;
 use std::collections::VecDeque;

@@ -23,7 +23,7 @@ pub fn state_path() -> PathBuf {
 }
 
 pub fn is_book(p: &Path) -> bool {
-    grimoire_core::shelf::is_book(p)
+    grimoire_core::projects_shelf::is_book(p)
 }
 
 /// Shorten the home folder to ~ so printed paths stay readable.

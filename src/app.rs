@@ -25,12 +25,12 @@ use grimoire_core::export;
 use grimoire_core::history;
 use grimoire_core::manuscript;
 use grimoire_core::project::{self, Area, DiskChange, Kind, Project};
+use grimoire_core::projects_shelf::ShelfBook;
 use grimoire_core::recovery;
 use grimoire_core::resume;
 use grimoire_core::search;
 use grimoire_core::sessions;
 use grimoire_core::settings::Settings;
-use grimoire_core::shelf::ShelfBook;
 use grimoire_core::spell;
 use grimoire_core::timeline::Entry;
 

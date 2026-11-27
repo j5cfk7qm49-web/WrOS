@@ -5,7 +5,7 @@ use crate::backup_service::{self as service, DriveBooks, Job, Progress, Request,
 use crate::sync_service;
 use grimoire_core::book_copy::{self, MergeReport};
 use grimoire_core::import;
-use grimoire_core::shelf::{free_destination, project_id_of, same_book, title_of};
+use grimoire_core::projects_shelf::{free_destination, project_id_of, same_book, title_of};
 use std::sync::mpsc::TryRecvError;
 use wros_sys::{ImportStick, Request as SystemRequest};
 

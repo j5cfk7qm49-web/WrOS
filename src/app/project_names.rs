@@ -101,7 +101,7 @@ impl App {
         let documents = crate::books::documents();
         let mut roots: Vec<std::path::PathBuf> = vec![self.project.root.clone()];
         roots.extend(
-            grimoire_core::shelf::find_books(&documents, 3, 500)
+            grimoire_core::projects_shelf::find_books(&documents, 3, 500)
                 .into_iter()
                 .map(|book| book.root),
         );

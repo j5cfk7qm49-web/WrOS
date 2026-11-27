@@ -1,6 +1,6 @@
 //! Checked copies of books, keeping the source and the writer's local words safe.
 
-use crate::shelf::{free_destination, is_book, merge_copy_name};
+use crate::projects_shelf::{free_destination, is_book, merge_copy_name};
 use anyhow::{Context, Result, bail, ensure};
 use chrono::{NaiveDate, NaiveDateTime};
 use sha2::{Digest, Sha256};

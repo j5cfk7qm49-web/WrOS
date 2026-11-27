@@ -4,7 +4,7 @@
 //! across.
 
 use grimoire_core::import;
-use grimoire_core::shelf::{find_books, project_id_of, title_of};
+use grimoire_core::projects_shelf::{find_books, project_id_of, title_of};
 
 use super::*;
 
