@@ -1,14 +1,11 @@
-//! Albums and tracks from ~/Music and mounted USB sticks.
+//! Discover, label and search audio files and album folders.
 
-use super::{Backend, Cmd, Item, Modes, Repeat, State, Track, Update, mpv::Mpv};
-use anyhow::{Context, Result, anyhow};
-use serde_json::{Value, json};
+use crate::music::Item;
 use std::{
     cmp::Ordering,
     collections::BTreeMap,
     fs,
     path::{Path, PathBuf},
-    sync::mpsc::Sender,
 };
 
 const MAX_DEPTH: usize = 6;
@@ -30,7 +27,7 @@ fn roots() -> Vec<PathBuf> {
     roots
 }
 
-fn is_audio(path: &Path) -> bool {
+pub(super) fn is_audio(path: &Path) -> bool {
     const EXTENSIONS: &[&str] = &[
         "mp3", "flac", "ogg", "oga", "opus", "m4a", "aac", "wav", "wma", "alac", "aiff",
     ];
@@ -113,17 +110,17 @@ fn file_name(path: &Path) -> &str {
         .unwrap_or_default()
 }
 
-fn parent_name(path: &Path) -> String {
+pub(super) fn parent_name(path: &Path) -> String {
     path.parent().map(file_name).unwrap_or_default().to_string()
 }
 
-fn song_title(path: &Path) -> String {
+pub(super) fn song_title(path: &Path) -> String {
     path.file_stem()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default()
 }
 
-fn song_item(path: &Path, pos: usize, current: bool) -> Item {
+pub(super) fn song_item(path: &Path, pos: usize, current: bool) -> Item {
     Item {
         title: song_title(path),
         artist: parent_name(path),
@@ -214,7 +211,7 @@ fn natural_cmp(a: &str, b: &str) -> Ordering {
     left.len().cmp(&right.len()).then_with(|| a.cmp(b))
 }
 
-fn album_tracks(folder: &Path) -> Vec<PathBuf> {
+pub(super) fn album_tracks(folder: &Path) -> Vec<PathBuf> {
     let mut tracks = Vec::new();
     let mut budget = MAX_FILES;
     walk(folder, 1, &mut budget, &mut |path| tracks.push(path));
@@ -222,203 +219,12 @@ fn album_tracks(folder: &Path) -> Vec<PathBuf> {
     tracks
 }
 
-pub(super) struct Files {
-    mpv: Mpv,
-    shuffle: bool,
+pub(super) fn search(query: &str) -> Vec<Item> {
+    search_items(&scan(&roots()), query)
 }
 
-impl Files {
-    pub(super) fn new() -> Self {
-        Self {
-            mpv: Mpv::new(),
-            shuffle: false,
-        }
-    }
-
-    fn repeat(&mut self) -> Result<Repeat> {
-        let looping = |mode, once| match mode {
-            Some(Value::Bool(on)) => on,
-            Some(Value::String(name)) => matches!(name.as_str(), "inf" | "force" | "yes"),
-            Some(Value::Number(n)) => n.as_i64().is_some_and(|n| n > once),
-            _ => false,
-        };
-        if looping(self.mpv.property("loop-file")?, 0) {
-            Ok(Repeat::One)
-        } else if looping(self.mpv.property("loop-playlist")?, 1) {
-            Ok(Repeat::All)
-        } else {
-            Ok(Repeat::Off)
-        }
-    }
-
-    fn enqueue(&mut self, id: &str, now: bool) -> Result<()> {
-        let path = Path::new(id);
-        if !is_audio(path) || !fs::symlink_metadata(path).is_ok_and(|info| info.is_file()) {
-            return Err(anyhow!("music file is no longer available"));
-        }
-        if !now {
-            return self.mpv.load(id, false);
-        }
-        let added = self
-            .mpv
-            .command(&[json!("loadfile"), json!(id), json!("insert-next")])?;
-        let id = added["playlist_entry_id"]
-            .as_i64()
-            .ok_or_else(|| anyhow!("mpv did not return a playlist entry id"))?;
-        let playlist = self.mpv.property("playlist")?.unwrap_or_default();
-        let index = playlist
-            .as_array()
-            .and_then(|entries| entries.iter().position(|e| e["id"].as_i64() == Some(id)))
-            .ok_or_else(|| anyhow!("mpv did not queue the file"))?;
-        self.mpv.play_index(index)
-    }
-}
-
-impl Backend for Files {
-    fn state(&mut self) -> Result<State> {
-        if !cfg!(unix) || !self.mpv.connect_existing()? {
-            return Ok(State::Idle);
-        }
-        let props = self.mpv.snapshot()?;
-        if props["idle-active"].as_bool() == Some(true) {
-            return Ok(State::Idle);
-        }
-        let path = props["path"].as_str().map(Path::new);
-        let tags = props["metadata"].as_object();
-        let tag = |key: &str| {
-            tags?
-                .iter()
-                .find(|(name, _)| name.eq_ignore_ascii_case(key))
-                .and_then(|(_, value)| value.as_str())
-                .filter(|value| !value.trim().is_empty())
-                .map(str::to_string)
-        };
-        Ok(State::Playing(Track {
-            title: tag("title")
-                .or_else(|| path.map(song_title))
-                .unwrap_or_else(|| {
-                    props["media-title"]
-                        .as_str()
-                        .unwrap_or_default()
-                        .to_string()
-                }),
-            artist: tag("artist")
-                .or_else(|| path.map(parent_name))
-                .unwrap_or_default(),
-            progress: props["time-pos"].as_f64().unwrap_or_default(),
-            duration: props["duration"].as_f64().unwrap_or_default(),
-            playing: props["pause"].as_bool() != Some(true),
-        }))
-    }
-
-    fn command(&mut self, c: Cmd) -> Result<()> {
-        match c {
-            Cmd::PlayPause => self.mpv.toggle_pause(),
-            Cmd::Next => self.mpv.next(),
-            Cmd::Prev => self.mpv.prev(),
-            Cmd::Seek(secs) => self.mpv.seek(secs),
-            Cmd::Volume(d) => self.mpv.add_volume(d),
-            Cmd::Shuffle => {
-                self.mpv.set_shuffle(!self.shuffle)?;
-                self.shuffle = !self.shuffle;
-                Ok(())
-            }
-            Cmd::Repeat => {
-                let repeat = self.repeat()?;
-                self.mpv.set_loop_playlist(repeat == Repeat::Off)?;
-                let loop_file = if repeat == Repeat::All { "inf" } else { "no" };
-                self.mpv.set_property("loop-file", json!(loop_file))
-            }
-            Cmd::JumpTo(i) => self.mpv.play_index(i),
-            Cmd::Enqueue { id, now } => self.enqueue(&id, now),
-            Cmd::Like => Err(anyhow!("Music files can't be liked")),
-            _ => Ok(()),
-        }
-    }
-
-    fn queue(&mut self) -> Result<Vec<Item>> {
-        if !self.mpv.connect_existing()? {
-            return Ok(Vec::new());
-        }
-        let playlist = self.mpv.property("playlist")?.unwrap_or_default();
-        Ok(playlist
-            .as_array()
-            .into_iter()
-            .flatten()
-            .enumerate()
-            .filter_map(|(pos, entry)| {
-                let path = Path::new(entry["filename"].as_str()?);
-                let current = entry["current"].as_bool().unwrap_or_default();
-                Some(song_item(path, pos, current))
-            })
-            .collect())
-    }
-
-    fn search(&mut self, query: &str) -> Result<Vec<Item>> {
-        Ok(search_items(&scan(&roots()), query))
-    }
-
-    fn playlists(&mut self, query: Option<&str>) -> Result<Vec<Item>> {
-        Ok(album_items(&scan(&roots()), query))
-    }
-
-    fn load_playlist(
-        &mut self,
-        id: String,
-        title: String,
-        now: bool,
-        tell: Sender<Update>,
-    ) -> Result<()> {
-        let tracks = album_tracks(Path::new(&id));
-        if tracks.is_empty() {
-            return Err(anyhow!("no music files in {title}"));
-        }
-        let count = tracks.len();
-        for (i, path) in tracks.iter().enumerate() {
-            if i.is_multiple_of(100)
-                && tell
-                    .send(Update::Note(format!("Queueing {title} ({i}/{count})…")))
-                    .is_err()
-            {
-                return Ok(());
-            }
-            let name = path
-                .to_str()
-                .with_context(|| format!("Music file path is not UTF-8: {}", path.display()))?;
-            self.mpv.load(name, now && i == 0)?;
-            if now && i == 0 {
-                self.mpv.set_property("pause", json!(false))?;
-            }
-        }
-        let _ = tell.send(Update::Note(format!("Queued {count} songs from {title}")));
-        let _ = tell.send(Update::Queue(self.queue()?));
-        Ok(())
-    }
-
-    fn modes(&mut self) -> Result<Modes> {
-        if !self.mpv.connect_existing()? {
-            return Ok(Modes {
-                repeat: Some(Repeat::Off),
-                shuffle: Some(self.shuffle),
-                ..Modes::default()
-            });
-        }
-        Ok(Modes {
-            repeat: Some(self.repeat()?),
-            shuffle: Some(self.shuffle),
-            volume: self
-                .mpv
-                .property("volume")?
-                .and_then(|v| v.as_f64())
-                .map(|v| v.round().clamp(0.0, 100.0) as u8),
-            muted: self
-                .mpv
-                .property("mute")?
-                .and_then(|v| v.as_bool())
-                .unwrap_or_default(),
-            ..Modes::default()
-        })
-    }
+pub(super) fn playlists(query: Option<&str>) -> Vec<Item> {
+    album_items(&scan(&roots()), query)
 }
 
 #[cfg(test)]
@@ -533,94 +339,5 @@ mod tests {
         let two = touch(dir.path(), "2 Intro.FLAC");
         touch(dir.path(), "Bonus/1 Overture.flac");
         assert_eq!(album_tracks(dir.path()), [two, ten]);
-    }
-}
-
-/// Real mpv, real files: run with `--ignored` in a private HOME whose mpv.conf says `ao=null`
-/// (rc20-work/live-music.sh). Not part of the normal suites: it needs mpv and plays audio.
-#[cfg(test)]
-#[cfg(unix)]
-mod live {
-    use super::*;
-    use crate::music::{Backend, Cmd, State};
-    use std::time::{Duration, Instant};
-
-    /// A short mono 8 kHz WAV with a tone, `secs` long.
-    fn wav(path: &Path, secs: f32) {
-        let rate = 8000u32;
-        let samples: Vec<i16> = (0..(rate as f32 * secs) as u32)
-            .map(|i| {
-                ((i as f32 * 440.0 * std::f32::consts::TAU / rate as f32).sin() * 8000.0) as i16
-            })
-            .collect();
-        let data: Vec<u8> = samples.iter().flat_map(|s| s.to_le_bytes()).collect();
-        let mut out = Vec::new();
-        out.extend(b"RIFF");
-        out.extend((36 + data.len() as u32).to_le_bytes());
-        out.extend(b"WAVEfmt ");
-        out.extend(16u32.to_le_bytes());
-        out.extend(1u16.to_le_bytes());
-        out.extend(1u16.to_le_bytes());
-        out.extend(rate.to_le_bytes());
-        out.extend((rate * 2).to_le_bytes());
-        out.extend(2u16.to_le_bytes());
-        out.extend(16u16.to_le_bytes());
-        out.extend(b"data");
-        out.extend((data.len() as u32).to_le_bytes());
-        out.extend(data);
-        fs::write(path, out).unwrap();
-    }
-
-    fn playing(files: &mut Files, want: &str, within: Duration) -> f64 {
-        let end = Instant::now() + within;
-        loop {
-            if let Ok(State::Playing(t)) = files.state()
-                && t.title.contains(want)
-                && t.progress > 0.0
-            {
-                return t.progress;
-            }
-            assert!(
-                Instant::now() < end,
-                "{want} never played: {:?}",
-                files.state()
-            );
-            std::thread::sleep(Duration::from_millis(200));
-        }
-    }
-
-    #[test]
-    #[ignore = "needs mpv; rc20-work/live-music.sh"]
-    fn a_folder_plays_moves_on_and_answers_the_keys() {
-        let album = grimoire_core::paths::home().join("Music/Live Album");
-        fs::create_dir_all(&album).unwrap();
-        wav(&album.join("01 First.wav"), 2.0);
-        wav(&album.join("02 Second.wav"), 8.0);
-        let mut files = Files::new();
-        let (tx, _rx) = std::sync::mpsc::channel();
-        files
-            .load_playlist(
-                album.to_string_lossy().into(),
-                "Live Album".into(),
-                true,
-                tx,
-            )
-            .unwrap();
-        playing(&mut files, "First", Duration::from_secs(10));
-        // The first ends by itself and the second follows.
-        playing(&mut files, "Second", Duration::from_secs(10));
-        let queue = files.queue().unwrap();
-        assert_eq!(queue.len(), 2);
-        assert!(queue[1].current, "{queue:?}");
-        files.command(Cmd::Prev).unwrap();
-        playing(&mut files, "First", Duration::from_secs(5));
-        files.command(Cmd::Next).unwrap();
-        playing(&mut files, "Second", Duration::from_secs(5));
-        files.command(Cmd::PlayPause).unwrap();
-        std::thread::sleep(Duration::from_millis(500));
-        match files.state().unwrap() {
-            State::Playing(t) => assert!(!t.playing, "paused"),
-            other => panic!("{other:?}"),
-        }
     }
 }
