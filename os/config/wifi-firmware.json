@@ -1,32 +1,30 @@
 {
   "schema_version": 1,
-  "distribution": "Debian 13 trixie amd64",
-  "apt_components": ["main", "non-free-firmware"],
-  "kernel_package": "linux-image-amd64",
+  "distribution": "NixOS 26.05 x86_64-linux",
   "connection_packages": ["network-manager", "wpasupplicant", "wireless-regdb", "rfkill", "iw"],
-  "firmware": [
-    {"vendor": "Intel", "package": "firmware-iwlwifi"},
-    {"vendor": "Realtek", "package": "firmware-realtek"},
-    {"vendor": "Qualcomm/Atheros", "package": "firmware-atheros"},
-    {"vendor": "Atheros USB", "package": "firmware-ath9k-htc"},
-    {"vendor": "Broadcom/Cypress (brcmsmac/brcmfmac)", "package": "firmware-brcm80211"},
-    {"vendor": "MediaTek", "package": "firmware-mediatek"}
+  "installed_firmware": [
+    {"chipset": "Realtek RTL8822BE (HP Stream 11 Wi-Fi)", "package": "wros-firmware-rtw88"},
+    {"chipset": "Intel Gemini Lake UHD 600 (HP Stream 11 graphics)", "package": "wros-firmware-i915-glk"}
   ],
+  "live_iso_firmware": [
+    {"vendor": "Intel Wi-Fi", "package": "wros-firmware-iwlwifi"},
+    {"vendor": "Realtek", "package": "wros-firmware-rtlwifi"},
+    {"vendor": "Realtek", "package": "wros-firmware-rtw88"},
+    {"vendor": "Realtek", "package": "wros-firmware-rtw89"},
+    {"vendor": "Atheros USB", "package": "wros-firmware-ath9k_htc"},
+    {"vendor": "Qualcomm/Atheros", "package": "wros-firmware-ath10k"},
+    {"vendor": "Qualcomm/Atheros", "package": "wros-firmware-ath11k"},
+    {"vendor": "Broadcom/Cypress", "package": "wros-firmware-brcmfmac"},
+    {"vendor": "MediaTek", "package": "wros-firmware-mt76"},
+    {"vendor": "Intel graphics", "package": "wros-firmware-i915"}
+  ],
+  "common_firmware_packages": ["wireless-regdb", "sof-firmware"],
   "offline_media_required": true,
   "physical_adapters_verified": [],
   "limitations": [
     "Firmware supplies data for supported kernel drivers; it does not add support for every chipset.",
-    "Some Broadcom adapters require additional restricted drivers/firmware; they are not covered by brcm80211.",
+    "Some Broadcom adapters require additional restricted drivers and firmware outside brcmfmac.",
     "Newer adapters may require a newer supported kernel/firmware combination.",
-    "Installer media must carry the same package set; a network-only bootstrap does not satisfy this requirement."
-  ],
-  "sources": [
-    "https://wiki.debian.org/Firmware",
-    "https://packages.debian.org/trixie/firmware-iwlwifi",
-    "https://packages.debian.org/trixie/firmware-realtek",
-    "https://packages.debian.org/trixie/firmware-atheros",
-    "https://packages.debian.org/trixie/firmware-ath9k-htc",
-    "https://packages.debian.org/trixie/firmware-brcm80211",
-    "https://packages.debian.org/trixie/firmware-mediatek"
+    "The installed system carries firmware for the HP Stream configuration only. The live ISO carries every supported driver package and the installed system closure for offline installation."
   ]
 }

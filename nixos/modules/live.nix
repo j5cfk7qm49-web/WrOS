@@ -18,6 +18,9 @@ in
     ./updates.nix
   ];
 
+  # The complete i915 package already includes the Gemini Lake files.
+  hardware.firmware = lib.attrValues (removeAttrs config.wros.firmware [ "i915-glk" ]);
+
   # Distinct ISO volume label so live media never collides with WROS-ESP, WROS-LUKS or WROS-ROOT.
   isoImage.volumeID = lib.mkForce "WROS_LIVE";
   isoImage.makeEfiBootable = true;

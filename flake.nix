@@ -2,9 +2,9 @@
   description = "WrOS rc25: offline-first writing appliance on NixOS";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/f1e5c356f35d07e7b71a6b5e6c9338e0b029e0c0";
+    nixpkgs.url = "github:NixOS/nixpkgs/0dc498bfe49baeb18b0f9891e800b53bb2603193";
     rust-overlay = {
-      url = "github:oxalica/rust-overlay/84edd48f141b0c8910dffdd0296ddd577e829132";
+      url = "github:oxalica/rust-overlay/8771c4aba509d6efb8bf376fd8cb657cce52b013";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -47,7 +47,7 @@
               inherit pkgs lib version;
               src = ./.;
             };
-            nixpkgsRev = "f1e5c356f35d07e7b71a6b5e6c9338e0b029e0c0";
+            nixpkgsRev = nixpkgs.rev;
             wrosRoot = ./.;  # a path: wrosRoot + "/x" copies only that file
           };
           modules = [
@@ -84,7 +84,7 @@
         inherit system;
         specialArgs = {
           inherit wrosPkgs version googleClients;
-          nixpkgsRev = "f1e5c356f35d07e7b71a6b5e6c9338e0b029e0c0";
+          nixpkgsRev = nixpkgs.rev;
           wrosRoot = ./.;  # a path: wrosRoot + "/x" copies only that file
           installedSystemToplevel = wrosSystem.config.system.build.toplevel;
         };
@@ -106,7 +106,7 @@
       # test node is evaluated by the test driver instead, so the same values are supplied here.
       moduleArgs = {
         inherit wrosPkgs version googleClients;
-        nixpkgsRev = "f1e5c356f35d07e7b71a6b5e6c9338e0b029e0c0";
+        nixpkgsRev = nixpkgs.rev;
         wrosRoot = ./.;  # a path: wrosRoot + "/x" copies only that file
         installedSystemToplevel = wrosSystem.config.system.build.toplevel;
       };
@@ -143,6 +143,7 @@
           wros-branding;
         wros-iso = wrosIso;
         wros-update-bundle = wrosUpdateBundle;
+        wros-firmware-lists = wrosSystem.config.system.build.wrosFirmwareLists;
         brain-pdf-ocr-bench = pkgs.writeShellApplication {
           name = "brain-pdf-ocr-bench";
           runtimeInputs = [
@@ -157,9 +158,11 @@
           '';
         };
         default = wrosPkgs.grimoire;
-      };
+      } // lib.mapAttrs' (driver: pkg: lib.nameValuePair "wros-firmware-${driver}" pkg)
+        wrosSystem.config.wros.firmware;
 
       checks.${system} = {
+        firmware-lists-current = wrosSystem.config.system.build.wrosFirmwareListsCurrent;
         boot-unlock-login = vmTest ./nixos/tests/boot-unlock-login.nix;
         keyboard-preview = vmTest ./nixos/tests/keyboard-preview.nix;
         console-lock = vmTest ./nixos/tests/console-lock.nix;

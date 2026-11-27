@@ -301,9 +301,9 @@
     },
     "feature:71-offline-common-laptop-wi-fi-drivers-and-firmware": {
       "disposition": "ported",
-      "evidence": "wrosFirmware",
+      "evidence": "wros.firmware",
       "where": [
-        "nixos/modules/hardware.nix"
+        "nixos/modules/firmware.nix"
       ]
     },
     "feature:72-shared-wros-navigation-presentation-notifications-and-ui-pre": {

@@ -54,7 +54,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        check: [rust-suite, rust-suite-no-audio, rust-driven-suite, app-suite]
+        check: [rust-suite, rust-suite-no-audio, rust-driven-suite, app-suite, firmware-lists-current]
     steps:
       - uses: actions/checkout@v7
         with:

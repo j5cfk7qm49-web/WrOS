@@ -12,4 +12,6 @@
     ./recovery.nix
     ./updates.nix
   ];
+
+  hardware.firmware = with config.wros.firmware; [ rtw88 i915-glk ];
 }

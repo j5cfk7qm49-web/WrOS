@@ -47,6 +47,11 @@ you typed at the lock shows up in the project.
 
 ## 3. Wi-Fi after sleep, and over a day
 
+The installed system carries the HP Stream's firmware only: Realtek RTL8822BE Wi-Fi
+(`rtw88`), Intel Gemini Lake graphics (`i915`), and SOF audio, with the wireless
+regulatory database. The live ISO carries every supported driver package for trying WrOS
+on other laptops.
+
 1. After each wake in check 2, wait 30 seconds and open Settings › System ›
    Wi-Fi and networking.
 2. Use Wi-Fi as normal for a whole day, with the lid closed and opened a few

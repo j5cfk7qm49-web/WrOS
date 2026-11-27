@@ -1,6 +1,6 @@
 { pkgs, lib, version, src }:
 let
-  rustToolchain = pkgs.rust-bin.stable."1.99.1".default;
+  rustToolchain = pkgs.rust-bin.stable."1.100.0".default;
   rustPlatform = pkgs.makeRustPlatform {
     cargo = rustToolchain;
     rustc = rustToolchain;

@@ -102,6 +102,19 @@ Because Nix cannot be executed inside the authoring container, the new post-trim
 4. **Remove `linux-firmware/lib/firmware/intel` from `wrosFirmware` (`nixos/modules/hardware.nix`)**:
    - **Expected saving**: Removes the `intel/` subdirectory (Intel Bluetooth `ibt-*`, IPU6 camera, Ice Lake/Xeon server NIC, and DSP audio blobs) from the `355 MiB` `wros-firmware` package while retaining `i915/` (Intel UHD 600 GuC/HuC/DMC display firmware), `iwlwifi*`, `rtlwifi`, `rtw88` (Realtek RTL8822BE on the HP Stream 11), `rtw89`, `ath9k_htc`, `ath10k`, `ath11k`, `brcm`, `mediatek`, `wireless-regdb`, and `sof-firmware`.
    - **Feature impact**: Intel Bluetooth and Intel IPU6 webcams lack firmware blobs; Wi-Fi (`iwlwifi`, Realtek, Atheros, Broadcom, MediaTek), Intel `i915` graphics, and SOF audio are unaffected.
+   - **rc32**: The installed system carries the HP Stream's firmware only: RTL8822BE Wi-Fi
+     (`wros-firmware-rtw88`), Gemini Lake graphics (`wros-firmware-i915-glk`), and
+     `sof-firmware`, plus `wireless-regdb`. The live ISO carries every supported driver package
+     listed in [the firmware policy](../os/config/wifi-firmware.json), including the full `i915`
+     package. Each package is built from linux-firmware and its [committed file list](../nixos/firmware).
+     The `firmware-lists-current` flake check compares the lists with the current kernel's
+     module metadata. After updating the kernel or linux-firmware, regenerate the lists with
+     `nix build .#wros-firmware-lists` and copy `result/*.txt` into `nixos/firmware/`.
+     Some drivers (iwlwifi) name only their newest firmware API, and it may not be in
+     linux-firmware yet: the list keeps the newest older version linux-firmware has, the one
+     the kernel steps down to. Requests nothing in linux-firmware can serve are printed as
+     warnings in the build log.
+     [The size check](../tools/check-firmware-sizes.sh) measures the compressed packages for thin updates.
 5. **Disable XDG desktop sound/icon/menu/mime/autostart generators (`xdg.{sounds,icons,menus,mime,autostart}.enable = false;` in `nixos/modules/base.nix`) and drop the unused `pythonWithQr` (`qrcode` + `pillow`) wrapper in `nixos/pkgs/helpers.nix`**:
    - **Expected saving**: Removes `freedesktop` sound/icon themes and the duplicate `python3.withPackages (ps: [ ps.qrcode ps.pillow ])` environment (since `os/scripts/wros-link.py` renders QR codes in pure Python stdlib).
    - **Feature impact**: WrOS defaults to Grimoire's native DRM renderer. Cage remains available for explicitly selected compositor trials. Neither requires a desktop application menu or XDG icon theme.

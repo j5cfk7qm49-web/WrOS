@@ -587,9 +587,9 @@
       "area": "System",
       "capability": "Offline common-laptop Wi-Fi drivers and firmware",
       "status": "In progress",
-      "verification": "Historical Debian staged-image audit and missing-payload policy tests. NixOS declares the firmware selection in nixos/modules/hardware.nix.",
+      "verification": "NixOS selects per-driver firmware in nixos/modules/firmware.nix.",
       "hardware_verified": false,
-      "detail": "Intel, Realtek, Qualcomm/Atheros, Broadcom/Cypress brcm80211 and MediaTek packaged for supported kernel drivers; production installer media must retain this set; physical radio acceptance pending"
+      "detail": "The installed system carries HP Stream firmware for RTL8822BE Wi-Fi, Gemini Lake graphics and SOF audio. The live ISO carries all supported driver packages. Physical radio acceptance is pending."
     },
     {
       "area": "Shell",

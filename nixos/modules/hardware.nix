@@ -1,25 +1,5 @@
 { config, lib, pkgs, wrosPkgs, wrosRoot, ... }:
 let
-  # Trim linux-firmware to the supported Wi-Fi chipsets (os/config/wifi-firmware.json)
-  # plus Intel UHD 600 graphics (i915), excluding server NICs, cameras, and Bluetooth (S1).
-  wrosFirmware = pkgs.runCommand "wros-firmware" {} ''
-    mkdir -p "$out/lib/firmware"
-    for dir in \
-      iwlwifi rtlwifi rtw88 rtw89 \
-      ath9k_htc ath10k ath11k \
-      brcm mediatek \
-      i915; do
-      if [ -e "${pkgs.linux-firmware}/lib/firmware/$dir" ]; then
-        cp -rL "${pkgs.linux-firmware}/lib/firmware/$dir" "$out/lib/firmware/"
-      fi
-    done
-    for file in "${pkgs.linux-firmware}"/lib/firmware/iwlwifi-* "${pkgs.linux-firmware}"/lib/firmware/regulatory*; do
-      if [ -e "$file" ]; then
-        cp -aL "$file" "$out/lib/firmware/"
-      fi
-    done
-  '';
-
   mediaKey = wrosPkgs.paths.helperPaths.mediaKey;
   keyBindings = [
     { keys = [ "BRIGHTNESSUP" ]; event = "press"; cmd = "${mediaKey} brightness-up"; }
@@ -45,14 +25,13 @@ let
   });
 in
 {
+  imports = [ ./firmware.nix ];
+
   boot.kernelPackages = pkgs.linuxPackages;
 
   hardware.enableRedistributableFirmware = false;
-  hardware.firmware = [
-    wrosFirmware
-    pkgs.wireless-regdb
-    pkgs.sof-firmware
-  ];
+  hardware.firmware = [ pkgs.sof-firmware ];
+  # NixOS adds pkgs.wireless-regdb to hardware.firmware through this option.
   hardware.wirelessRegulatoryDatabase = true;
 
   hardware.graphics.enable = true;
