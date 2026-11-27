@@ -160,5 +160,50 @@ class Thin(unittest.TestCase):
         self.assertEqual(kept, self.files)
 
 
+class Fetch(unittest.TestCase):
+    """rc32: signing fetches hundreds of archives from cache.nixos.org, and a connection that
+    drops mid-download made urllib hand back a short read without an error."""
+
+    BODY = b'the whole archive, every byte of it'
+
+    def serve(self, short_answers):
+        import http.server
+        import threading
+        body, answered = self.BODY, []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                answered.append(self.path)
+                self.send_response(200)
+                self.send_header('Content-Length', str(len(body)))
+                self.end_headers()
+                if len(answered) <= short_answers:
+                    self.wfile.write(body[:7])  # then the connection closes
+                    self.close_connection = True
+                else:
+                    self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        self.retry_pause, tool.RETRY_PAUSE = getattr(tool, 'RETRY_PAUSE', None), 0
+        self.addCleanup(setattr, tool, 'RETRY_PAUSE', self.retry_pause)
+        return f'http://127.0.0.1:{server.server_address[1]}/nar/x.nar.zst', answered
+
+    def test_a_download_cut_short_is_fetched_again(self):
+        url, answered = self.serve(short_answers=2)
+        self.assertEqual(tool.fetch(url, 1024), self.BODY)
+        self.assertEqual(len(answered), 3)
+
+    def test_a_download_always_cut_short_is_refused(self):
+        url, _ = self.serve(short_answers=99)
+        with self.assertRaisesRegex(tool.BuildError, 'cut short'):
+            tool.fetch(url, 1024)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -92,24 +92,46 @@ def narinfo_fields(text):
     return dict(line.split(': ', 1) for line in text.splitlines() if ': ' in line)
 
 
+FETCH_TRIES = 4
+RETRY_PAUSE = 5  # seconds, doubled after each failed try
+
+
 def fetch(url, limit):
-    """GET a cache file, or None if the cache doesn't have it."""
+    """GET a cache file, or None if the cache doesn't have it.
+
+    A connection that drops mid-download makes urllib return a short read with no error, so
+    the length is checked against Content-Length and a download cut short is tried again."""
+    import http.client
+    import time
     import urllib.error
     import urllib.request
-    try:
-        with urllib.request.urlopen(url, timeout=60) as response:
-            data = response.read(limit + 1)
-    except urllib.error.HTTPError as exc:
-        if exc.code == 404:
-            return None
-        raise BuildError(f'{url}: HTTP {exc.code}') from None
-    except urllib.error.URLError as exc:
-        if isinstance(exc.reason, FileNotFoundError):  # a file:// copy without it
-            return None
-        raise BuildError(f'{url}: {exc.reason}') from None
-    if len(data) > limit:
-        raise BuildError(f'{url} is larger than {limit} bytes')
-    return data
+    pause = RETRY_PAUSE
+    for attempt in range(1, FETCH_TRIES + 1):
+        try:
+            with urllib.request.urlopen(url, timeout=60) as response:
+                expected = response.headers.get('Content-Length')
+                data = response.read(limit + 1)
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                return None
+            raise BuildError(f'{url}: HTTP {exc.code}') from None
+        except urllib.error.URLError as exc:
+            if isinstance(exc.reason, FileNotFoundError):  # a file:// copy without it
+                return None
+            problem = str(exc.reason)
+        except (OSError, http.client.HTTPException) as exc:
+            problem = str(exc) or type(exc).__name__
+        else:
+            if len(data) > limit:
+                raise BuildError(f'{url} is larger than {limit} bytes')
+            if expected is None or len(data) == int(expected):
+                return data
+            problem = f'download cut short: {len(data)} of {expected} bytes'
+        if attempt == FETCH_TRIES:
+            raise BuildError(f'{url}: {problem} (tried {FETCH_TRIES} times)')
+        time.sleep(pause)
+        pause *= 2
+    raise AssertionError('unreachable')
 
 
 def decompress(name, data):
