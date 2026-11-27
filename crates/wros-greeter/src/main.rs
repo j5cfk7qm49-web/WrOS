@@ -469,11 +469,11 @@ mod linux {
             let conversation = Conversation::default();
             let mut form = Form::new(vec![], false);
             for c in "writer".chars() {
-                form.key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+                let _ = form.key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
             }
-            form.key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+            let _ = form.key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
             for c in "synthetic-secret".chars() {
-                form.key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+                let _ = form.key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
             }
             let draw =
                 |frame: &mut ratatui::Frame| wros_greeter::render(frame, &conversation, &form);

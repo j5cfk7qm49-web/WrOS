@@ -78,6 +78,7 @@ impl Power {
                 .min(ROWS.len() - 1);
         }
     }
+    #[must_use]
     pub fn enter(&mut self) -> Option<Action> {
         if self.is_busy() {
             return None;

@@ -48,6 +48,7 @@ pub struct Navigation<R> {
 }
 
 impl<R: Copy + Eq> Navigation<R> {
+    #[must_use]
     pub fn new(home: R) -> Self {
         Self {
             current: home,

@@ -1452,7 +1452,7 @@ fn settings_says_what_a_running_system_request_does() {
     desk.app.open_system_settings();
     desk.app.deck.busy = true;
     desk.app.deck.running = Some((
-        wros_sys::Request::FetchOnlineUpdate.activity(),
+        (&wros_sys::Request::FetchOnlineUpdate).into(),
         std::time::Instant::now() - std::time::Duration::from_secs(42),
     ));
     desk.draw();

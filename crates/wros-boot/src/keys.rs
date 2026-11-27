@@ -40,10 +40,12 @@ impl Decoder {
     }
 
     /// Nothing followed the Esc in time: it was Esc.
+    #[must_use]
     pub fn timeout(&mut self) -> Option<Key> {
         (std::mem::take(&mut self.state) == State::Escape).then_some(Key::Esc)
     }
 
+    #[must_use]
     pub fn feed(&mut self, byte: u8) -> Option<Key> {
         match std::mem::take(&mut self.state) {
             State::Escape => {

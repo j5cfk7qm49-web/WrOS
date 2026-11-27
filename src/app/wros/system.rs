@@ -5,6 +5,30 @@ use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::time::{Duration, Instant};
 use wros_sys::{Backend, PowerAction, Reply, Request, Snapshot};
 
+pub(crate) enum Activity {
+    FetchOnlineUpdate,
+    Other(String),
+}
+
+impl From<&Request> for Activity {
+    fn from(request: &Request) -> Self {
+        match request {
+            Request::FetchOnlineUpdate => Self::FetchOnlineUpdate,
+            // Keep the activity text without holding on to the request's secrets.
+            other => Self::Other(other.activity()),
+        }
+    }
+}
+
+impl Activity {
+    fn label(&self) -> String {
+        match self {
+            Self::FetchOnlineUpdate => Request::FetchOnlineUpdate.activity(),
+            Self::Other(label) => label.clone(),
+        }
+    }
+}
+
 pub(super) struct Worker {
     tx: SyncSender<Request>,
     rx: Receiver<(Request, Result<Reply, String>)>,
@@ -52,7 +76,7 @@ impl Deck {
         };
         let what = match &self.fetch_progress {
             Some(progress) => progress.line(),
-            None => what.clone(),
+            None => what.label(),
         };
         match wros_sys::elapsed_label(since.elapsed()) {
             Some(time) => format!("{what} · {time}"),
@@ -65,7 +89,7 @@ impl Deck {
             && self
                 .running
                 .as_ref()
-                .is_some_and(|(what, _)| *what == Request::FetchOnlineUpdate.activity());
+                .is_some_and(|(what, _)| matches!(what, Activity::FetchOnlineUpdate));
         if !fetching
             || self
                 .fetch_read
@@ -97,7 +121,7 @@ impl Deck {
             request,
             Request::Power(PowerAction::Shutdown | PowerAction::Restart)
         );
-        let activity = request.activity();
+        let activity = Activity::from(&request);
         match self.worker.as_ref().unwrap().tx.try_send(request) {
             Ok(()) => {
                 self.power_pending |= powering_off;

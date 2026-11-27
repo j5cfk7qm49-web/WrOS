@@ -80,6 +80,7 @@ pub const ROLES: [&str; 12] = [
 impl Theme {
     /// A drawing copy for the Linux console. The stored theme keeps its RGB colours.
     /// An explicit profile avoids probing the disk-password input stream.
+    #[must_use]
     pub fn for_console(&self) -> Self {
         let mut theme = self.clone();
         for i in 0..ROLES.len() {

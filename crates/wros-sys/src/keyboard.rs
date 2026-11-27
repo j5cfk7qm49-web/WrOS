@@ -109,6 +109,7 @@ pub struct Preview {
     pub expires_at_ms: u64,
 }
 impl Preview {
+    #[must_use]
     pub fn new(token: String, layout: Layout, now_ms: u64) -> Self {
         Self {
             token,

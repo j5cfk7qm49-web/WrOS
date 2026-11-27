@@ -243,6 +243,7 @@ pub struct Form {
 
 impl Form {
     /// The lock screen's form (#158): the login form with the account fixed to `username`.
+    #[must_use]
     pub fn locked(username: &str) -> Self {
         let mut form = Self::new(vec![], false);
         form.username.set(username);
@@ -251,6 +252,7 @@ impl Form {
         form
     }
 
+    #[must_use]
     pub fn new(accounts: Vec<String>, graphical: bool) -> Self {
         Self {
             focus: Focus::Username,
@@ -322,6 +324,7 @@ impl Form {
         self.username.set(&self.accounts[index]);
     }
 
+    #[must_use]
     pub fn key(&mut self, key: KeyEvent) -> Action {
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         if self.fixed && matches!(key.code, KeyCode::Tab | KeyCode::BackTab | KeyCode::Up) {

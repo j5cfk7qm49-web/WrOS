@@ -212,6 +212,7 @@ impl Conversation {
     }
     /// Starts the login with what the form collected. The password goes to PAM
     /// when it asks for one; the session starts as soon as PAM accepts.
+    #[must_use]
     pub fn begin(&mut self, username: &str, password: &str, session: Session) -> Option<Request> {
         if self.phase != Phase::Username {
             return None;
@@ -265,6 +266,7 @@ impl Conversation {
             display_text(&self.input)
         }
     }
+    #[must_use]
     pub fn submit(&mut self) -> Option<Request> {
         let request = match self.phase {
             Phase::Prompt(kind) => {
@@ -286,6 +288,7 @@ impl Conversation {
         self.prompt = "Please wait".into();
         Some(request)
     }
+    #[must_use]
     pub fn cancel(&mut self) -> Option<Request> {
         self.clear();
         match self.phase {

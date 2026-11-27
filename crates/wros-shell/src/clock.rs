@@ -16,6 +16,7 @@ pub struct Time {
 }
 
 impl Time {
+    #[must_use]
     pub fn new(hour: u8, minute: u8) -> Option<Self> {
         (hour < 24 && minute < 60).then_some(Self { hour, minute })
     }

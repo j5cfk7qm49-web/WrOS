@@ -428,6 +428,7 @@ impl Input {
     }
     /// No credential reader may start until this returns its proof successfully.
     /// On error the object remains failed, with no automatic recovery/restart.
+    #[must_use = "the ownership proof is needed to resume input"]
     pub fn pause(&mut self) -> io::Result<Paused> {
         let State::Active(mut running) = std::mem::replace(&mut self.state, State::Failed) else {
             return Err(failure("Input is not active"));

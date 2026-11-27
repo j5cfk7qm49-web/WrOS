@@ -27,7 +27,7 @@ mod wifi;
 mod workspace;
 
 pub(super) use draw::draw;
-use system::Worker;
+use system::{Activity, Worker};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Page {
@@ -102,7 +102,7 @@ pub struct Deck {
     pub note: String,
     pub busy: bool,
     /// What the running system request is doing and when it started (#167).
-    pub running: Option<(String, std::time::Instant)>,
+    pub running: Option<(Activity, std::time::Instant)>,
     /// The update engine's download progress while an online update downloads.
     pub fetch_progress: Option<wros_sys::FetchProgress>,
     fetch_read: Option<std::time::Instant>,

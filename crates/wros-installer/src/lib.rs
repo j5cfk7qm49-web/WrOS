@@ -267,6 +267,7 @@ impl Session {
     pub fn position(&self) -> (usize, usize) {
         (self.current + 1, self.queued.len())
     }
+    #[must_use = "send any acknowledgment to the installer backend"]
     pub fn advance(&mut self) -> Option<Zeroizing<String>> {
         self.active_mut()?.commit();
         if self.current + 1 < self.queued.len() {
@@ -278,6 +279,7 @@ impl Session {
             Some(Zeroizing::new("0".into()))
         }
     }
+    #[must_use = "send any acknowledgment to the installer backend"]
     pub fn back(&mut self) -> Option<Zeroizing<String>> {
         if !self.showing {
             return None;

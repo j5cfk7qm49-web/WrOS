@@ -76,6 +76,7 @@ impl Keyboard {
         self.notice = "Applying keyboard action. Please wait";
         Some(command)
     }
+    #[must_use]
     pub fn enter(&mut self, now: Instant) -> Option<Command> {
         if self.busy {
             return None;
@@ -90,6 +91,7 @@ impl Keyboard {
             self.begin(Command::Preview(self.selected))
         }
     }
+    #[must_use]
     pub fn escape(&mut self) -> Option<Command> {
         if self.busy {
             return None;
@@ -104,6 +106,7 @@ impl Keyboard {
             None
         }
     }
+    #[must_use]
     pub fn tick(&mut self, now: Instant) -> Option<Command> {
         if !self.busy
             && self
@@ -305,7 +308,7 @@ mod tests {
             Ok(br#"{"status":"preserved-system-layout","preview_available":false}"#),
             now,
         );
-        keyboard.escape();
+        let _ = keyboard.escape();
         assert!(keyboard.open);
     }
     #[test]
@@ -321,7 +324,7 @@ mod tests {
             Ok(br#"{"status":"no-preview","layout":"qwerty"}"#),
             now,
         );
-        keyboard.escape();
+        let _ = keyboard.escape();
         assert!(!keyboard.open);
     }
     #[test]
@@ -331,12 +334,12 @@ mod tests {
         preview(&mut keyboard, now);
         let cancel = keyboard.escape().unwrap();
         keyboard.receive(&cancel, Err("Keyboard action unavailable"), now);
-        keyboard.escape();
+        let _ = keyboard.escape();
         assert!(keyboard.open);
         preview(&mut keyboard, now);
         let cancel = keyboard.escape().unwrap();
         keyboard.receive(&cancel, Ok(br#"{"status":"cancelled"}"#), now);
-        keyboard.escape();
+        let _ = keyboard.escape();
         assert!(!keyboard.open);
     }
     #[test]
@@ -361,7 +364,7 @@ mod tests {
             };
             let command = keyboard.enter(Instant::now()).unwrap();
             keyboard.receive(&command, Ok(bytes), Instant::now());
-            keyboard.escape();
+            let _ = keyboard.escape();
             assert!(keyboard.open && keyboard.preview.is_none());
             assert!(!keyboard.notice.contains("private error"));
         }

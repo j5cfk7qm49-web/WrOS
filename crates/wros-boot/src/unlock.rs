@@ -41,6 +41,7 @@ pub struct Unlock {
 }
 
 impl Unlock {
+    #[must_use]
     pub fn new(tried: u32, tries: u32) -> Self {
         Self {
             // Room for the longest password up front, so it never moves and leaves a copy behind.
@@ -51,6 +52,7 @@ impl Unlock {
     }
 
     /// From cryptsetup's environment: `CRYPTTAB_TRIED` and `CRYPTTAB_OPTION_tries`.
+    #[must_use]
     pub fn from_env(get: impl Fn(&str) -> Option<String>) -> Self {
         let number = |name: &str| get(name).and_then(|v| v.trim().parse::<u32>().ok());
         Self::new(
@@ -61,6 +63,7 @@ impl Unlock {
         )
     }
 
+    #[must_use]
     pub fn key(&mut self, key: Key) -> Outcome {
         match key {
             Key::Char(c) if self.password.chars().count() < MAX_CHARS => self.password.push(c),
@@ -187,7 +190,7 @@ mod tests {
         let mut unlock = Unlock::new(0, 3);
         typed(&mut unlock, b"abc");
         let mut decoder = Decoder::default();
-        decoder.feed(0x1b);
+        let _ = decoder.feed(0x1b);
         assert_eq!(unlock.key(decoder.timeout().unwrap()), Outcome::Text);
     }
 
@@ -195,7 +198,7 @@ mod tests {
     fn the_password_is_never_drawn_at_any_console_size() {
         let mut unlock = Unlock::new(0, 3);
         for c in "Secret-Colemak-ärst".chars() {
-            unlock.key(Key::Char(c));
+            let _ = unlock.key(Key::Char(c));
             for (w, h) in [(80, 25), (100, 37), (128, 48), (170, 48), (40, 12)] {
                 let shown = screen(&unlock, w, h);
                 assert!(
@@ -226,7 +229,7 @@ mod tests {
         let unlock = Unlock::new(1, 3);
         let mut typing = unlock;
         for c in "four".chars() {
-            typing.key(Key::Char(c));
+            let _ = typing.key(Key::Char(c));
         }
         insta::assert_snapshot!("unlock_170x48", screen(&typing, 170, 48));
         insta::assert_snapshot!("unlock_80x25", screen(&typing, 80, 25));
@@ -236,7 +239,7 @@ mod tests {
     fn a_long_password_is_capped_and_its_dots_fit() {
         let mut unlock = Unlock::new(0, 3);
         for _ in 0..(MAX_CHARS + 50) {
-            unlock.key(Key::Char('x'));
+            let _ = unlock.key(Key::Char('x'));
         }
         assert_eq!(unlock.password().chars().count(), MAX_CHARS);
         assert!(

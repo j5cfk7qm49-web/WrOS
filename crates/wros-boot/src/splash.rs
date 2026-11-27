@@ -22,6 +22,7 @@ const BAR: usize = 32;
 
 /// systemd's `Progress`, as `systemctl show --property=Progress --value` prints it (`0.734`),
 /// or as `busctl get-property` does (`d 0.734`).
+#[must_use]
 pub fn parse_progress(text: &str) -> Option<f64> {
     let text = text.trim();
     let text = text.strip_prefix("Progress=").unwrap_or(text);

@@ -13,7 +13,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 ENGINE = ROOT / 'nixos/scripts/wros-update-engine.py'
-VIEWS = ROOT / 'crates/wros-sys/src/system_views.rs'
+VIEWS = ROOT / 'crates/wros-sys/src/system_views/updates.rs'
 
 # updater function -> the Rust struct that parses what it returns
 CONTRACT = {

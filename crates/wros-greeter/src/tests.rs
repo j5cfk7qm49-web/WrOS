@@ -171,7 +171,7 @@ fn fields_edit_in_place_and_wipe_what_they_remove() {
     assert_eq!(form.username.text(), "bc");
     press(&mut form, KeyCode::End);
     type_text(&mut form, "\n");
-    form.key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
+    let _ = form.key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
     assert!(form.username.is_empty());
     for _ in 0..MAX_INPUT {
         press(&mut form, KeyCode::Char('é'));
