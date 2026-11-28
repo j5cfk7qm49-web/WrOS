@@ -4,10 +4,16 @@ rc15 first went out with an archive missing: sudo.pam (new in rc15) and passwd.p
 rc14) have identical contents, so they share one .nar.zst, which the manifest credited to
 passwd.pam; the delta dropped it, and the laptop's update failed at the restart that installs it.
 """
+import hashlib
 import importlib.util
+import json
+import lzma
+import os
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('bundle_tool', ROOT / 'tools/build-nixos-update-bundle.py')
@@ -260,6 +266,107 @@ class Fetch(unittest.TestCase):
         url, _ = self.serve(short_answers=99)
         with self.assertRaisesRegex(tool.BuildError, 'cut short'):
             tool.fetch(url, 1024)
+
+
+class Firmware(unittest.TestCase):
+    DRIVER = '/nix/store/' + 'g' * 32 + '-wros-firmware-ath9k_htc'
+    SEED = '/nix/store/' + 'f' * 32 + '-wros-firmware-rtw88'
+    PACKAGES = {'ath9k_htc': DRIVER, 'rtw88': SEED}
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        self.staging = self.root / 'unsigned'
+        bundle(self.staging)
+        self.driver_files = self.add_package(self.DRIVER, 'ath9k')
+        self.seed_files = self.add_package(self.SEED, 'seed')
+
+    def add_package(self, store_path, archive):
+        narinfo = f'cache/{Path(store_path).name.split("-")[0]}.narinfo'
+        nar = f'cache/nar/{archive}.nar.zst'
+        (self.staging / narinfo).write_text(f'StorePath: {store_path}\nURL: nar/{archive}.nar.zst\n')
+        (self.staging / nar).write_bytes(archive.encode())
+        return {narinfo, nar}
+
+    def collect(self, baseline=(), baseline_toplevel=None):
+        return tool.collect_cache_manifest(
+            self.staging, TOP, '0.1.0~rc33', {TOP, OLD, NEW, GONE, self.SEED},
+            self.PACKAGES, baseline=baseline, baseline_toplevel=baseline_toplevel)
+
+    def test_the_bundle_lists_every_firmware_package_with_its_files(self):
+        manifest = self.collect()
+        by_path = {entry['path']: entry for entry in manifest['cache_files']}
+        self.assertTrue(self.seed_files <= by_path.keys())
+        self.assertTrue(self.driver_files.isdisjoint(by_path))
+        self.assertEqual(set(manifest['firmware']), {'ath9k-htc', 'rtw88'})
+        self.assertEqual(manifest['firmware']['rtw88'], {'store_path': self.SEED, 'files': []})
+        driver = manifest['firmware']['ath9k-htc']
+        self.assertEqual(driver['store_path'], self.DRIVER)
+        self.assertEqual({f['path'] for f in driver['files']}, self.driver_files)
+        for entry in driver['files']:
+            data = (self.staging / entry['path']).read_bytes()
+            self.assertEqual(entry['sha256'], hashlib.sha256(data).hexdigest())
+            self.assertEqual(entry['size'], len(data))
+            self.assertEqual(entry['store_path'], self.DRIVER)
+        closure = tool.load_engine().parse_closure_manifest(json.dumps(manifest).encode())
+        tool.check_firmware_files(self.staging, closure)
+        (self.staging / 'cache/nar/ath9k.nar.zst').write_bytes(b'wrong')
+        with self.assertRaisesRegex(tool.BuildError, 'ath9k.*manifest hash'):
+            tool.check_firmware_files(self.staging, closure)
+
+    def test_firmware_files_survive_the_delta_and_the_thin_pass(self):
+        normal_archive = self.staging / 'cache/nar/shared.nar.zst'
+        nar = normal_archive.read_bytes()
+        nar_hash = 'sha256:' + nix32(hashlib.sha256(nar).digest())
+        narinfo = 'c' * 32 + '.narinfo'
+        remote_nar = 'nar/' + 'q' * 52 + '.nar.xz'
+        remote = {
+            tool.UPSTREAM + narinfo: f'StorePath: {NEW}\nURL: {remote_nar}\nNarHash: {nar_hash}\n'.encode(),
+            tool.UPSTREAM + remote_nar: lzma.compress(nar),
+        }
+        with (self.staging / 'cache' / narinfo).open('a') as stream:
+            stream.write(f'NarHash: {nar_hash}\n')
+        # Exercise pruning both when collecting the cache and when preparing to sign it.
+        manifest = self.collect(baseline={self.DRIVER, self.SEED}, baseline_toplevel=OLD)
+        self.assertTrue(all((self.staging / rel).is_file() for rel in self.driver_files | self.seed_files))
+        baseline = self.root / 'baseline'
+        baseline.write_text('\n'.join([OLD, GONE, self.DRIVER, self.SEED]))
+        keys = ROOT / 'nixos/tests/keys'
+        fingerprint = (keys / 'update-signers').read_text().strip()
+        home = self.root / 'gnupg'
+        home.mkdir(mode=0o700)
+        subprocess.run(['gpg', '--batch', '--homedir', str(home), '--import',
+                        str(keys / 'test-signer.sec.asc')], check=True, capture_output=True)
+        output = self.root / 'output'
+        args = tool.parse_args([
+            str(self.staging), '--out', str(output), '--gnupg-home', str(home),
+            '--key-id', fingerprint, '--expect-fingerprint', fingerprint, '--thin',
+            '--baseline-toplevel', OLD, '--baseline-store-paths', str(baseline),
+        ])
+        manifest_path = self.staging / 'closure-manifest.json'
+        manifest_path.write_text(json.dumps(manifest))
+        manifest_path.chmod(0o444)
+        for directory in (self.staging / 'cache/nar', self.staging / 'cache', self.staging):
+            directory.chmod(0o555)
+        with (mock.patch.object(tool, 'fetch', side_effect=lambda url, _limit: remote[url]) as fetch,
+              mock.patch.dict(tool.ENV, PATH=os.environ['PATH'])):
+            tool.build(args)
+        self.assertEqual([call.args[0] for call in fetch.call_args_list], list(remote))
+        self.assertFalse((output / 'cache/nar/gone.nar.zst').exists())
+        self.assertFalse((output / 'cache/nar/shared.nar.zst').exists())
+        self.assertTrue(all((output / rel).is_file() for rel in self.driver_files | self.seed_files))
+        signed = json.loads((output / 'closure-manifest.json').read_text())
+        self.assertTrue(signed['thin'])
+        self.assertEqual(signed['firmware'], manifest['firmware'])
+        self.assertTrue(self.seed_files <= {f['path'] for f in signed['cache_files']})
+
+    def test_a_firmware_file_over_95_mb_stops_the_build(self):
+        archive = self.staging / 'cache/nar/ath9k.nar.zst'
+        with archive.open('r+b') as stream:
+            stream.truncate(95_000_001)
+        with self.assertRaisesRegex(tool.BuildError, 'ath9k.*95 MB'):
+            self.collect()
 
 
 if __name__ == '__main__':

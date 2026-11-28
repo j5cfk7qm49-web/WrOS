@@ -364,11 +364,8 @@ def parse_closure_manifest(raw_bytes):
     if not isinstance(cache_files, list) or not cache_files or len(cache_files) > 32768:
         fail('closure manifest cache_files list is empty or exceeds bounds')
     seen_paths = set()
-    cleaned_files = []
-    has_cache_info = False
-    has_toplevel_narinfo = False
-    top_hash = Path(toplevel).name.split('-', 1)[0]
-    for entry in cache_files:
+
+    def parse_cache_file(entry):
         if not isinstance(entry, dict):
             fail('invalid cache_files entry in closure manifest')
         rel = entry.get('path')
@@ -395,19 +392,38 @@ def parse_closure_manifest(raw_bytes):
         if rel in seen_paths:
             fail(f'duplicate cache file in closure manifest: {rel}')
         seen_paths.add(rel)
-        if rel == 'cache/nix-cache-info':
-            has_cache_info = True
-        if rel == f'cache/{top_hash}.narinfo':
-            has_toplevel_narinfo = True
-        cleaned_files.append({
+        return {
             'path': rel,
             'sha256': sha256,
             'size': size,
             'store_path': sp,
             'url': url,
-        })
-    if not has_cache_info or not has_toplevel_narinfo:
+        }
+
+    cleaned_files = [parse_cache_file(entry) for entry in cache_files]
+    top_hash = Path(toplevel).name.split('-', 1)[0]
+    if not {'cache/nix-cache-info', f'cache/{top_hash}.narinfo'} <= seen_paths:
         fail('closure manifest must include cache/nix-cache-info and the toplevel .narinfo')
+
+    firmware = manifest.get('firmware', {})
+    if not isinstance(firmware, dict) or len(firmware) > 64:
+        fail('closure manifest firmware must be an object with at most 64 packages')
+    cleaned_firmware = {}
+    for name, package in firmware.items():
+        if re.fullmatch(r'[a-z0-9-]{1,40}', name) is None:
+            fail(f'invalid firmware package name in closure manifest: {name!r}')
+        if not isinstance(package, dict):
+            fail(f'invalid firmware package in closure manifest: {name}')
+        store_path = package.get('store_path')
+        if not isinstance(store_path, str) or STORE_PATH_RE.fullmatch(store_path) is None:
+            fail(f'invalid store_path for firmware package {name}')
+        files = package.get('files')
+        if not isinstance(files, list) or len(files) > 32768:
+            fail(f'invalid files list for firmware package {name}')
+        cleaned_firmware[name] = {
+            'store_path': store_path,
+            'files': [parse_cache_file(entry) for entry in files],
+        }
     return {
         'schema': 2,
         'format': 'wros-nixos-cache-v2',
@@ -419,6 +435,7 @@ def parse_closure_manifest(raw_bytes):
         # Some files come from cache.nixos.org instead of the bundle (rc23).
         'thin': bool(manifest.get('thin', False)),
         'cache_files': cleaned_files,
+        'firmware': cleaned_firmware,
     }
 
 

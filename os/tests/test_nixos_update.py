@@ -68,6 +68,45 @@ class NixosUpdateEngineTests(unittest.TestCase):
         self.assertTrue(cmp_v('0.1.0~rc14', 'eq', '0.1.0~rc14'))
         self.assertTrue(cmp_v('0.1.0', 'lt', '0.1.0+hotfix1'))
 
+    def _closure_manifest(self):
+        toplevel = '/nix/store/' + 'a' * 32 + '-nixos-system-wros'
+        return {
+            'schema': 2, 'format': 'wros-nixos-cache-v2', 'version': '0.1.0~rc33',
+            'system': 'x86_64-linux', 'toplevel': toplevel,
+            'cache_files': [
+                {'path': 'cache/nix-cache-info', 'sha256': 'a' * 64, 'size': 1},
+                {'path': f'cache/{"a" * 32}.narinfo', 'sha256': 'a' * 64, 'size': 1,
+                 'store_path': toplevel},
+            ],
+        }
+
+    def test_a_manifest_without_firmware_parses_as_before(self):
+        manifest = self._closure_manifest()
+        closure = self.engine.parse_closure_manifest(json.dumps(manifest).encode())
+        self.assertEqual(closure['firmware'], {})
+        self.assertEqual(closure['toplevel'], manifest['toplevel'])
+        self.assertEqual([f['path'] for f in closure['cache_files']],
+                         [f['path'] for f in manifest['cache_files']])
+
+    def test_a_firmware_section_with_a_shared_path_is_refused(self):
+        manifest = self._closure_manifest()
+        package = '/nix/store/' + 'b' * 32 + '-firmware'
+        shared = {'path': 'cache/nar/firmware.nar.zst', 'sha256': 'b' * 64, 'size': 2,
+                  'store_path': package}
+        manifest['firmware'] = {'rtw88': {'store_path': package, 'files': [shared]}}
+        closure = self.engine.parse_closure_manifest(json.dumps(manifest).encode())
+        self.assertEqual(closure['firmware']['rtw88']['files'], [{**shared, 'url': None}])
+        with self.subTest('also in cache_files'):
+            manifest['cache_files'].append(shared)
+            with self.assertRaisesRegex(ValueError, 'duplicate cache file'):
+                self.engine.parse_closure_manifest(json.dumps(manifest).encode())
+            manifest['cache_files'].pop()
+        with self.subTest('also in another firmware package'):
+            other = '/nix/store/' + 'c' * 32 + '-other-firmware'
+            manifest['firmware']['rtw89'] = {'store_path': other, 'files': [shared]}
+            with self.assertRaisesRegex(ValueError, 'duplicate cache file'):
+                self.engine.parse_closure_manifest(json.dumps(manifest).encode())
+
     def _make_signed_bundle(self, root, *, version='0.1.0~rc14',
                             toplevel='/nix/store/0123456789abcdfghijklmnpqrsvwxyz-nixos-system-wros-0.1.0-rc14',
                             moment=None, tamper_nar=False, baseline=None, orphan_narinfo=False,

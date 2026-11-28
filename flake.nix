@@ -166,6 +166,7 @@
         inherit pkgs lib version;
         src = ./.;  # a path, not the flake string: lib.fileset.toSource requires one
         systemToplevel = wrosSystem.config.system.build.toplevel;
+        firmwarePackages = wrosSystem.config.wros.firmware;
       };
 
       # The modules take their WrOS arguments through specialArgs in the two systems above. A VM
