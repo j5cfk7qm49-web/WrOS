@@ -314,6 +314,8 @@ pub fn update_staged(output: &str, expected_review_id: &str) -> Result<UpdateSta
         // The NixOS updater names the system it staged.
         #[serde(default)]
         toplevel: Option<String>,
+        #[serde(default)]
+        firmware_missing: Vec<String>,
     }
     let object = helper_object(output, "wros-update-stage")?;
     let raw: RawStaged = serde_json::from_value(serde_json::Value::Object(object))
@@ -335,6 +337,16 @@ pub fn update_staged(output: &str, expected_review_id: &str) -> Result<UpdateSta
         "the helper staged a different update than the one you reviewed"
     );
     ensure!(raw.packages <= 1024, "update package count exceeds limit");
+    ensure!(
+        raw.firmware_missing.iter().all(|name| {
+            !name.is_empty()
+                && name.len() <= 40
+                && name
+                    .bytes()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || b"-_".contains(&c))
+        }),
+        "invalid missing firmware package name"
+    );
     Ok(UpdateStaged {
         transaction_id: raw.transaction_id,
         review_id: raw.review_id,
@@ -697,9 +709,10 @@ mod tests {
         assert_eq!(reviewed.packages[0].to_version, "0.1.0~rc15");
         let staged = format!(
             r#"{{"status": "staged", "transaction_id": "tx-1", "review_id": "{id}", "packages": 1,
-            "toplevel": "{top}", "restart_required": true}}"#
+            "toplevel": "{top}", "restart_required": true, "firmware_missing": ["ath9k_htc"]}}"#
         );
         assert!(update_staged(&staged, &id).unwrap().restart_required);
+        assert!(update_staged(&staged.replace("ath9k_htc", "../ath9k"), &id).is_err());
         let back = format!(
             r#"{{"status": "staged", "transaction_id": "tx-2", "review_id": "{id}", "packages": 1,
             "toplevel": "{top}", "restart_required": true, "rollback": true}}"#

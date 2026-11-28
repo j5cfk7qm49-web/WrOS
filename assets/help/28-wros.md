@@ -73,8 +73,10 @@ and capacity. Open Settings › Updates and recovery › Updates.
 Choose **Check for WrOS updates** for signed WrOS updates, or **Review a signed
 update bundle by path** for an offline NixOS update bundle. If the download stops
 partway, choose **Check for WrOS updates** again to carry on where it stopped.
-A confirmed update is staged for a restart. **Go back to** `<version>` returns to
-the previous system generation when available. The repair controls under **Recovery status,
+A confirmed update is staged for a restart. An update can download more firmware while
+it prepares support for this laptop's devices. Once it's staged, you can restart offline.
+**Go back to** `<version>` returns to the previous system generation and its firmware
+when available. The repair controls under **Recovery status,
 repair and staged update** lead to **Repair now from retained verified packages**.
 On NixOS, this re-activates the current generation. The cached APT package-plan
 preview is not available on NixOS.

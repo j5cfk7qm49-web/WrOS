@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
 import hashlib
 import http.server
+import io
 import importlib.machinery
 import importlib.util
 import json
@@ -110,7 +111,7 @@ class NixosUpdateEngineTests(unittest.TestCase):
     def _make_signed_bundle(self, root, *, version='0.1.0~rc14',
                             toplevel='/nix/store/0123456789abcdfghijklmnpqrsvwxyz-nixos-system-wros-0.1.0-rc14',
                             moment=None, tamper_nar=False, baseline=None, orphan_narinfo=False,
-                            upstream=False):
+                            upstream=False, firmware=()):
         moment = moment or datetime(2026, 11, 14, 12, 0, tzinfo=timezone.utc)
         until = moment + timedelta(days=14)
         gnupg = root / 'gnupg'
@@ -213,6 +214,19 @@ class NixosUpdateEngineTests(unittest.TestCase):
                     'size': len(data), 'store_path': pkg,
                     'url': 'https://cache.nixos.org/' + rel})
             closure['thin'] = True
+        if firmware:
+            closure['firmware'] = {}
+            for digit, name in zip('bcd', firmware, strict=True):
+                store_path = '/nix/store/' + digit * 32 + '-' + name
+                archive = f'nar/{name}.nar.zst'
+                files = []
+                for rel, data in ((digit * 32 + '.narinfo', f'StorePath: {store_path}\nURL: {archive}\n'.encode()),
+                                  (archive, name.encode())):
+                    rel = 'cache/' + rel
+                    (bundle / rel).write_bytes(data)
+                    files.append({'path': rel, 'sha256': hashlib.sha256(data).hexdigest(),
+                                  'size': len(data), 'store_path': store_path})
+                closure['firmware'][name] = {'store_path': store_path, 'files': files}
         closure_raw = (json.dumps(closure, indent=2, sort_keys=True) + '\n').encode()
         (bundle / 'closure-manifest.json').write_bytes(closure_raw)
         if tamper_nar:
@@ -248,12 +262,169 @@ class NixosUpdateEngineTests(unittest.TestCase):
 
         return bundle, paths, mock.patch.object(self.engine, 'http_get', side_effect=get_metadata)
 
+    def _firmware_update(self, root, *, present=(), running=(), detected=('rtw88',), target_missing=()):
+        bundle, keyring, signers, moment = self._make_signed_bundle(
+            root, firmware=('rtw88', 'ath9k-htc', 'rtw89'))
+        closure = self.engine.parse_closure_manifest((bundle / 'closure-manifest.json').read_bytes())
+        packages = closure['firmware']
+        store_dir = root / 'store'
+        current = store_dir / ('f' * 32 + '-current')
+        current.mkdir(parents=True)
+        (current / 'wros-firmware.json').touch()
+        current_system = root / 'current-system'
+        current_system.symlink_to(current)
+        sets = root / 'firmware'
+        running_set = sets / current.name
+        running_set.mkdir(parents=True)
+        (running_set / 'packages.json').write_text(json.dumps({'packages': running}), encoding='utf-8')
+        for name in present:
+            (store_dir / Path(packages[name]['store_path']).name).mkdir()
+        paths = dict(keyring=keyring, signers=signers, now=moment + timedelta(minutes=1),
+                     version_file=root / 'version', current_system=current_system, store_dir=store_dir)
+        asked, commands = [], []
+
+        class Opener:
+            def open(self, url, timeout=None):
+                rel = url.removeprefix('http://channel.test/')
+                asked.append(rel)
+                return io.BytesIO((bundle / rel).read_bytes())
+
+        def run(cmd):
+            commands.append(cmd)
+            reply = ''
+            if cmd[0] == 'nix' and 'copy' in cmd:
+                for arg in cmd:
+                    if arg.startswith('/nix/store/'):
+                        (store_dir / Path(arg).name).mkdir(exist_ok=True)
+            elif cmd[0] == str(self.engine.FIRMWARE_TOOL):
+                if cmd[1] == 'detect':
+                    self.assertEqual(cmd[2:], ['--system', str(current_system)])
+                    reply = json.dumps({'packages': detected, 'unknown': []})
+                elif cmd[1] == 'ensure':
+                    self.assertEqual(cmd[2:], [closure['toplevel']])
+                    missing = []
+                    for name in target_missing:
+                        package = packages.get(name.replace('_', '-'))
+                        if package is None or not (store_dir / Path(package['store_path']).name).exists():
+                            missing.append(name)
+                    reply = json.dumps({'packages': [], 'missing': missing, 'unknown': []})
+            return subprocess.CompletedProcess(cmd, 0, reply, '')
+
+        cache = root / 'online'
+        online = dict(base_url='http://channel.test/', opener=Opener(), firmware_sets_dir=sets, runner=run)
+        got = self.engine.fetch_online(cache=cache, **online, **paths)
+        return got, paths, online, cache, commands, asked, closure
+
+    def test_fetch_downloads_only_the_detected_firmware(self):
+        with tempfile.TemporaryDirectory(prefix='wros-firmware-fetch-') as tmp:
+            got, _, _, _, _, asked, closure = self._firmware_update(Path(tmp))
+            needed = {f['path'] for f in closure['firmware']['rtw88']['files']}
+            extra = set(asked) - {f['path'] for f in closure['cache_files']} - {
+                'InRelease', 'closure-manifest.json'}
+            self.assertEqual(extra, needed)
+            self.assertTrue(all((Path(got['path']) / path).is_file() for path in needed))
+
+    def test_fetch_skips_firmware_already_in_the_store(self):
+        with tempfile.TemporaryDirectory(prefix='wros-firmware-present-') as tmp:
+            _, _, _, _, _, asked, closure = self._firmware_update(Path(tmp), present=('rtw88',))
+            self.assertTrue(all(f['path'] not in asked for f in closure['firmware']['rtw88']['files']))
+
+    def test_fetch_includes_the_running_sets_packages(self):
+        with tempfile.TemporaryDirectory(prefix='wros-firmware-running-') as tmp:
+            _, _, _, _, _, asked, closure = self._firmware_update(Path(tmp), running=('ath9k_htc',))
+            self.assertTrue(all(f['path'] in asked for f in closure['firmware']['ath9k-htc']['files']))
+            self.assertTrue(all(f['path'] not in asked for f in closure['firmware']['rtw89']['files']))
+
+    def _stage_firmware_update(self, root, *, target_missing, tamper=False):
+        got, paths, online, cache, commands, asked, closure = self._firmware_update(
+            root, target_missing=target_missing)
+        before_staging = list(asked)
+        state = dict(state_dir=root / 'state', trigger_path=root / 'system-update', gcroots_dir=root / 'gcroots')
+        review = self.engine.review_bundle(got['path'], state_dir=state['state_dir'], **paths)
+
+        def stage():
+            return self.engine.stage_update(got['path'], review['review_id'], allowed_prefixes=(str(root),),
+                                            download_cache=cache, **online, **paths, **state)
+
+        if tamper:
+            archive = root / 'bundle' / closure['firmware']['ath9k-htc']['files'][1]['path']
+            archive.write_bytes(b'X' * archive.stat().st_size)
+            with mock.patch.object(self.engine, 'RETRY_PAUSE', 0):
+                with self.assertRaisesRegex(ValueError, 'failed SHA-256'):
+                    stage()
+            self.assertFalse(state['trigger_path'].exists())
+            package = closure['firmware']['ath9k-htc']['store_path']
+            self.assertFalse(any(package in cmd for cmd in commands))
+            return
+        staged = stage()
+        self.assertEqual(staged['status'], 'staged')
+        self.assertFalse(any(cmd[-1] == 'boot' for cmd in commands))
+        self.engine.prune_old_generations_and_gc(
+            self.engine.Store(state['state_dir']), profile=root / 'profile',
+            current_system=paths['current_system'], run=online['runner'],
+            gcroots_dir=state['gcroots_dir'], trigger_path=state['trigger_path'])
+        self.assertFalse(any(cmd[1:2] == ['prune'] for cmd in commands))
+        applied = self.engine.execute_offline_boot_transaction(
+            profile=root / 'profile', runner=online['runner'], **paths, **state)
+        self.assertEqual(applied['status'], 'completed')
+        return staged, commands, asked[len(before_staging):], closure
+
+    def test_staging_imports_the_firmware_and_writes_the_new_generations_set_before_boot(self):
+        with tempfile.TemporaryDirectory(prefix='wros-firmware-stage-') as tmp:
+            staged, commands, late, closure = self._stage_firmware_update(Path(tmp), target_missing=('unlisted',))
+            self.assertEqual(staged['firmware_missing'], ['unlisted'])
+            self.assertEqual(late, [])
+            firmware = closure['firmware']['rtw88']['store_path']
+            imported = next(i for i, cmd in enumerate(commands) if cmd[0] == 'nix' and firmware in cmd)
+            ensured = commands.index([str(self.engine.FIRMWARE_TOOL), 'ensure', closure['toplevel']])
+            boot = commands.index([closure['toplevel'] + '/bin/switch-to-configuration', 'boot'])
+            self.assertLess(imported, ensured)
+            self.assertLess(ensured, boot)
+
+    def test_staging_fetches_firmware_detected_only_by_the_target_before_boot(self):
+        with tempfile.TemporaryDirectory(prefix='wros-firmware-target-') as tmp:
+            staged, commands, late, closure = self._stage_firmware_update(Path(tmp), target_missing=('ath9k_htc',))
+            self.assertEqual(staged['firmware_missing'], [])
+            package = closure['firmware']['ath9k-htc']
+            self.assertCountEqual(late, [f['path'] for f in package['files']])
+            imported = next(i for i, cmd in enumerate(commands) if cmd[0] == 'nix' and package['store_path'] in cmd)
+            ensures = [i for i, cmd in enumerate(commands)
+                       if cmd == [str(self.engine.FIRMWARE_TOOL), 'ensure', closure['toplevel']]]
+            boot = commands.index([closure['toplevel'] + '/bin/switch-to-configuration', 'boot'])
+            self.assertEqual(len(ensures), 2)
+            self.assertLess(ensures[0], imported)
+            self.assertLess(imported, ensures[1])
+            self.assertLess(ensures[1], boot)
+
+    def test_staging_refuses_target_firmware_with_a_bad_signed_hash(self):
+        with tempfile.TemporaryDirectory(prefix='wros-firmware-bad-hash-') as tmp:
+            self._stage_firmware_update(Path(tmp), target_missing=('ath9k_htc',), tamper=True)
+
+    def test_old_generation_folders_are_pruned_after_generations_are_deleted(self):
+        with tempfile.TemporaryDirectory(prefix='wros-firmware-prune-') as tmp:
+            root = Path(tmp)
+            _, commands, _, closure = self._stage_firmware_update(root, target_missing=())
+            profile = root / 'profile'
+
+            def run(cmd):
+                commands.append(cmd)
+                return subprocess.CompletedProcess(cmd, 0, '', '')
+
+            self.engine.prune_old_generations_and_gc(
+                self.engine.Store(root / 'state'), profile=profile, gcroots_dir=root / 'gcroots',
+                current_system=root / 'current-system', trigger_path=root / 'system-update', run=run)
+            set_profile = ['nix-env', '-p', str(profile), '--set', closure['toplevel']]
+            delete = ['nix-env', '-p', str(profile), '--delete-generations', '+2']
+            prune = [str(self.engine.FIRMWARE_TOOL), 'prune', '--profile', str(profile)]
+            self.assertLess(commands.index(set_profile), commands.index(delete))
+            self.assertLess(commands.index(delete), commands.index(prune))
+            self.assertLess(commands.index(prune), commands.index(['nix-collect-garbage']))
+
     # --- Thin bundles (rc23, #169) ---
 
     def _thin_fetch(self, root, *, served=None, fail_with=None):
         """fetch_online against a thin bundle: the channel from root/bundle, cache.nixos.org's
         files from root/upstream, through a mirror base named in the system configuration."""
-        import io
         bundle, keyring, signers, moment = self._make_signed_bundle(
             root, version='0.1.0~rc18', upstream=True,
             toplevel='/nix/store/0123456789abcdfghijklmnpqrsvwxyz-nixos-system-wros-0.1.0-rc18')

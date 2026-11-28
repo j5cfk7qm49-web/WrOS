@@ -91,6 +91,8 @@ DEFAULT_PROFILE = Path('/nix/var/nix/profiles/system')
 DEFAULT_CURRENT_SYSTEM = Path('/run/current-system')
 DEFAULT_GCROOTS_DIR = Path('/nix/var/nix/gcroots/wros')
 DEFAULT_VERSION_FILE = Path('/etc/wros/version')
+FIRMWARE_TOOL = DEFAULT_CURRENT_SYSTEM / 'sw/bin/wros-firmware'
+FIRMWARE_SETS = Path('/nix/var/wros/firmware')
 CLOSURE_MANIFEST_NAME = 'closure-manifest.json'
 STORE_PATH_RE = re.compile(r'^/nix/store/[0-9a-df-np-sv-z]{32}-[A-Za-z0-9._+?=-]+$')
 CACHE_REL_RE = re.compile(
@@ -464,6 +466,50 @@ def require_baseline(closure, store_dir):
         fail(f'This update needs WrOS {needs} first')
 
 
+def firmware_names(data, key):
+    names = data.get(key) if isinstance(data, dict) else None
+    if not isinstance(names, list) or not all(
+            isinstance(name, str) and re.fullmatch(r'[a-z0-9_-]{1,40}', name) for name in names):
+        fail(f'invalid firmware {key} list')
+    return set(names)
+
+
+def running_firmware_packages(current_system, sets_dir, run):
+    current = Path(current_system)
+    toplevel = current_toplevel(current)
+    if toplevel is None or not (Path(toplevel) / 'wros-firmware.json').is_file():
+        return set()  # older systems have no table or set
+    generation = Path(toplevel).name
+    sets = Path(sets_dir)
+    parents = tuple(reversed(sets.parents)) if sets == FIRMWARE_SETS else ()
+    names = set()
+    try:
+        for directory in (*parents, sets, sets / generation):
+            directory.lstat()
+            require_private_entry(directory, 'dir')
+    except FileNotFoundError:
+        pass  # a running generation may not have a set yet
+    else:
+        metadata = sets / generation / 'packages.json'
+        require_private_entry(metadata, 'file')
+        names = firmware_names(json.loads(read_regular_bytes(metadata, LIMIT)), 'packages')
+    try:
+        result = run([str(FIRMWARE_TOOL), 'detect', '--system', str(current)])
+    except (OSError, subprocess.SubprocessError):
+        return names
+    if result.returncode == 0:
+        names |= firmware_names(json.loads(result.stdout), 'packages')
+    return names
+
+
+def verify_cache_file(path, item):
+    if path.is_symlink() or not path.is_file():
+        fail(f'binary-cache entry must be a regular file: {item["path"]}')
+    actual_sha, actual_size = sha256_file(path)
+    if actual_sha != item['sha256'] or actual_size != item['size']:
+        fail(f'binary-cache file {item["path"]} failed SHA-256 or size check against signed closure-manifest.json')
+
+
 def verify_closure_archives(bundle_root, closure, *, store_dir=Path('/nix/store'), allow_skipped_present=False,
                             allow_upstream_missing=False):
     """Verify every binary-cache file (.narinfo, .nar.zst, nix-cache-info) against the signed manifest BEFORE import."""
@@ -485,12 +531,14 @@ def verify_closure_archives(bundle_root, closure, *, store_dir=Path('/nix/store'
                     continue
                 fail(NEEDS_INTERNET)
             fail(f'missing binary-cache file {rel}')
-        if file_path.is_symlink() or not file_path.is_file():
-            fail(f'binary-cache entry must be a regular file: {rel}')
-        actual_sha, actual_size = sha256_file(file_path)
-        if actual_sha != item['sha256'] or actual_size != item['size']:
-            fail(f'binary-cache file {rel} failed SHA-256 or size check against signed closure-manifest.json')
+        verify_cache_file(file_path, item)
         expected_rels.add(rel)
+    for package in closure['firmware'].values():
+        for item in package['files']:
+            rel = item['path']
+            if os.path.lexists(bundle_root / rel):
+                verify_cache_file(bundle_root / rel, item)
+                expected_rels.add(rel)
     cache_dir = bundle_root / 'cache'
     if cache_dir.is_dir():
         for extra in sorted(cache_dir.rglob('*')):
@@ -762,13 +810,16 @@ def stage_update(bundle_dir, review_id, *, keyring=DEFAULT_KEYRING, signers=DEFA
                  state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAULT_TRIGGER, now=None,
                  allowed_prefixes=ALLOWED_MEDIA_PREFIXES, suites=PINNED_SUITES,
                  version_file=DEFAULT_VERSION_FILE, current_system=DEFAULT_CURRENT_SYSTEM,
-                 store_dir=Path('/nix/store'), gcroots_dir=DEFAULT_GCROOTS_DIR, **_unused):
+                 store_dir=Path('/nix/store'), gcroots_dir=DEFAULT_GCROOTS_DIR, runner=None,
+                 download_cache=ONLINE_CACHE, base_url=ONLINE_URL, opener=None, **_unused):
     if not isinstance(review_id, str) or HEX64_RE.fullmatch(review_id) is None:
         fail('invalid review id')
     _base.check_bundle_path(str(bundle_dir), allowed_prefixes)
     store = Store(state_dir)
     trigger_path = Path(trigger_path)
     when = clock(now)
+    run = runner or _base.default_runner
+    firmware_missing = []
     with store.exclusive():
         if os.path.lexists(trigger_path):
             fail('another offline update is already pending; original preserved')
@@ -788,6 +839,17 @@ def stage_update(bundle_dir, review_id, *, keyring=DEFAULT_KEYRING, signers=DEFA
                 fail('update bundle changed since it was reviewed; review it again')
             manifest, live = write_nixos_tree(
                 bundle_dir, raw, partial, tx_id, when, current_system=current_system, store_dir=store_dir)
+            if raw['closure']['firmware']:
+                source = Path(bundle_dir)
+                inrelease = raw['meta'].get('InRelease')
+                online = inrelease is not None and source == (
+                    Path(download_cache) / hashlib.sha256(inrelease).hexdigest()[:16])
+                if online:
+                    require_private_entry(source.parent, 'dir')
+                    require_private_entry(source, 'dir')
+                firmware_missing = prepare_update_firmware(
+                    source, partial, raw['closure'], store_dir=store_dir, run=run,
+                    base_url=base_url if online else None, opener=opener)
             if os.path.lexists(store.staged):
                 remove_staged(store)
             os.rename(partial, store.staged)
@@ -819,6 +881,7 @@ def stage_update(bundle_dir, review_id, *, keyring=DEFAULT_KEYRING, signers=DEFA
         'packages': 1,
         'toplevel': manifest['toplevel'],
         'restart_required': not live,
+        'firmware_missing': firmware_missing,
     }
 
 
@@ -914,6 +977,74 @@ def import_verified_closure(staged_dir, closure, *, run=None, store_dir=Path('/n
     res2 = run(['nix-store', '--verify-path', closure['toplevel']])
     if res2.returncode != 0:
         fail(f'nix-store --verify-path failed after importing {closure["toplevel"]}')
+
+
+def import_update_firmware(source, staged, packages, *, store_dir, run, base_url=None, opener=None):
+    packages = [package for package in packages if not store_has_path(package['store_path'], store_dir)]
+    files = [item for package in packages for item in package['files']]
+    if not packages:
+        return
+    require_free_space(staged, sum(item['size'] for item in files))
+    for item in files:
+        src = source / item['path']
+        dst = staged / item['path']
+        if src.is_file():
+            with regular_stream(src) as stream, dst.open('xb') as output:
+                remaining = item['size']
+                while remaining and (chunk := stream.read(min(65536, remaining))):
+                    remaining -= len(chunk)
+                    output.write(chunk)
+                if stream.read(1):
+                    fail(f'firmware file exceeds its signed size: {item["path"]}')
+        elif base_url is not None:
+            try:
+                http_stream_to_file(base_url + item['path'], dst, item['size'], item['sha256'], opener=opener)
+            except (OSError, ValueError) as error:
+                detail = str(error).replace(f' {FETCH_KEPT}', '')
+                fail(f'Could not download update firmware {src.name}: {detail}')
+        else:
+            fail(f'update bundle is missing firmware file {item["path"]}')
+        verify_cache_file(dst, item)
+        with dst.open('rb') as stream:
+            os.fsync(stream.fileno())
+    wanted = sorted({package['store_path'] for package in packages})
+    res = run([
+        'nix', '--extra-experimental-features', 'nix-command',
+        'copy', '--from', f'file://{staged.resolve() / "cache"}', '--no-check-sigs', '--no-recursive', *wanted,
+    ])
+    forget_valid_store_paths()
+    if res.returncode != 0:
+        fail(f'failed to import verified update firmware: {_tail(res)}')
+    for directory in (staged / 'cache/nar', staged / 'cache'):
+        fsync_dir(directory)
+
+
+def prepare_update_firmware(source, staged, closure, *, store_dir, run, base_url, opener):
+    """Finish firmware while staging can reach the channel. Apply at boot stays offline."""
+    import_verified_closure(staged, closure, run=run, store_dir=store_dir)
+    firmware = closure['firmware']
+    # An online download contains only the firmware fetch selected. A full offline bundle
+    # carries every package, so let target detection choose from it below.
+    if base_url is not None:
+        ready = [package for package in firmware.values() if package['files'] and all(
+            (source / item['path']).is_file() for item in package['files'])]
+        import_update_firmware(source, staged, ready, store_dir=store_dir, run=run)
+
+    attempted = set()
+    while True:
+        result = run([str(FIRMWARE_TOOL), 'ensure', closure['toplevel']])
+        if result.returncode != 0:
+            fail(f'could not prepare firmware for the updated system: {_tail(result)}')
+        missing = firmware_names(json.loads(result.stdout), 'missing')
+        # The machine table uses driver names. The manifest spells underscores with hyphens.
+        listed = {name.replace('_', '-') for name in missing} & firmware.keys()
+        if not listed:
+            return sorted(missing)
+        if listed & attempted or any(not firmware[name]['files'] for name in listed):
+            fail(f'update firmware is still missing: {", ".join(sorted(listed))}')
+        import_update_firmware(source, staged, [firmware[name] for name in sorted(listed)],
+                               store_dir=store_dir, run=run, base_url=base_url, opener=opener)
+        attempted |= listed
 
 
 def switch_system_generation(toplevel, *, profile=DEFAULT_PROFILE, live=False, run=None,
@@ -1037,6 +1168,8 @@ def apply_staged_transaction(*, state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAUL
         unlink_trigger(trigger_path)
         try:
             if not details['rollback']:
+                # A firmware-aware stage already imported the closure and prepared its set.
+                # Older bundles still import here. The boot hook uses the selected generation's set.
                 import_verified_closure(store.staged, details['closure'], run=run, store_dir=store_dir)
             switch_system_generation(manifest['toplevel'], profile=profile, live=live, run=run,
                                      generation=manifest.get('generation'))
@@ -1108,13 +1241,18 @@ def apply_staged_now(**kwargs):
 
 
 def prune_old_generations_and_gc(store, *, profile=DEFAULT_PROFILE, gcroots_dir=DEFAULT_GCROOTS_DIR,
-                                 current_system=DEFAULT_CURRENT_SYSTEM, run=None):
+                                 current_system=DEFAULT_CURRENT_SYSTEM, trigger_path=DEFAULT_TRIGGER, run=None):
     """Delete older system generations and collect unreferenced store paths once healthy (U4)."""
     run = run or _base.default_runner
-    update_gc_roots(store, gcroots_dir=gcroots_dir, current_system=current_system)
-    # Keep the current generation and at most 1 previous generation in the system profile
-    run(['nix-env', '-p', str(profile), '--delete-generations', '+2'])
-    run(['nix-collect-garbage'])
+    with store.exclusive():
+        if os.path.lexists(trigger_path):
+            return  # the staged firmware set is not in the profile until apply
+        update_gc_roots(store, gcroots_dir=gcroots_dir, current_system=current_system)
+        # Keep the current generation and at most 1 previous generation in the system profile.
+        deleted = run(['nix-env', '-p', str(profile), '--delete-generations', '+2'])
+        if deleted.returncode == 0:
+            run([str(FIRMWARE_TOOL), 'prune', '--profile', str(profile)])
+        run(['nix-collect-garbage'])
 
 
 def report_health(what, *, state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAULT_TRIGGER,
@@ -1125,7 +1263,7 @@ def report_health(what, *, state_dir=DEFAULT_STATE_DIR, trigger_path=DEFAULT_TRI
         try:
             prune_old_generations_and_gc(
                 Store(state_dir), profile=profile, gcroots_dir=gcroots_dir,
-                current_system=current_system, run=runner)
+                current_system=current_system, trigger_path=trigger_path, run=runner)
         except Exception:
             pass
     return res
@@ -1616,7 +1754,8 @@ def fetch_online(*, base_url=ONLINE_URL, cache=ONLINE_CACHE, now=None,
                  keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS,
                  version_file=DEFAULT_VERSION_FILE, current_system=DEFAULT_CURRENT_SYSTEM,
                  store_dir=Path("/nix/store"), package_keyring=None, opener=None,
-                 upstream_file=DEFAULT_UPSTREAM_FILE, **_unused):
+                 upstream_file=DEFAULT_UPSTREAM_FILE, firmware_sets_dir=FIRMWARE_SETS,
+                 runner=None, **_unused):
     previous = os.umask(0o022)
     keyring = resolve_trust_anchor(keyring)
     signers = resolve_trust_anchor(signers)
@@ -1656,7 +1795,19 @@ def fetch_online(*, base_url=ONLINE_URL, cache=ONLINE_CACHE, now=None,
 
         total = done = 0
         to_download = []
-        for item in closure['cache_files']:
+        files = list(closure['cache_files'])
+        if closure['firmware']:
+            names = running_firmware_packages(current_system, firmware_sets_dir, runner or _base.default_runner)
+            wanted = {name.replace('_', '-') for name in names}
+            for name, package in closure['firmware'].items():
+                if name in wanted and not store_has_path(package['store_path'], store_dir):
+                    files.extend(package['files'])
+                    continue
+                for item in package['files']:
+                    path = partial / item['path']
+                    path.unlink(missing_ok=True)
+                    path.with_name(path.name + '.part').unlink(missing_ok=True)
+        for item in files:
             path = partial / item['path']
             part = path.with_name(path.name + '.part')
             sp = item['store_path']
@@ -1738,7 +1889,7 @@ def launcher_main(verb, argv, pkexec_uid, *, euid=None, runner=None, **paths):
         _base.check_bundle_path(argv[0], paths.pop('allowed_prefixes', ALLOWED_MEDIA_PREFIXES))
         if HEX64_RE.fullmatch(argv[1]) is None:
             fail('invalid review id')
-        return stage_update(argv[0], argv[1], allowed_prefixes=None, **paths)
+        return stage_update(argv[0], argv[1], allowed_prefixes=None, runner=runner, **paths)
     if verb == 'cancel':
         if argv:
             fail('usage: wros-update-cancel')
@@ -1765,7 +1916,7 @@ def launcher_main(verb, argv, pkexec_uid, *, euid=None, runner=None, **paths):
     if verb == 'fetch':
         if argv:
             fail('usage: wros-update-fetch')
-        return fetch_online(**paths)
+        return fetch_online(runner=runner, **paths)
     if argv != ['mount']:
         fail('usage: wros-update-media mount')
     return find_update_media(runner=runner, **{k: v for k, v in paths.items() if k in ('media_root', 'mountinfo_text')})
