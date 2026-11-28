@@ -289,7 +289,6 @@ impl Shell {
 /// The Settings rows the menu bar chooses on the writer's behalf.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SettingsRow {
-    Lock,
     Sleep,
     Restart,
     ShutDown,

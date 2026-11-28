@@ -9,7 +9,8 @@ The mouse works everywhere on the bar: click a view tile to switch views, click 
 ## Power
 
 - **Install WrOS to disk…**: only on a live USB stick.
-- **Lock**, **Sleep**, **Restart…** and **Shut down…**: as in Settings › System › Battery and power, and they ask first in the same way.
+- **Lock** saves and locks right away. Unlock to get back to where you were writing.
+- **Sleep**, **Restart…** and **Shut down…** ask first, as in Settings › System › Battery and power.
 - **Quit** (`Ctrl-Q`): where WrOS offers it; everything is saved first.
 
 ## File

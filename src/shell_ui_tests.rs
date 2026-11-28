@@ -1637,20 +1637,60 @@ fn the_power_menus_install_asks_even_while_storage_is_still_loading() {
 }
 
 #[test]
-fn the_power_menus_lock_waits_for_the_first_status_then_locks() {
-    // rc23 has no dashboard to read the system status at login, so the first Lock from the
-    // menu opens a Settings page that is still reading it. Lock used to be refused then.
-    let mut desk = Desk::open(book("menu-lock-busy", true), 100, 30);
+fn power_menu_lock_without_a_status_read_returns_to_the_editor() {
+    let mut desk = Desk::open(book("menu-lock-no-status", true), 100, 30);
     desk.app
         .deck
         .use_test_backend(Box::new(Simulated::laptop()));
     desk.app.deck.lock_available = true;
+    desk.key(KeyCode::Tab);
+    let settings_route = route(&desk);
     assert!(desk.app.deck.snapshot.is_none());
     desk.menu(&["Power", "Lock"]);
-    assert!(desk.app.deck.busy, "opening the page reads the status");
-    assert!(!desk.app.deck.lock_requested);
-    wait_system(&mut desk);
-    assert!(desk.app.deck.lock_requested, "{}", desk.rows().join("\n"));
+    assert_eq!(desk.app.overlay, Overlay::None);
+    assert_eq!(route(&desk), settings_route);
+    assert!(!desk.app.deck.busy, "locking needs no system status read");
+    assert!(desk.app.deck.lock_requested);
+    desk.app.on_unlocked();
+    assert_eq!(desk.app.overlay, Overlay::None);
+    assert_eq!(desk.app.focus, Focus::Editor);
+}
+
+#[test]
+fn power_menu_uses_the_settings_confirmations() {
+    use wros_sys::PowerAction;
+
+    for (menu, settings, action) in [
+        ("Sleep", "Lock and suspend", PowerAction::Suspend),
+        (
+            "Restart…",
+            "Restart · confirmation required",
+            PowerAction::Restart,
+        ),
+        (
+            "Shut down…",
+            "Shutdown · confirmation required",
+            PowerAction::Shutdown,
+        ),
+    ] {
+        let mut desk = Desk::open(book(menu, true), 100, 30);
+        desk.app.deck.suspend_available = true;
+        desk.app.deck.lock_available = true;
+        desk.app
+            .deck
+            .use_test_backend(Box::new(Simulated::laptop()));
+        desk.menu(&["Power", menu]);
+        wait_system(&mut desk);
+        let confirmation = Overlay::Deck(Page::Power { action, yes: false });
+        assert_eq!(desk.app.overlay, confirmation);
+        desk.key(KeyCode::Enter);
+        assert!(!desk.app.deck.suspend_requested);
+        assert!(!desk.app.deck.power_pending);
+
+        system_panel(&mut desk, 2);
+        desk.choose(settings);
+        assert_eq!(desk.app.overlay, confirmation);
+    }
 }
 
 #[test]
