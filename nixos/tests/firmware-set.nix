@@ -4,8 +4,25 @@ let
     inherit pkgs lib version wrosPackages installedModule liveModule;
   };
 
-  generation = name: { pkgs, lib, ... }:
+  generation = name: { config, pkgs, lib, ... }:
     let
+      inherit (config.boot.kernelPackages) kernel kernelModuleMakeFlags;
+      testFirmware = kernel.stdenv.mkDerivation {
+        name = "test-firmware-${kernel.modDirVersion}";
+        nativeBuildInputs = kernel.moduleBuildDependencies;
+        hardeningDisable = [ "pic" "format" ];
+        unpackPhase = ''
+          tar -xOf ${kernel.src} --wildcards '*/lib/test_firmware.c' > test_firmware.c
+          printf '%s\n' 'obj-m := test_firmware.o' > Makefile
+        '';
+        buildPhase = ''
+          make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build \
+            ${lib.escapeShellArgs kernelModuleMakeFlags} M="$PWD" modules
+        '';
+        installPhase = ''
+          install -Dm644 test_firmware.ko "$out/lib/modules/${kernel.modDirVersion}/extra/test_firmware.ko"
+        '';
+      };
       firmware = phase: pkgs.writeTextFile {
         name = "wros-test-firmware-${phase}-${name}";
         destination = "/lib/firmware/wros-test-${phase}.bin";
@@ -13,15 +30,8 @@ let
       };
     in
     {
-      # The pinned kernel has no test_firmware module. Only these test systems build it.
-      boot.kernelPatches = [{
-        name = "wros-test-firmware";
-        patch = null;
-        structuredExtraConfig = with lib.kernel; {
-          RUNTIME_TESTING_MENU = lib.mkForce yes;
-          TEST_FIRMWARE = module;
-        };
-      }];
+      # Build the test driver against the stock kernel used by WrOS.
+      boot.extraModulePackages = [ testFirmware ];
       boot.initrd.kernelModules = [ "test_firmware" ];
       boot.initrd.systemd.services.wros-test-firmware = {
         wantedBy = [ "initrd.target" ];
