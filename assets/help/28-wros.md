@@ -136,7 +136,7 @@ You can install offline.
 
 The W r O S tiles switch between Write, read, Outline and Study. Click a tile,
 or press Super+1 through Super+4. From the menus, Left from File reaches the
-tiles. The ⏻ Power tile at the right holds Lock, Sleep,
+tiles. Power at the right (⏻ on the native graphical screen) holds Lock, Sleep,
 Restart… (Restart the computer in Ctrl-K) and Shut down…. Esc then W opens it.
 Lock saves and locks right away. Unlock to return to where you were writing.
 Sleep, Restart and Shut down ask first, as they do in Settings › System ›

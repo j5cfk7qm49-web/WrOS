@@ -10,7 +10,7 @@ Projects you start by name go in `~/Documents/Grimoire`. *Project › This proje
 - **The page**, on the right: the scene you're writing.
 - **The Pomodoro**, under the outline: a timer drawn as a little world. `←` `→` turns it into the Visualizer.
 - **Music**, below that, when you've turned it on.
-- **The top bar**, with W r O S tiles for Write, read, Outline and Study, the menus, save and backup marks, and the ⏻ Power tile.
+- **The top bar**, with W r O S tiles for Write, read, Outline and Study, the menus, save and backup marks, and Power at the far right (⏻ on the native graphical screen).
 - **The upper bottom bar**, with information about where you are on the left and Wi-Fi, sound, battery and the clock on the right. Click a widget to open its panel.
 - **The lower bottom bar**, with the project's words against its target and today's words on the left, and messages on the right. When there is no fresh message, the playing track scrolls there.
 

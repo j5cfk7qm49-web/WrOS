@@ -59,7 +59,7 @@ impl<'a> ViewTiles<'a> {
     }
 
     pub(super) fn areas(&self, area: Rect) -> (Rect, Rect) {
-        let power_width = (if self.glyphs { 2 } else { 7 }).min(area.width);
+        let power_width = (if self.glyphs { 2 } else { 5 }).min(area.width);
         let space = area.width - power_width;
         let shown = Self::view_count(space);
         // Leading space, two cells per tile, then a divider if it fits.
@@ -149,9 +149,9 @@ impl StatefulWidget for ViewTiles<'_> {
             vec![Span::styled(String::from_iter(pair), style)]
         } else {
             vec![
-                Span::styled("[Po", power_style),
+                Span::styled("Po", power_style),
                 Span::styled("w", power_style.add_modifier(Modifier::UNDERLINED)),
-                Span::styled("er]", power_style),
+                Span::styled("er", power_style),
             ]
         };
         Paragraph::new(Line::from(power)).render(power_area, buf);

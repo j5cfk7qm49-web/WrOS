@@ -2158,12 +2158,9 @@ fn top_bar_shows_tiles_menus_marks_and_power() {
     d.draw();
     let top = &d.rows()[0];
     assert!(top.starts_with(&format!(" W r O S {menus}")), "{top}");
-    assert!(
-        top.ends_with("1 conflict  saved  backed up [Power]"),
-        "{top}"
-    );
+    assert!(top.ends_with("1 conflict  saved  backed up Power"), "{top}");
     let buf = d.term.backend().buffer();
-    assert!(buf[(166, 0)].modifier.contains(Modifier::UNDERLINED));
+    assert!(buf[(167, 0)].modifier.contains(Modifier::UNDERLINED));
 
     // Two cells a tile in both: the native renderer's squares sit where the console's letters do.
     d.app.linux_console = false;
@@ -2185,6 +2182,25 @@ fn top_bar_shows_tiles_menus_marks_and_power() {
     assert_eq!(buf[(168, 0)].symbol(), "\u{E138}");
     assert_eq!(buf[(169, 0)].symbol(), "\u{E139}");
     assert_eq!(buf[(168, 0)].fg, d.app.theme.accent);
+}
+
+#[test]
+fn native_tiles_survive_opening_another_project() {
+    let mut d = Desk::open(book("native-tiles-first-project", true), 120, 35);
+    let other = Desk::open(book("native-tiles-next-project", true), 120, 35);
+    d.app.tile_glyphs = true;
+    let check_tiles = |d: &mut Desk| {
+        d.draw();
+        let top = &d.rows()[0];
+        assert!(
+            top.starts_with(" \u{E130}\u{E131}\u{E122}\u{E123}\u{E124}\u{E125}\u{E126}\u{E127}│"),
+            "{top}"
+        );
+        assert!(top.ends_with("\u{E128}\u{E129}"), "{top}");
+    };
+    check_tiles(&mut d);
+    assert!(d.app.open_book(&other.root));
+    check_tiles(&mut d);
 }
 
 #[test]
@@ -2278,8 +2294,8 @@ fn narrow_bar_drops_titles_before_power() {
     d.app.deck.backup_mark = Some(app::BackupMark::Done);
     for (glyphs, console, marks, power) in [
         (true, false, "⚠ 1  ● 1  ⇅", "\u{E128}\u{E129}"),
-        (false, false, "⚠ 1  ● 1  ⇅", "[Power]"),
-        (false, true, "1 conflict  1 not saved  backed up", "[Power]"),
+        (false, false, "⚠ 1  ● 1  ⇅", "Power"),
+        (false, true, "1 conflict  1 not saved  backed up", "Power"),
     ] {
         d.app.tile_glyphs = glyphs;
         d.app.linux_console = console;
@@ -2304,12 +2320,12 @@ fn status_top_right_shows_conflicts_then_save_then_backup() {
     d.app.deck.backup_mark = Some(crate::app::BackupMark::Done);
     d.draw();
     let top = d.rows()[0].clone();
-    assert!(top.ends_with("⚠ 1  ✓  ⇅ [Power]"), "{top}");
+    assert!(top.ends_with("⚠ 1  ✓  ⇅ Power"), "{top}");
     // A failed backup stays in the warning colour until one works.
     d.app.deck.backup_mark = Some(crate::app::BackupMark::Failed);
     d.draw();
     let top = d.rows()[0].clone();
-    assert!(top.ends_with("⇅! [Power]"), "{top}");
+    assert!(top.ends_with("⇅! Power"), "{top}");
     let buf = d.term.backend().buffer();
     let mark = (0..120)
         .rev()

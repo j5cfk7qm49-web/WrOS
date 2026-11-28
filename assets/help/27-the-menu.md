@@ -1,6 +1,8 @@
 # The menu bar, menu by menu
 
-The top bar starts with **W r O S**, the tiles for Write, read, Outline and Study. Then come **File, Edit, View, Project, Tools, Settings, Help** and the ⏻ Power tile at the right. `Esc` lights the bar on the menu you used last; `←` `→` move along it, and `↓` or `Enter` opens the lit one. `←` from File reaches the view tiles; choose one and press `Enter` to switch. A menu's underlined letter opens it straight away, so *Esc, then P* opens Project and *Esc, then W* opens Power. In the graphical session, press `Alt-P` for Project or `Alt` with another menu's letter. `F10` opens the bar too. A tap of the `Super` key opens **Find anything** just under the bar; `←` or `→` from there goes into the menus.
+The top bar starts with **W r O S**, the tiles for Write, read, Outline and Study. Then come **File, Edit, View, Project, Tools, Settings, Help** and **Power** at the right. On the native graphical screen, the view letters and ⏻ appear in square tiles. In the text layout, look for plain W r O S and Power.
+
+`Esc` lights the bar on the menu you used last; `←` `→` move along it, and `↓` or `Enter` opens the lit one. `←` from File reaches the view tiles; choose one and press `Enter` to switch. A menu's underlined letter opens it straight away, so *Esc, then P* opens Project and *Esc, then W* opens Power. In the graphical session, press `Alt-P` for Project or `Alt` with another menu's letter. `F10` opens the bar too. A tap of the `Super` key opens **Find anything** just under the bar; `←` or `→` from there goes into the menus.
 
 Menus drop down in the header's colour with a shadow. Inside a menu, `↑` `↓` (or `j` `k`) move, a letter jumps to the next row starting with it, and `Enter` runs the row. Rows with a › open beside it. The highlighted row says what it does on the lower bottom bar, and `?` opens the help on it. A row that can't run right now is dim and says why. `Esc` closes the menu.
 
