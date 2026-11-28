@@ -7,9 +7,10 @@ use serde::Deserialize;
 mod updates;
 
 pub use updates::{
-    MANAGED_MEDIA_PREFIX, ONLINE_UPDATE_PREFIX, UPDATE_MEDIA_PREFIXES, online_fetch, online_update,
-    recovery_status, update_action_message, update_applied, update_gone_back, update_media,
-    update_review, update_staged, updates, validate_review_id, validate_update_bundle_path,
+    MANAGED_MEDIA_PREFIX, ONLINE_UPDATE_PREFIX, UPDATE_MEDIA_PREFIXES, device_firmware,
+    online_fetch, online_update, recovery_status, update_action_message, update_applied,
+    update_gone_back, update_media, update_review, update_staged, updates, validate_review_id,
+    validate_update_bundle_path,
 };
 
 fn label(value: &str) -> Result<()> {

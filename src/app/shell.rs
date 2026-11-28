@@ -319,6 +319,7 @@ enum Choice {
     UpdateFindMedia,
     UpdateOnlineCheck,
     UpdateOnlineFetch,
+    AddDeviceFirmware,
     UpdateContinue,
     UpdateStage,
     UpdateBackupThenStage(bool),

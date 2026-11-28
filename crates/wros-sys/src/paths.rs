@@ -214,6 +214,11 @@ pub const WROS_UPDATE_FETCH: &str = match option_env!("WROS_PATH_HELPER_UPDATE_F
     None => "/usr/libexec/wros-update-fetch",
 };
 
+pub const WROS_UPDATE_FIRMWARE: &str = match option_env!("WROS_PATH_HELPER_UPDATE_FIRMWARE") {
+    Some(v) => v,
+    None => "/usr/libexec/wros-update-firmware",
+};
+
 pub const WROS_UPDATE_HEALTHY: &str = match option_env!("WROS_PATH_HELPER_UPDATE_HEALTHY") {
     Some(v) => v,
     None => "/usr/libexec/wros-update-healthy",

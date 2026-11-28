@@ -70,6 +70,7 @@ ONLINE_URL = 'https://j5cfk7qm49-web.github.io/WrOS/nixos-updates/'
 UPSTREAM_URL = 'https://cache.nixos.org/'
 DEFAULT_UPSTREAM_FILE = Path('/etc/wros/update-upstream-url')
 ONLINE_CACHE = _base.ONLINE_CACHE
+FIRMWARE_CACHE = ONLINE_CACHE.with_name('firmware')
 ONLINE_TIMEOUT = _base.ONLINE_TIMEOUT
 ALLOWED_MEDIA_PREFIXES = _base.ALLOWED_MEDIA_PREFIXES
 PINNED_ORIGIN = _base.PINNED_ORIGIN
@@ -80,7 +81,7 @@ MAX_STAGED_AGE = timedelta(days=30)
 CLOCK_SKEW = timedelta(minutes=5)
 BOOT_CLOCK_SKEW = timedelta(hours=1)
 PROBATION_FAILED_LOGINS = 2
-LAUNCHER_VERBS = ('stage', 'cancel', 'repair', 'media', 'fetch', 'apply', 'rollback', 'healthy')
+LAUNCHER_VERBS = ('stage', 'cancel', 'repair', 'media', 'fetch', 'apply', 'rollback', 'healthy', 'firmware')
 TRUSTED_UID = _base.TRUSTED_UID
 SAFE_PATH = '/usr/sbin:/usr/bin:/sbin:/bin'
 MANIFEST_VERSION = 2
@@ -474,25 +475,27 @@ def firmware_names(data, key):
     return set(names)
 
 
-def running_firmware_packages(current_system, sets_dir, run):
-    current = Path(current_system)
-    toplevel = current_toplevel(current)
-    if toplevel is None or not (Path(toplevel) / 'wros-firmware.json').is_file():
-        return set()  # older systems have no table or set
+def generation_firmware_packages(toplevel, sets_dir):
     generation = Path(toplevel).name
     sets = Path(sets_dir)
     parents = tuple(reversed(sets.parents)) if sets == FIRMWARE_SETS else ()
-    names = set()
     try:
         for directory in (*parents, sets, sets / generation):
             directory.lstat()
             require_private_entry(directory, 'dir')
     except FileNotFoundError:
-        pass  # a running generation may not have a set yet
-    else:
-        metadata = sets / generation / 'packages.json'
-        require_private_entry(metadata, 'file')
-        names = firmware_names(json.loads(read_regular_bytes(metadata, LIMIT)), 'packages')
+        return set()  # a running generation may not have a set yet
+    metadata = sets / generation / 'packages.json'
+    require_private_entry(metadata, 'file')
+    return firmware_names(json.loads(read_regular_bytes(metadata, LIMIT)), 'packages')
+
+
+def running_firmware_packages(current_system, sets_dir, run):
+    current = Path(current_system)
+    toplevel = current_toplevel(current)
+    if toplevel is None or not (Path(toplevel) / 'wros-firmware.json').is_file():
+        return set()  # older systems have no table or set
+    names = generation_firmware_packages(toplevel, sets_dir)
     try:
         result = run([str(FIRMWARE_TOOL), 'detect', '--system', str(current)])
     except (OSError, subprocess.SubprocessError):
@@ -1007,16 +1010,20 @@ def import_update_firmware(source, staged, packages, *, store_dir, run, base_url
         verify_cache_file(dst, item)
         with dst.open('rb') as stream:
             os.fsync(stream.fileno())
-    wanted = sorted({package['store_path'] for package in packages})
+    copy_verified_firmware(staged, {package['store_path'] for package in packages}, run)
+    for directory in (staged / 'cache/nar', staged / 'cache'):
+        fsync_dir(directory)
+
+
+def copy_verified_firmware(staged, wanted, run):
     res = run([
         'nix', '--extra-experimental-features', 'nix-command',
-        'copy', '--from', f'file://{staged.resolve() / "cache"}', '--no-check-sigs', '--no-recursive', *wanted,
+        'copy', '--from', f'file://{staged.resolve() / "cache"}', '--no-check-sigs', '--no-recursive',
+        *sorted(wanted),
     ])
     forget_valid_store_paths()
     if res.returncode != 0:
         fail(f'failed to import verified update firmware: {_tail(res)}')
-    for directory in (staged / 'cache/nar', staged / 'cache'):
-        fsync_dir(directory)
 
 
 def prepare_update_firmware(source, staged, closure, *, store_dir, run, base_url, opener):
@@ -1557,6 +1564,18 @@ def inspect_recovery(mountinfo_text=None, state_dir=DEFAULT_STATE_DIR,
     }
 
 
+def read_online_manifest(base_url, now, keyring, signers, package_keyring, opener, seen=None):
+    inrelease = http_get(base_url + 'InRelease', 1024 * 1024, opener, seen=seen)
+    _, release_text = verify_signed_metadata({'InRelease': inrelease}, keyring=keyring,
+                                             signers=signers, package_keyring=package_keyring)
+    release = parse_release(release_text, now=now, suites=PINNED_SUITES)
+    expected_sha, expected_size = release['entries'][CLOSURE_MANIFEST_NAME]
+    manifest_raw = http_get(base_url + CLOSURE_MANIFEST_NAME, LIMIT, opener)
+    if hashlib.sha256(manifest_raw).hexdigest() != expected_sha or len(manifest_raw) != expected_size:
+        fail('closure-manifest.json SHA-256 or byte size does not match signed Release metadata')
+    return inrelease, manifest_raw, parse_closure_manifest(manifest_raw)
+
+
 def check_online(*, base_url=ONLINE_URL, now=None, keyring=DEFAULT_KEYRING,
                  signers=DEFAULT_SIGNERS, version_file=DEFAULT_VERSION_FILE,
                  current_system=DEFAULT_CURRENT_SYSTEM, store_dir=REAL_STORE_DIR,
@@ -1569,15 +1588,7 @@ def check_online(*, base_url=ONLINE_URL, now=None, keyring=DEFAULT_KEYRING,
     keyring = resolve_trust_anchor(keyring)
     signers = resolve_trust_anchor(signers)
     try:
-        inrelease = http_get(base_url + 'InRelease', 1024 * 1024, opener, seen=seen)
-        _, release_text = verify_signed_metadata({'InRelease': inrelease}, keyring=keyring,
-                                                 signers=signers, package_keyring=package_keyring)
-        release = parse_release(release_text, now=now, suites=PINNED_SUITES)
-        expected_sha, expected_size = release['entries'][CLOSURE_MANIFEST_NAME]
-        manifest_raw = http_get(base_url + CLOSURE_MANIFEST_NAME, LIMIT, opener)
-        if hashlib.sha256(manifest_raw).hexdigest() != expected_sha or len(manifest_raw) != expected_size:
-            fail('closure-manifest.json SHA-256 or byte size does not match signed Release metadata')
-        closure = parse_closure_manifest(manifest_raw)
+        _, _, closure = read_online_manifest(base_url, now, keyring, signers, package_keyring, opener, seen)
     except (OSError, TimeoutError) as exc:
         if getattr(exc, 'code', None) == 404 and str(getattr(exc, 'url', '')).endswith('/InRelease'):
             return result | {'status': 'unpublished'}
@@ -1772,15 +1783,8 @@ def fetch_online(*, base_url=ONLINE_URL, cache=ONLINE_CACHE, now=None,
             lock = None
             fail('Another WrOS update download is already running.')
         FetchProgress.clear(cache)  # a killed earlier fetch may have left one
-        inrelease = http_get(base_url + 'InRelease', 1024 * 1024, opener)
-        _, release_text = verify_signed_metadata({'InRelease': inrelease}, keyring=keyring,
-                                                 signers=signers, package_keyring=package_keyring)
-        release = parse_release(release_text, now=now, suites=PINNED_SUITES)
-        expected_sha, expected_size = release['entries'][CLOSURE_MANIFEST_NAME]
-        manifest_raw = http_get(base_url + CLOSURE_MANIFEST_NAME, LIMIT, opener)
-        if hashlib.sha256(manifest_raw).hexdigest() != expected_sha or len(manifest_raw) != expected_size:
-            fail('closure-manifest.json SHA-256 or byte size does not match signed Release metadata')
-        closure = parse_closure_manifest(manifest_raw)
+        inrelease, manifest_raw, closure = read_online_manifest(
+            base_url, now, keyring, signers, package_keyring, opener)
         installed = current_installed_version(version_file=version_file, current_system=current_system)
         if installed is not None and not compare_versions(closure['version'], 'gt', installed):
             fail(f'WrOS is already up to date ({installed})')
@@ -1874,6 +1878,136 @@ def fetch_online(*, base_url=ONLINE_URL, cache=ONLINE_CACHE, now=None,
         os.umask(previous)
 
 
+def pending_device_firmware(cache, toplevel):
+    # Work through trusted parents before looking at any cached state.
+    parents = (Path('/var'), Path('/var/cache')) if cache == FIRMWARE_CACHE else ()
+    for directory in (*parents, cache.parent, cache):
+        if not os.path.lexists(directory):
+            return set()
+        require_private_entry(directory, 'dir')
+    path = cache / 'pending.json'
+    if not os.path.lexists(path):
+        return set()
+    require_private_entry(path, 'file')
+    pending = json.loads(read_regular_bytes(path, LIMIT))
+    return firmware_names(pending, 'packages') if pending['toplevel'] == toplevel else set()
+
+
+def download_device_firmware(cache, inrelease, closure, packages, *, base_url, opener, run):
+    info = next(item for item in closure['cache_files'] if item['path'] == 'cache/nix-cache-info')
+    files = [info, *(item for package in packages for item in package['files'])]
+    if any(item['url'] is not None for item in files):
+        fail('device firmware cache files must be hosted on the WrOS update channel')
+    partial = cache / ('.partial-' + hashlib.sha256(inrelease).hexdigest()[:16])
+    for directory in (cache.parent, cache, partial, partial / 'cache', partial / 'cache/nar'):
+        _make_fetch_dir(directory)
+    for old in cache.glob('.partial-*'):
+        if old != partial:
+            require_private_entry(old, 'dir')
+            shutil.rmtree(old)
+    downloads = []
+    needed_bytes = 0
+    for item in files:
+        path = partial / item['path']
+        part = path.with_name(path.name + '.part')
+        for cached in (path, part):
+            if os.path.lexists(cached):
+                require_private_entry(cached, 'file')
+        size, sha256 = item['size'], item['sha256']
+        if _saved_download_size(path, size, sha256) != size:
+            needed_bytes += size - _saved_download_size(part, size, sha256, allow_short=True)
+            downloads.append(item)
+    require_free_space(cache, needed_bytes)
+    for item in downloads:
+        http_stream_to_file(base_url + item['path'], partial / item['path'], item['size'], item['sha256'],
+                            opener=opener)
+    for item in files:
+        verify_cache_file(partial / item['path'], item)
+    copy_verified_firmware(partial, {package['store_path'] for package in packages}, run)
+    shutil.rmtree(partial)
+
+
+def add_device_firmware(*, base_url=ONLINE_URL, cache=FIRMWARE_CACHE, now=None,
+                        keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS, package_keyring=None,
+                        current_system=DEFAULT_CURRENT_SYSTEM, firmware_sets_dir=FIRMWARE_SETS,
+                        state_dir=DEFAULT_STATE_DIR, store_dir=REAL_STORE_DIR, profile=DEFAULT_PROFILE,
+                        opener=None, runner=None):
+    run = runner or _base.default_runner
+    cache = Path(cache)
+    toplevel = current_toplevel(current_system)
+    if toplevel is None or (store_dir == REAL_STORE_DIR and STORE_PATH_RE.fullmatch(toplevel) is None):
+        fail('could not find the running WrOS system')
+    result = run([str(FIRMWARE_TOOL), 'detect', '--system', str(current_system)])
+    if result.returncode != 0:
+        fail(f'could not detect firmware for this laptop: {_tail(result)}')
+    detected = firmware_names(json.loads(result.stdout), 'packages')
+    table_path = Path(toplevel) / 'wros-firmware.json'
+    require_private_entry(table_path, 'file')
+    table = json.loads(read_regular_bytes(table_path, LIMIT))['packages']
+
+    def pending_work():
+        installed = generation_firmware_packages(toplevel, firmware_sets_dir)
+        pending = pending_device_firmware(cache, toplevel)
+        paths = {name: table[name]['store_path'] for name in detected | installed | pending}
+        absent = {name for name, path in paths.items() if not store_has_path(path, store_dir)}
+        needed = ((detected | pending) - installed) | absent
+        return needed, pending, paths, absent
+
+    nothing = {'status': 'nothing-needed', 'packages': []}
+    needed, pending, _, _ = pending_work()
+    if not (needed or pending):
+        return nothing
+    # Serialize mutations with staging, apply and generation pruning.
+    with Store(state_dir).exclusive():
+        if toplevel != current_toplevel(current_system):
+            fail('The running WrOS system changed. Try again.')
+        needed, pending, paths, absent = pending_work()
+        if not (needed or pending):
+            return nothing
+        download = []
+        if needed:
+            inrelease, _, closure = read_online_manifest(
+                base_url, now, resolve_trust_anchor(keyring), resolve_trust_anchor(signers),
+                package_keyring, opener)
+            channel = {name: closure['firmware'].get(name.replace('_', '-')) for name in needed}
+            different = sorted(name for name, package in channel.items()
+                               if package is not None and package['store_path'] != paths[name])
+            if different:
+                return {'status': 'update-first', 'packages': different}
+            # Seed firmware may be listed with no extra files because it ships in the system.
+            unavailable = sorted(name for name, package in channel.items()
+                                 if package is None or (name in absent and not package['files']))
+            if unavailable:
+                return {'status': 'not-in-channel', 'packages': unavailable}
+            download = [channel[name] for name in sorted(needed & absent)]
+
+        # GRUB makes the system passed to `boot` its default entry.
+        if toplevel != current_toplevel(profile):
+            fail('Restart into the default WrOS version, then try again.')
+        if download:
+            download_device_firmware(cache, inrelease, closure, download,
+                                     base_url=base_url, opener=opener, run=run)
+
+        names = sorted(needed | pending)
+        for directory in (cache.parent, cache):
+            _make_fetch_dir(directory)
+        marker = cache / 'pending.json'
+        # Keep enough state to retry if the set is published but GRUB fails (e.g. a full ESP).
+        json_write(marker, {'toplevel': toplevel, 'packages': names})
+        result = run([str(FIRMWARE_TOOL), 'ensure', str(current_system), '--add', *names])
+        if result.returncode != 0:
+            fail(f'could not add firmware to the running system: {_tail(result)}')
+        added = firmware_names(json.loads(result.stdout), 'packages')
+        if missing := set(names) - added:
+            fail(f'could not add firmware to the running system: {", ".join(sorted(missing))}')
+        result = run([str(Path(current_system) / 'bin/switch-to-configuration'), 'boot'])
+        if result.returncode != 0:
+            fail(f'could not refresh boot firmware: {_tail(result)}')
+        marker.unlink()
+        fsync_dir(cache)
+        return {'status': 'added', 'packages': names}
+
+
 def launcher_main(verb, argv, pkexec_uid, *, euid=None, runner=None, **paths):
     if verb not in LAUNCHER_VERBS:
         fail(UNAVAILABLE)
@@ -1917,6 +2051,10 @@ def launcher_main(verb, argv, pkexec_uid, *, euid=None, runner=None, **paths):
         if argv:
             fail('usage: wros-update-fetch')
         return fetch_online(runner=runner, **paths)
+    if verb == 'firmware':
+        if argv:
+            fail('usage: wros-update-firmware')
+        return add_device_firmware(runner=runner, **paths)
     if argv != ['mount']:
         fail('usage: wros-update-media mount')
     return find_update_media(runner=runner, **{k: v for k, v in paths.items() if k in ('media_root', 'mountinfo_text')})

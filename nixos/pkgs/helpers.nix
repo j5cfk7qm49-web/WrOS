@@ -191,9 +191,13 @@ pkgs.stdenv.mkDerivation {
     substituteInPlace "$out/libexec/wros-update" \
       --replace-fail "/usr/lib/wros-update/engine.py" "$out/lib/wros-update/engine.py"
 
+    install -m 755 nixos/scripts/wros-update-firmware "$out/libexec/wros-update-firmware"
+    substituteInPlace "$out/libexec/wros-update-firmware" \
+      --replace-fail "#!/usr/bin/python3 -I" "#!${pkgs.python3}/bin/python3 -I"
+
     for updLauncher in \
       wros-update-stage wros-update-cancel wros-update-repair \
-      wros-update-media wros-update-fetch wros-update-apply \
+      wros-update-media wros-update-fetch wros-update-firmware wros-update-apply \
       wros-update-rollback wros-update-healthy; do
       substituteInPlace "$out/libexec/$updLauncher" \
         --replace-fail "/usr/lib/wros-update/engine.py" "$out/lib/wros-update/engine.py" \

@@ -105,6 +105,22 @@ pub struct OnlineUpdate {
     pub clock: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum FirmwareStatus {
+    Added,
+    NothingNeeded,
+    NotInChannel,
+    UpdateFirst,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FirmwareResult {
+    pub status: FirmwareStatus,
+    pub packages: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WifiNetwork {
     pub ssid: String,
@@ -377,6 +393,8 @@ pub enum Request {
     CheckOnlineUpdates,
     /// The narrow privileged helper downloads and verifies the newer update.
     FetchOnlineUpdate,
+    /// Add signed firmware for the devices detected on the running system.
+    AddDeviceFirmware,
     VerifyUpdateBundle {
         bundle_dir: String,
     },
@@ -460,6 +478,7 @@ impl Request {
             Request::UnmountImportMedia => "Closing the USB stick…".into(),
             Request::CheckOnlineUpdates => "Asking the WrOS update server for news…".into(),
             Request::FetchOnlineUpdate => "Downloading the WrOS update…".into(),
+            Request::AddDeviceFirmware => "Checking for device firmware…".into(),
             Request::VerifyUpdateBundle { .. } => "Checking the update's signatures…".into(),
             Request::CancelStagedUpdates => "Cancelling the staged update…".into(),
             Request::ApplyStagedUpdate => "Installing the update…".into(),
@@ -519,6 +538,7 @@ pub enum Reply {
     OnlineUpdate(OnlineUpdate),
     /// Verified downloaded update folder, ready for the ordinary review.
     OnlineUpdateFetched(String),
+    DeviceFirmware(FirmwareResult),
     Recovery(RecoveryInfo),
     StorageDevices(Vec<StorageDevice>),
 }

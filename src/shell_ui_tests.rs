@@ -1817,6 +1817,54 @@ fn online_update_names_the_earlier_version_and_offers_no_install() {
     assert!(!desk.app.msg.contains("is available"));
 }
 
+#[test]
+fn firmware_for_a_new_device_shows_each_result_in_updates() {
+    use wros_sys::{FirmwareResult, FirmwareStatus};
+
+    for (status, packages, text) in [
+        (
+            FirmwareStatus::Added,
+            vec!["ath9k_htc", "rtw88"],
+            "Firmware added: ath9k_htc, rtw88. Unplug the device and plug it in again, or restart.",
+        ),
+        (
+            FirmwareStatus::NothingNeeded,
+            vec![],
+            "This laptop already has the firmware its devices need.",
+        ),
+        (
+            FirmwareStatus::NotInChannel,
+            vec!["ath9k_htc"],
+            "WrOS's update site doesn't have firmware for this device.",
+        ),
+        (
+            FirmwareStatus::UpdateFirst,
+            vec!["rtw88"],
+            "Update WrOS first to get the firmware this device needs.",
+        ),
+    ] {
+        let mut desk = Desk::open(book(&format!("firmware-{status:?}"), true), 140, 30);
+        let mut sim = online_backend("current", None);
+        sim.device_firmware = Some(FirmwareResult {
+            status,
+            packages: packages.into_iter().map(str::to_owned).collect(),
+        });
+        desk.app.deck.use_test_backend(Box::new(sim));
+        system_panel(&mut desk, 5);
+        wait_system(&mut desk);
+        assert!(desk.shows("Firmware for a new device"));
+        desk.choose("Firmware for a new device");
+        assert!(desk.app.deck.busy);
+        assert!(desk.shows("Checking for device firmware"));
+        wait_system(&mut desk);
+        assert_eq!(
+            desk.app.deck.shell.update_flow.last_result.as_deref(),
+            Some(text)
+        );
+        assert!(desk.shows_wrapped(text), "{}", desk.rows().join("\n"));
+    }
+}
+
 /// A stand-in wros-sync: records each request, answers from `<dir>/<operation>.json`,
 /// and on enable writes the book's sync identity as the real helper does.
 fn sync_stub(desk: &mut Desk, sync_reply: &str) -> std::path::PathBuf {

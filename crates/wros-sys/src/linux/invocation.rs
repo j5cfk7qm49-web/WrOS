@@ -258,6 +258,11 @@ pub fn invocation(request: &Request) -> Result<Invocation> {
             &[],
             ONLINE_FETCH_TIMEOUT_SECS,
         ),
+        Request::AddDeviceFirmware => Invocation::update_launcher(
+            crate::paths::WROS_UPDATE_FIRMWARE,
+            &[],
+            ONLINE_FETCH_TIMEOUT_SECS,
+        ),
         Request::CancelStagedUpdates => {
             Invocation::update_launcher(crate::paths::WROS_UPDATE_CANCEL, &[], CANCEL_TIMEOUT_SECS)
         }

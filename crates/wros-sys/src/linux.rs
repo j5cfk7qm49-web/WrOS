@@ -336,6 +336,11 @@ impl<R: Runner> Backend for Linux<R> {
                     crate::system_views::online_fetch(&output)?,
                 ));
             }
+            Request::AddDeviceFirmware => {
+                return Ok(Reply::DeviceFirmware(crate::system_views::device_firmware(
+                    &output,
+                )?));
+            }
             Request::ApplyStagedUpdate => {
                 return Ok(Reply::UpdateApplied(crate::system_views::update_applied(
                     &output,

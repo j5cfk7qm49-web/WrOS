@@ -143,6 +143,12 @@ EOF
     <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>no</allow_active></defaults>
     <annotate key="org.freedesktop.policykit.exec.path">${hp.updateFetch}</annotate>
   </action>
+  <action id="org.wros.update.firmware">
+    <description>Add signed firmware for devices on this laptop</description>
+    <message>Authorize adding device firmware</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>no</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">${hp.updateFirmware}</annotate>
+  </action>
   <action id="org.wros.update.apply">
     <description>Install a staged app-only WrOS update now, restarting only the writing app</description>
     <message>Authorize installing a staged WrOS update now</message>
@@ -179,6 +185,13 @@ in
     ${builtins.readFile (wrosRoot + "/os/config/50-wros-timezone.rules")}
     ${builtins.readFile (wrosRoot + "/os/config/50-wros-update.rules")}
     ${builtins.readFile (wrosRoot + "/os/config/51-wros-greeter-keyboard.rules")}
+
+    polkit.addRule(function(action, subject) {
+        if (action.id === "org.wros.update.firmware" && subject.local && subject.active &&
+            subject.isInGroup("wros") && subject.isInGroup("writingdeck")) {
+            return polkit.Result.YES;
+        }
+    });
 
     // Joining and forgetting Wi-Fi networks (#141). Debian builds NetworkManager with
     // modify_system, so the person at the laptop never needed a password for this; NixOS's build

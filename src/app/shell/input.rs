@@ -219,6 +219,7 @@ impl App {
                     Choice::UpdateFindMedia => self.update_find_media(),
                     Choice::UpdateOnlineCheck => self.update_online_check(),
                     Choice::UpdateOnlineFetch => self.update_online_fetch(),
+                    Choice::AddDeviceFirmware => self.add_device_firmware(),
                     Choice::UpdateContinue => self.update_continue(),
                     Choice::UpdateStage => self.update_stage(),
                     Choice::UpdateBackupThenStage(restart) => {

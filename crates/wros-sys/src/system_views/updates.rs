@@ -1,7 +1,8 @@
 //! Decode update and recovery replies and validate update inputs.
 use super::label;
 use crate::{
-    RecoveryInfo, UpdateApplied, UpdateInfo, UpdatePackage, UpdateReview, UpdateStaged, UpdateState,
+    FirmwareResult, FirmwareStatus, RecoveryInfo, UpdateApplied, UpdateInfo, UpdatePackage,
+    UpdateReview, UpdateStaged, UpdateState,
 };
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
@@ -338,13 +339,9 @@ pub fn update_staged(output: &str, expected_review_id: &str) -> Result<UpdateSta
     );
     ensure!(raw.packages <= 1024, "update package count exceeds limit");
     ensure!(
-        raw.firmware_missing.iter().all(|name| {
-            !name.is_empty()
-                && name.len() <= 40
-                && name
-                    .bytes()
-                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || b"-_".contains(&c))
-        }),
+        raw.firmware_missing
+            .iter()
+            .all(|name| firmware_package_name(name)),
         "invalid missing firmware package name"
     );
     Ok(UpdateStaged {
@@ -533,6 +530,33 @@ pub fn online_fetch(output: &str) -> Result<String> {
         "downloaded update is outside the online update cache"
     );
     Ok(raw.path)
+}
+
+fn firmware_package_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 40
+        && name
+            .bytes()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || b"-_".contains(&c))
+}
+
+pub fn device_firmware(output: &str) -> Result<FirmwareResult> {
+    let object = helper_object(output, "wros-update-firmware")?;
+    let result: FirmwareResult = serde_json::from_value(serde_json::Value::Object(object))
+        .context("invalid wros-update-firmware reply")?;
+    ensure!(
+        result.packages.len() <= 64
+            && result
+                .packages
+                .iter()
+                .all(|name| firmware_package_name(name)),
+        "invalid device firmware package list"
+    );
+    ensure!(
+        result.packages.is_empty() == (result.status == FirmwareStatus::NothingNeeded),
+        "device firmware status does not match its package list"
+    );
+    Ok(result)
 }
 
 pub fn update_media(output: &str) -> Result<Option<String>> {
@@ -737,5 +761,34 @@ mod tests {
             update_review(&review.replace("\"removals\"", "\"surprise\": 1, \"removals\""))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn device_firmware_accepts_all_outcomes_and_bounds_package_labels() {
+        for (status, expected, packages) in [
+            ("added", FirmwareStatus::Added, vec!["ath9k_htc", "rtw88"]),
+            ("nothing-needed", FirmwareStatus::NothingNeeded, vec![]),
+            (
+                "not-in-channel",
+                FirmwareStatus::NotInChannel,
+                vec!["ath9k_htc"],
+            ),
+            ("update-first", FirmwareStatus::UpdateFirst, vec!["rtw88"]),
+        ] {
+            let reply = serde_json::json!({"status": status, "packages": packages});
+            let result = device_firmware(&reply.to_string()).unwrap();
+            assert_eq!(result.status, expected);
+            assert_eq!(result.packages, packages);
+        }
+        for reply in [
+            serde_json::json!({"status": "fetched", "packages": ["rtw88"]}),
+            serde_json::json!({"status": "added", "packages": ["../rtw88"]}),
+            serde_json::json!({"status": "added", "packages": ["rtw88\n"]}),
+            serde_json::json!({"status": "added", "packages": []}),
+            serde_json::json!({"status": "added", "packages": vec!["rtw88"; 65]}),
+            serde_json::json!({"status": "nothing-needed", "packages": ["rtw88"]}),
+        ] {
+            assert!(device_firmware(&reply.to_string()).is_err(), "{reply}");
+        }
     }
 }

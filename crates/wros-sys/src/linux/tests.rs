@@ -10,6 +10,23 @@ impl Runner for Fake {
     }
 }
 #[test]
+fn device_firmware_uses_only_the_fixed_polkit_launcher() {
+    let command = invocation(&Request::AddDeviceFirmware).unwrap();
+    assert_eq!(command.program, crate::paths::PKEXEC);
+    assert_eq!(
+        command.args,
+        [
+            "--disable-internal-agent",
+            crate::paths::WROS_UPDATE_FIRMWARE
+        ]
+    );
+    assert_eq!(
+        command.timeout,
+        Duration::from_secs(ONLINE_FETCH_TIMEOUT_SECS)
+    );
+}
+
+#[test]
 fn unfinished_mutations_cannot_invoke_tools_or_fabricate_service_success() {
     let mut backend = Linux {
         runner: Fake::default(),
