@@ -6,10 +6,19 @@ let
 in
 pkgs.testers.runNixOSTest {
   name = "wros-install-encrypted";
+  defaults.virtualisation.restrictNetwork = true;
 
   nodes = {
     live = { nodes, ... }: { imports = [ (encryptedDisk.mkInstallerNode nodes.installed.system.build.toplevel) ]; };
-    installed = encryptedDisk.mkInstalledNode {};
+    installed = encryptedDisk.mkInstalledNode {
+      # Make the QEMU disk select real early-boot firmware outside the installed closure.
+      # This exercises copying from the live store without requiring a GPU in the VM.
+      system.systemBuilderCommands = lib.mkAfter ''
+        ${pkgs.jq}/bin/jq '.packages.radeon.modules += ["virtio_blk"]' \
+          "$out/wros-firmware.json" > "$out/test-table.json"
+        mv "$out/test-table.json" "$out/wros-firmware.json"
+      '';
+    };
   };
 
   testScript = { nodes, ... }: ''
@@ -121,6 +130,17 @@ pkgs.testers.runNixOSTest {
     live.succeed("mount /dev/mapper/wros_crypt /run/wros-installer/target"
                  " && mount /dev/vdb1 /run/wros-installer/target/boot")
 
+    target = "/run/wros-installer/target"
+    generation = Path("${nodes.installed.system.build.toplevel}").name
+    radeon = "${nodes.live.wros.firmware.radeon}"
+    firmware_set = f"/nix/var/wros/firmware/{generation}"
+    archive = f"{target}/boot/kernels/{generation}-secrets"
+    live.succeed(f"nix-store --store local?root={target} --query --hash {radeon}")
+    packages = json.loads(live.succeed(f"cat {target}{firmware_set}/packages.json"))
+    assert "radeon" in packages["packages"], packages
+    assert live.succeed(f"readlink {target}/nix/var/nix/gcroots/wros-firmware/{generation}--radeon").strip() == radeon
+    live.succeed(f"test -s {archive} && grep -aFq wros-firmware/radeon/ARUBA_me.bin {archive}")
+
     # 2. Verify GPT + WROS-ESP + WROS-LUKS -> wros_crypt -> WROS-ROOT labels and seeded state
     live.succeed("blkid -L WROS-ESP")
     live.succeed("blkid -L WROS-LUKS")
@@ -166,6 +186,8 @@ pkgs.testers.runNixOSTest {
     booted.wait_for_unit("wros-boot-ok.service")
     booted.succeed("mount | grep -q '/dev/mapper/wros_crypt on / type ext4'")
     booted.succeed("test \"$(cat /etc/hostname)\" = 'wros-book'")
+    assert booted.succeed("readlink /lib/firmware").strip() == f"{firmware_set}/lib/firmware"
+    booted.succeed("test -f /lib/firmware/radeon/ARUBA_me.bin*")
     booted.fail("id wros-live")
     booted.succeed("passwd -S root | awk '{exit ($2 == \"L\" ? 0 : 1)}'")
     wait_for_greeter(booted)

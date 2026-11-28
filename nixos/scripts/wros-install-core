@@ -38,6 +38,7 @@ NONCE_RE = re.compile(r'^[0-9a-f]{32}$')
 VALID_LAYOUTS = ('qwerty', 'colemak', 'colemak-dh-ansi', 'colemak-dh-iso')
 DEFAULT_TARGET_ROOT = Path('/run/wros-installer/target')
 DEFAULT_CLOSURE_FILE = Path('/etc/wros/installed-system-closure')
+FIRMWARE_TOOL = '/run/current-system/sw/bin/wros-firmware'
 GRUBENV_HEADER = '# GRUB Environment Block\n'
 GRUBENV_INITIAL = (GRUBENV_HEADER + ('#' * (1024 - len(GRUBENV_HEADER)))).encode('ascii')
 
@@ -295,6 +296,22 @@ def install_target(params, *, target_root=DEFAULT_TARGET_ROOT, closure_file=DEFA
     step(35, 'Copying WrOS onto the disk. This is the longest step: up to half an hour from a slow USB stick')
     runner(['nixos-install', '--root', str(target_root), '--system', closure,
             '--no-channel-copy', '--no-root-passwd', '--no-bootloader'], timeout=COPY_TIMEOUT)
+
+    # Detect with the live hardware and the installed kernel's table, while all the USB's
+    # packages are available. The helper validates the table in the immutable live store.
+    detected = json.loads(runner([FIRMWARE_TOOL, 'detect', '--system', closure]))['packages']
+    if detected:
+        packages = json.loads(runner(['cat', f'{closure}/wros-firmware.json']))['packages']
+        # These are local builds from the installer medium, with no binary-cache signatures.
+        runner(['nix', '--extra-experimental-features', 'nix-command', 'copy', '--offline',
+                '--from', 'local', '--to', f'local?root={target_root}', '--no-check-sigs',
+                *(packages[name]['store_path'] for name in detected)], timeout=COPY_TIMEOUT)
+    # Carry over the live detection result without activating the target via nixos-enter.
+    ensure = [FIRMWARE_TOOL, '--root', str(target_root), 'ensure', closure]
+    if detected:
+        ensure.extend(['--add', *detected])
+    missing = json.loads(runner(ensure))['missing']
+    require(not missing, f'Firmware missing from the target store: {", ".join(missing)}')
 
     # 5. Seed mutable state files, initialize /boot/grub/grubenv, and create writer account
     step(85, 'Creating your account')

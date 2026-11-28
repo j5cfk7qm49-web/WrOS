@@ -116,6 +116,10 @@ Choose **Help › Interactive tutorial…** to see all 50 lessons. Press `d` to 
 
 The writing application runs as the writer. Ctrl+Alt+F2 opens the authenticated maintenance console. The NixOS installer creates an encrypted installation and a writer account; root stays locked. Screen locking, guarded suspend, signed generation updates, rollback and phone linking are implemented. VM tests establish their tested behavior, not physical suspend/resume or general hardware qualification.
 
+When you install from a WrOS USB stick, the installer copies the firmware this
+laptop needs from the stick so its devices can work on the first boot. You can
+install offline.
+
 ## The top and bottom bars
 
 The W r O S tiles switch between Write, read, Outline and Study. Click a tile,
