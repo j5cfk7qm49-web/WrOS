@@ -94,6 +94,11 @@
 - Consumes: the table format from Task 1.
 - Produces (subcommands; every one prints one JSON line on success and exits non-zero with a plain message on failure):
   - `detect --system <toplevel> [--sys-root /] [--modules <dir>]` → `{"packages": [...], "unknown": [...]}`. It reads every `<sys-root>/sys/bus/*/devices/*/modalias`, resolves each with `modprobe -d <modules root> -S <kernel version> --resolve-alias`, adds `<sys-root>/proc/modules`' names, and maps module names to packages through the table. The kernel version and modules root come from `<toplevel>/kernel-modules/lib/modules/*`.
+  - **Packages that share a module** (`i915` and the Stream's trimmed `i915-glk` both map from
+    `i915`): a module picks exactly one of them. Prefer one already in the running set; else
+    the largest (by `nar_size`) present in the store; else the largest. So the Stream keeps
+    i915-glk (its seed), and a new Intel laptop installed from the ISO gets the full i915. Test:
+    `test_a_module_two_packages_share_picks_one`.
   - `ensure <toplevel> [--add NAME…]` writes the folder and GC roots for that generation. The packages are the union of: detected, `--add`, and the running generation's folder's packages (read from a `packages.json` the folder keeps). It uses only packages present in the store, and reports `missing`. If the folder exists, it rewrites it atomically (build `.new`, then rename) and never leaves an emptier one.
   - `initrd <toplevel> <out-file>` writes an uncompressed `newc` cpio of that generation's folder, for `initrd: true` packages only, at `wros-firmware/<file>` with symlinks resolved. It refuses if the file's filesystem would drop below 64 MiB free. With no folder, it runs `ensure` first.
   - `link <toplevel>` points `/lib/firmware` at that generation's folder (creating `/lib` if missing; replacing only a symlink it owns; refusing a real directory). With no folder, it runs `ensure` first.
