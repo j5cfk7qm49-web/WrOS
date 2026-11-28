@@ -51,6 +51,16 @@ class Delta(unittest.TestCase):
             self.assertNotIn(f'cache/{"b" * 32}.narinfo', paths)
             tool.check_archives(tmp, kept)
 
+    def test_a_delta_archive_shared_by_two_kept_packages_has_no_store_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            files = bundle(tmp)
+            kept = tool.prune_to_delta(tmp, files, {GONE}, TOP)
+            paths = {item['path']: item['store_path'] for item in kept}
+            self.assertEqual(paths[f'cache/{"b" * 32}.narinfo'], OLD)
+            self.assertEqual(paths[f'cache/{"c" * 32}.narinfo'], NEW)
+            self.assertIsNone(paths['cache/nar/shared.nar.zst'])
+            tool.check_archives(tmp, kept)
+
     def test_a_bundle_missing_an_archive_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
             files = bundle(tmp)
@@ -137,6 +147,7 @@ class Thin(unittest.TestCase):
         self.assertEqual(by_path[f'cache/{mpv}']['url'], 'https://cache.nixos.org/' + mpv)
         nar = 'nar/' + 'q' * 52 + '.nar.xz'
         self.assertEqual(by_path['cache/' + nar]['url'], 'https://cache.nixos.org/' + nar)
+        self.assertEqual(by_path['cache/' + nar]['store_path'], self.paths['mpv'])
         self.assertEqual(by_path['cache/' + nar]['sha256'],
                          __import__('hashlib').sha256((self.cache / nar).read_bytes()).hexdigest())
         self.assertNotIn('cache/nar/mpv.nar.zst', by_path, "WrOS's copy of mpv is left out")
@@ -152,26 +163,51 @@ class Thin(unittest.TestCase):
             self.assertIn(f'cache/nar/{key}.nar.zst', by_path, key)
             self.assertFalse(by_path[f'cache/nar/{key}.nar.zst'].get('url'), key)
 
-    def test_two_packages_with_one_archive_on_the_cache_list_it_once(self):
-        # rc32: two store paths with byte-identical contents share one cache.nixos.org archive;
-        # listing it twice made the engine refuse the manifest (duplicate cache file).
+    def add_mpv_twin(self, nar=b'mpv nar', *, cached_nar=b'mpv nar'):
         import hashlib
         twin = '/nix/store/' + 'e' * 32 + '-mpv-twin'
-        nar = b'mpv nar'
         nar_hash = 'sha256:' + nix32(hashlib.sha256(nar).digest())
         name = Path(twin).name.split('-', 1)[0]
         (self.staging / f'cache/{name}.narinfo').write_text(
             f'StorePath: {twin}\nURL: nar/mpv.nar.zst\nNarHash: {nar_hash}\n')
         self.files.append({'path': f'cache/{name}.narinfo', 'store_path': twin})
         archive = 'nar/' + 'q' * 52 + '.nar.xz'
+        cached_hash = 'sha256:' + nix32(hashlib.sha256(cached_nar).digest())
         (self.cache / f'{name}.narinfo').write_text(
-            f'StorePath: {twin}\nURL: {archive}\nCompression: xz\nNarHash: {nar_hash}\n')
+            f'StorePath: {twin}\nURL: {archive}\nCompression: xz\nNarHash: {cached_hash}\n')
+        return name, archive
+
+    def test_two_packages_with_one_archive_on_the_cache_list_it_once(self):
+        # rc32: two store paths with byte-identical contents share one cache.nixos.org archive;
+        # listing it twice made the engine refuse the manifest (duplicate cache file).
+        name, archive = self.add_mpv_twin()
         kept, thin = self.thin()
         self.assertTrue(thin)
         paths = [item['path'] for item in kept]
         self.assertEqual(paths.count('cache/' + archive), 1, paths)
         self.assertEqual(len(paths), len(set(paths)), paths)
         self.assertIn(f'cache/{name}.narinfo', paths)
+        entries = {item['path']: item for item in kept}
+        self.assertIsNone(entries['cache/' + archive]['store_path'])
+
+    def test_reusing_an_archive_with_a_different_nar_hash_is_refused(self):
+        name, _ = self.add_mpv_twin(b'a different nar', cached_nar=b'a different nar')
+        with self.assertRaisesRegex(tool.BuildError, rf'{name}.*NAR hash'):
+            self.thin()
+
+    def test_a_conflicting_cached_nar_hash_is_refused_even_if_it_differs_from_the_local_hash(self):
+        name, _ = self.add_mpv_twin(cached_nar=b'a different nar')
+        with self.assertRaisesRegex(tool.BuildError, rf'{name}.*NAR hash'):
+            self.thin()
+
+    def test_thinning_one_package_leaves_the_local_archive_credited_to_its_twin(self):
+        name, archive = self.add_mpv_twin()
+        (self.cache / f'{name}.narinfo').unlink()
+        kept, thin = self.thin()
+        self.assertTrue(thin)
+        paths = {item['path']: item['store_path'] for item in kept}
+        self.assertEqual(paths['cache/nar/mpv.nar.zst'], paths[f'cache/{name}.narinfo'])
+        self.assertEqual(paths['cache/' + archive], self.paths['mpv'])
 
     def test_nothing_on_the_cache_leaves_the_bundle_whole(self):
         for f in self.cache.glob('*.narinfo'):

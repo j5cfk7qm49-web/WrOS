@@ -41,32 +41,45 @@ def narinfo_url(path):
     raise BuildError(f'{Path(path).name} names no archive')
 
 
+def archive_credits(narinfos):
+    """A shared archive must be fetched even if one of its store paths is present."""
+    credits = {}
+    for archive, store_path in narinfos:
+        credits[archive] = None if archive in credits else store_path
+    return credits
+
+
+def credit_archives(cache_files, credits):
+    return [
+        {**item, 'store_path': credits[item['path']]}
+        if item['path'].startswith('cache/nar/') and item['path'] in credits else item
+        for item in cache_files
+    ]
+
+
 def prune_to_delta(staging, cache_files, baseline, toplevel):
-    """Keep what a machine running `baseline` lacks. Store paths with identical contents share one
-    archive, and the manifest credits it to only one of them: rc15's sudo.pam shared passwd.pam's,
-    passwd.pam was in rc14, and pruning by that credit dropped the archive sudo.pam needed. Keep
-    an archive whenever a kept .narinfo points at it, credited to that kept path."""
+    """Keep what a machine running `baseline` lacks. Keep an archive whenever a kept .narinfo
+    points at it, with a store-path credit only if exactly one kept .narinfo needs it."""
     staging = Path(staging)
 
     def dropped(item):
         sp = item.get('store_path')
         return bool(sp) and sp in baseline and sp != toplevel
 
-    needed = {}
-    for item in cache_files:
-        if item['path'].endswith('.narinfo') and not dropped(item):
-            needed.setdefault(narinfo_url(staging / item['path']), item.get('store_path'))
+    needed = archive_credits((narinfo_url(staging / item['path']), item.get('store_path'))
+                             for item in cache_files
+                             if item['path'].endswith('.narinfo') and not dropped(item))
     kept = []
     for item in cache_files:
         if item['path'].startswith('cache/nar/'):
             if item['path'] in needed:
-                kept.append({**item, 'store_path': needed[item['path']]})
+                kept.append(item)
                 continue
         elif not dropped(item):
             kept.append(item)
             continue
         (staging / item['path']).unlink(missing_ok=True)
-    return kept
+    return credit_archives(kept, needed)
 
 
 UPSTREAM = 'https://cache.nixos.org/'
@@ -153,48 +166,57 @@ def thin_out(staging, cache_files, upstream, toplevel, keep):
     this signed manifest. A package whose NAR hash differs (WrOS built or patched it) stays. The
     fetched files are written to `keep` for the bundle's self-check, not to the bundle."""
     staging = Path(staging)
-    narinfo_items = [i for i in cache_files if i['path'].endswith('.narinfo')
-                     and i.get('store_path') and i['store_path'] != toplevel]
+    narinfo_items = [i for i in cache_files if i['path'].endswith('.narinfo')]
+    local_urls = {i['path']: narinfo_url(staging / i['path']) for i in narinfo_items}
+    final_urls = local_urls.copy()
     moved = {}
     # Byte-identical packages share one archive on cache.nixos.org: fetch it once.
     archives = {}
     for item in narinfo_items:
+        if not item.get('store_path') or item['store_path'] == toplevel:
+            continue
         local = narinfo_fields((staging / item['path']).read_text(encoding='utf-8'))
         name = Path(item['path']).name
         remote_bytes = fetch(upstream + name, 64 * 1024)
         if remote_bytes is None:
             continue
         remote = narinfo_fields(remote_bytes.decode('utf-8'))
-        if remote.get('NarHash') != local.get('NarHash') or not NAR_REL_RE.fullmatch(remote.get('URL', '')):
+        nar_rel = remote.get('URL', '')
+        nar_hash = remote.get('NarHash')
+        if not nar_hash or not NAR_REL_RE.fullmatch(nar_rel):
             continue
-        nar_rel = remote['URL']
-        if nar_rel in archives:
-            archive = archives[nar_rel]
+        verified = archives.get(nar_rel)
+        if verified is not None and verified[0] != nar_hash:
+            raise BuildError(f"{name} declares a different NAR hash for cache.nixos.org's {nar_rel}")
+        if nar_hash != local.get('NarHash'):
+            continue
+        if verified is not None:
+            _, archive = verified
         else:
             archive = fetch(upstream + nar_rel, 1536 * 1024 * 1024)
             if archive is None:
                 continue
-            algo, _, digest = local['NarHash'].partition(':')
+            algo, _, digest = nar_hash.partition(':')
             if algo != 'sha256' or hashlib.sha256(decompress(nar_rel, archive)).digest() != nix32_decode(digest):
                 raise BuildError(f'cache.nixos.org\'s archive for {name} does not unpack to its NAR hash')
-            archives[nar_rel] = archive
+            archives[nar_rel] = (nar_hash, archive)
         moved[item['path']] = (item['store_path'], name, remote_bytes, nar_rel, archive)
+        final_urls[item['path']] = 'cache/' + nar_rel
+    credits = archive_credits((final_urls[i['path']], i.get('store_path')) for i in narinfo_items)
     if not moved:
-        return cache_files, False
+        return credit_archives(cache_files, credits), False
     # Local archives still needed by a package that stays.
-    still_needed = {narinfo_url(staging / i['path']) for i in narinfo_items + [
-        i for i in cache_files if i['path'].endswith('.narinfo') and i.get('store_path') == toplevel]
-        if i['path'] not in moved}
+    still_needed = {url for path, url in local_urls.items() if path not in moved}
+    replaced = {local_urls[path] for path in moved} - still_needed
     kept = []
     for item in cache_files:
         if item['path'] in moved:
             continue
-        if item['path'].startswith('cache/nar/') and item['path'] not in still_needed \
-                and any(narinfo_url(staging / p) == item['path'] for p in moved):
+        if item['path'].startswith('cache/nar/') and item['path'] in replaced:
             (staging / item['path']).unlink(missing_ok=True)
             continue
         kept.append(item)
-    # As in a delta, a shared archive is listed once, credited to the first package that names it.
+    # A shared archive is listed once, even if several .narinfo files name it.
     listed = {item['path'] for item in kept}
     for rel, (store_path, name, remote_bytes, nar_rel, archive) in moved.items():
         (staging / rel).unlink(missing_ok=True)
@@ -208,7 +230,7 @@ def thin_out(staging, cache_files, upstream, toplevel, keep):
             target.write_bytes(data)
             kept.append({'path': path, 'sha256': hashlib.sha256(data).hexdigest(),
                          'size': len(data), 'store_path': store_path, 'url': url})
-    return kept, True
+    return credit_archives(kept, credits), True
 
 
 def check_archives(root, cache_files):

@@ -99,6 +99,7 @@
       firmwareTable = pkgs.runCommand "wros-firmware-table-check" {
         nativeBuildInputs = [ pkgs.jq pkgs.nix pkgs.zstd ];
         installedSystem = wrosSystem.config.system.build.toplevel;
+        installedFirmware = wrosSystem.config.hardware.firmware;
         installedClosure = pkgs.closureInfo { rootPaths = [ wrosSystem.config.system.build.toplevel ]; };
         # The ISO discards store references after packing this closure into its squashfs.
         liveClosure = pkgs.closureInfo { rootPaths = wrosLiveSystem.config.isoImage.storeContents; };
@@ -130,6 +131,12 @@
                 echo "Installed closure is missing the $driver seed" >&2
                 exit 1
               }
+              while IFS= read -r -d "" file; do
+                if [[ ! -f "$installedFirmware/lib/firmware/$file" ]]; then
+                  echo "Installed firmware path is missing $driver seed file $file" >&2
+                  exit 1
+                fi
+              done < <(find -L "$path/lib/firmware" -type f -printf '%P\0')
               ;;
             *)
               if grep -qxF "$path" "$installedClosure/store-paths"; then
@@ -223,6 +230,7 @@
       checks.${system} = {
         firmware-lists-current = wrosSystem.config.system.build.wrosFirmwareListsCurrent;
         firmware-table = firmwareTable;
+        firmware-set = vmTest ./nixos/tests/firmware-set.nix;
         boot-unlock-login = vmTest ./nixos/tests/boot-unlock-login.nix;
         keyboard-preview = vmTest ./nixos/tests/keyboard-preview.nix;
         console-lock = vmTest ./nixos/tests/console-lock.nix;

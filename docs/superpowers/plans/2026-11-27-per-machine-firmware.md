@@ -70,8 +70,8 @@
 
   `initrd` is true for packages whose modules include any in `boot.initrd.kernelModules` or `availableKernelModules`. i915 is already there. Add amdgpu, radeon and xe to `availableKernelModules`, not `kernelModules`: udev loads them in stage 1 only where the hardware is, and the main initrd grows only by the modules.
 - [ ] **Step 3:** Wiring:
-  - **installed.nix:** `hardware.firmware` loses rtw88 and i915-glk.
-  - **hardware.nix:** `pkgs.sof-firmware` moves out of `hardware.firmware`, which keeps only regdb. Live keeps everything, see below.
+  - **installed.nix** keeps the Stream seed (`rtw88`, `i915-glk`, `sof`) in `hardware.firmware` so the kernel can still find it if linking the per-machine set fails.
+  - **hardware.nix** supplies only regdb. The installed and live systems add their own firmware packages.
   - **installed:** `system.extraDependencies = [ rtw88 i915-glk sof ]` (the seed). Install the table with `system.systemBuilderCommands`.
   - **live.nix:** `hardware.firmware` = every package (including sof). The `availableKernelModules` change in hardware.nix applies to both systems.
   - Keep the Stream assertions.
@@ -99,10 +99,10 @@
     the largest (by `nar_size`) present in the store; else the largest. So the Stream keeps
     i915-glk (its seed), and a new Intel laptop installed from the ISO gets the full i915. Test:
     `test_a_module_two_packages_share_picks_one`.
-  - `ensure <toplevel> [--add NAME…]` writes the folder and GC roots for that generation. The packages are the union of: detected, `--add`, and the running generation's folder's packages (read from a `packages.json` the folder keeps). It uses only packages present in the store, and reports `missing`. If the folder exists, it rewrites it atomically (build `.new`, then rename) and never leaves an emptier one.
+  - `ensure <toplevel> [--add NAME…]` writes the folder and GC roots for that generation. It unions the detected names, `--add`, and the names in the running and target generations' `packages.json` files. It uses packages present in the store and reports `missing`. It builds a `.new-<generation>` folder and swaps it with the existing folder using `renameat2(RENAME_EXCHANGE)`. It uses plain rename when there is no existing folder. It never leaves an emptier set.
   - `initrd <toplevel> <out-file>` writes an uncompressed `newc` cpio of that generation's folder, for `initrd: true` packages only, at `wros-firmware/<file>` with symlinks resolved. It refuses if the file's filesystem would drop below 64 MiB free. With no folder, it runs `ensure` first.
   - `link <toplevel>` points `/lib/firmware` at that generation's folder (creating `/lib` if missing; replacing only a symlink it owns; refusing a real directory). With no folder, it runs `ensure` first.
-  - `prune --profile /nix/var/nix/profiles/system` removes folders and roots whose toplevel isn't any `system-*-link` generation.
+  - `prune --profile /nix/var/nix/profiles/system` keeps folders and roots for the numbered profile generations, the systems named by `/run/current-system` and `/run/booted-system`, and the set currently linked at `/lib/firmware`. It removes the rest.
   - `--root <dir>` (tests only) prefixes every absolute path it writes; `TRUSTED_UID` as in the engine.
 
 - [ ] **Step 1: Write the failing tests** with fake trees: a sys tree with three modalias files, a fake `modules.alias` (run the real `modprobe -d` against a tiny modules dir with `modules.alias` and `modules.dep` only), a table, and fake store packages:
@@ -179,11 +179,12 @@
   - `test_fetch_skips_firmware_already_in_the_store`;
   - `test_fetch_includes_the_running_sets_packages`;
   - `test_staging_imports_the_firmware_and_writes_the_new_generations_set_before_boot` (order of calls: import, `ensure <new toplevel>`, `switch-to-configuration boot`);
+  - `test_staging_fetches_firmware_detected_only_by_the_target_before_boot`;
   - `test_old_generation_folders_are_pruned_after_generations_are_deleted`.
 - [ ] **Step 2:** Implement.
   - At fetch time, detect with the running kernel (`detect --system /run/current-system`) and union it with the running set's packages.
   - Add those packages' files to the download list (#179's retry, resume and reuse apply as-is).
-  - At staging, import them with the system and run `ensure`.
+  - At staging, import them with the system and run `ensure <new toplevel>` to detect again against the target. If it reports missing packages listed in the verified manifest that the fetch missed, fetch and import them and run `ensure <new toplevel>` again before `switch-to-configuration boot`.
   - After `--delete-generations`, run `prune`.
   - A firmware package missing from the manifest is reported in the staging result, not fatal.
 - [ ] **Step 3:** In thin-update.nix, the channel carries two fake firmware packages, and the VM's fake sys tree needs one. Assert that only that one is fetched and its folder exists for the new toplevel.
@@ -217,18 +218,21 @@
 - Engine verb `firmware`. It:
   - runs `detect` for the running system;
   - fetches and verifies the current channel's InRelease and manifest (as `check_online` does);
+  - returns `update-first` if a needed package's store path in the manifest differs from its path in the running system's table. The system update brings that package;
   - downloads the missing packages from the manifest's `firmware` section (#179 machinery, a separate cache folder);
   - imports them, runs `ensure /run/current-system`, then `switch-to-configuration boot` so the initrd file is rewritten.
 
-  It returns JSON: `{"status": "added"|"nothing-needed"|"not-in-channel", "packages": [...]}`.
+  The JSON result has the shape `{"status": "added"|"nothing-needed"|"not-in-channel"|"update-first", "packages": [...]}`.
 
 - [ ] **Step 1: Failing tests:**
   - engine: `test_firmware_verb_adds_only_missing_packages`;
   - engine: `test_firmware_verb_with_nothing_new_changes_nothing`;
-  - UI: the row is shown under *Settings › Updates and recovery*; the three outcomes read:
+  - engine: `test_firmware_verb_returns_update_first_for_a_different_store_path` (no import);
+  - UI: the row is shown under *Settings › Updates and recovery*. It shows the outcome for each status.
     - "Firmware added: <names>. Unplug the device and plug it in again, or restart.";
     - "This laptop already has the firmware its devices need.";
     - "WrOS's update site doesn't have firmware for this device."
+    - "Update WrOS first to get the firmware this device needs."
 - [ ] **Step 2:** Implement. Copy the UI's button and wait pattern from *Check for WrOS updates*.
 - [ ] **Step 3:** `check.sh all`, `check.sh py`, `python tools/check-wros.py`. Expected: PASS.
 

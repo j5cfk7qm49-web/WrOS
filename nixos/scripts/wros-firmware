@@ -21,6 +21,7 @@ TRUSTED_UID = 0  # tests may point this at the invoking user; production never d
 MODPROBE = '/usr/sbin/modprobe'
 STORE = Path('/nix/store')
 CURRENT = Path('/run/current-system')
+BOOTED = Path('/run/booted-system')
 PROFILE = Path('/nix/var/nix/profiles/system')
 SETS = Path('/nix/var/wros/firmware')
 ROOTS = Path('/nix/var/nix/gcroots/wros-firmware')
@@ -66,6 +67,14 @@ def trusted_link(path, info):
     if not stat.S_ISLNK(info.st_mode) or info.st_uid != TRUSTED_UID:
         raise FirmwareError(f'Expected a trusted symlink: {path}')
     return Path(os.readlink(path))
+
+
+def firmware_generation(target):
+    generation = target.parent.parent
+    if (generation.parent == SETS and STORE_NAME.fullmatch(generation.name)
+            and target == generation / FIRMWARE):
+        return generation.name
+    return None
 
 
 def read_json(path):
@@ -424,9 +433,7 @@ class Firmware:
         old = None
         if info is not None:
             old = trusted_link(link, info)
-            generation = old.parent.parent
-            if (generation.parent != SETS or not STORE_NAME.fullmatch(generation.name)
-                    or old != generation / FIRMWARE):
+            if firmware_generation(old) is None:
                 raise FirmwareError(f'Refusing to replace a firmware symlink WrOS does not own: {link}')
         names = self.read_set(system)
         result = self.ensure(system, entries, set()) if names is None else {}
@@ -446,6 +453,22 @@ class Firmware:
         pattern = re.compile(re.escape(profile.name) + r'-[0-9]+-link')
         keep = {self.system_path(profile.with_name(path.name)).name for path in parent.iterdir()
                 if pattern.fullmatch(path.name)}
+        for system in (CURRENT, BOOTED):
+            try:
+                keep.add(self.system_path(system).name)
+            except FileNotFoundError:
+                pass
+        # Activation updates /run/current-system after releasing the lock in link.
+        try:
+            link = self.directory(LIB) / 'firmware'
+        except FileNotFoundError:
+            pass
+        else:
+            info = lstat(link)
+            if info is not None and stat.S_ISLNK(info.st_mode):
+                generation = firmware_generation(trusted_link(link, info))
+                if generation is not None:
+                    keep.add(generation)
         roots = self.disk(ROOTS)
         old_roots = []
         if lstat(roots) is not None:

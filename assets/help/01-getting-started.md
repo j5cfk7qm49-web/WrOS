@@ -31,7 +31,7 @@ Installed WrOS hides Quit and shows a short message when you press `Ctrl-Q`, kee
 
 ## The mouse
 
-On WrOS's own screen the pointer glides with your hand, a pixel at a time, without waiting for the page to redraw.
+On WrOS's own screen a hardware cursor lets the pointer glide with your hand, a pixel at a time. With no hardware cursor, the pointer moves when the screen next redraws.
 
 Click a pane to move to it, a chapter to fold it, a scene to open it, and the prose to put the cursor there. Drag across the prose to select; double-click picks a word, and a third click the paragraph. The wheel scrolls whatever is under the pointer.
 

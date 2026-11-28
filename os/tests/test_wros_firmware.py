@@ -18,6 +18,7 @@ SETS = Path('/nix/var/wros/firmware')
 ROOTS = Path('/nix/var/nix/gcroots/wros-firmware')
 PROFILE = Path('/nix/var/nix/profiles/system')
 CURRENT = Path('/run/current-system')
+BOOTED = Path('/run/booted-system')
 OUT = Path('/boot/initrd-secrets')
 ALIASES = ('pci:v00001234d00000001', 'usb:v1234p0002', 'pci:v00001234d00000003')
 
@@ -270,6 +271,32 @@ class FirmwareTests(unittest.TestCase):
                          [self.new.name, self.old.name])
         self.assertEqual({path.name.split('--')[0] for path in self.disk(ROOTS).iterdir()},
                          {self.new.name, self.old.name})
+
+    def test_prune_keeps_the_running_and_booted_systems_sets(self):
+        for system in (self.old, self.new, self.stale):
+            self.run_tool('ensure', system, '--add', 'sof')
+        self.disk(CURRENT).unlink()
+        self.disk(CURRENT).symlink_to(self.stale)
+        self.disk(BOOTED).symlink_to(self.old)
+        self.disk(PROFILE).parent.mkdir(parents=True)
+        self.disk(PROFILE.with_name('system-1-link')).symlink_to(self.new)
+        self.disk(PROFILE).symlink_to('system-1-link')
+        roots = {path.name for path in self.disk(ROOTS).iterdir()}
+
+        self.assertEqual(self.run_tool('prune', '--profile', PROFILE), {'removed': []})
+        self.assertEqual({path.name for path in self.disk(SETS).iterdir()},
+                         {self.old.name, self.new.name, self.stale.name})
+        self.assertEqual({path.name for path in self.disk(ROOTS).iterdir()}, roots)
+
+    def test_prune_keeps_the_linked_set_before_current_system_changes(self):
+        self.disk(PROFILE).parent.mkdir(parents=True)
+        self.disk(PROFILE.with_name('system-1-link')).symlink_to(self.old)
+        self.disk(BOOTED).symlink_to(self.old)
+        self.run_tool('link', self.new)
+
+        self.assertEqual(self.run_tool('prune', '--profile', PROFILE), {'removed': []})
+        self.assertTrue(self.disk(SETS / self.new.name / 'lib/firmware').is_dir())
+        self.assertTrue(self.disk(ROOTS / f'{self.new.name}--i915').is_symlink())
 
 
 if __name__ == '__main__':
