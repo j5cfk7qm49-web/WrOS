@@ -774,6 +774,8 @@ mod tests {
                 vec!["ath9k_htc"],
             ),
             ("update-first", FirmwareStatus::UpdateFirst, vec!["rtw88"]),
+            ("media-needed", FirmwareStatus::MediaNeeded, vec!["rtw88"]),
+            ("not-on-stick", FirmwareStatus::NotOnStick, vec!["rtw88"]),
         ] {
             let reply = serde_json::json!({"status": status, "packages": packages});
             let result = device_firmware(&reply.to_string()).unwrap();

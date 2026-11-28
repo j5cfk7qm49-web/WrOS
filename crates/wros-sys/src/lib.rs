@@ -112,6 +112,8 @@ pub enum FirmwareStatus {
     NothingNeeded,
     NotInChannel,
     UpdateFirst,
+    MediaNeeded,
+    NotOnStick,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

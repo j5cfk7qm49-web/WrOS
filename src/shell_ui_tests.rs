@@ -1842,6 +1842,16 @@ fn firmware_for_a_new_device_shows_each_result_in_updates() {
             vec!["rtw88"],
             "Update WrOS first to get the firmware this device needs.",
         ),
+        (
+            FirmwareStatus::MediaNeeded,
+            vec!["rtw88"],
+            "Connect to the internet, or plug in a WrOS USB stick, and try again.",
+        ),
+        (
+            FirmwareStatus::NotOnStick,
+            vec!["rtw88"],
+            "This WrOS USB stick doesn't have the matching firmware. Try a stick for this version of WrOS, or connect to the internet.",
+        ),
     ] {
         let mut desk = Desk::open(book(&format!("firmware-{status:?}"), true), 140, 30);
         let mut sim = online_backend("current", None);

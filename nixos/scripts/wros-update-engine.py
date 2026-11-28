@@ -8,6 +8,7 @@ generation switching, boot-loader installation, explicit GC roots for running, p
 and staged closures, and generation pruning + garbage collection once a new version is
 marked healthy.
 """
+from contextlib import ExitStack, contextmanager
 from datetime import datetime, timedelta, timezone
 import hashlib
 import http.client
@@ -20,8 +21,10 @@ from pathlib import Path
 import re
 import secrets
 import shutil
+import signal
 import ssl
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -94,6 +97,9 @@ DEFAULT_GCROOTS_DIR = Path('/nix/var/nix/gcroots/wros')
 DEFAULT_VERSION_FILE = Path('/etc/wros/version')
 FIRMWARE_TOOL = DEFAULT_CURRENT_SYSTEM / 'sw/bin/wros-firmware'
 FIRMWARE_SETS = Path('/nix/var/wros/firmware')
+LIVE_MEDIA_LABEL = 'WROS_LIVE'
+FIRMWARE_CONNECTION_ERRORS = (urllib.error.URLError, ConnectionError, TimeoutError, ssl.SSLError,
+                              http.client.HTTPException)
 CLOSURE_MANIFEST_NAME = 'closure-manifest.json'
 STORE_PATH_RE = re.compile(r'^/nix/store/[0-9a-df-np-sv-z]{32}-[A-Za-z0-9._+?=-]+$')
 CACHE_REL_RE = re.compile(
@@ -1927,11 +1933,139 @@ def download_device_firmware(cache, inrelease, closure, packages, *, base_url, o
     shutil.rmtree(partial)
 
 
+def unmount_firmware_media(path, run):
+    result = run(['umount', '--', str(path)])
+    if result.returncode != 0:
+        fail(f'could not unmount the WrOS USB stick: {_tail(result)}')
+    path.rmdir()
+
+
+@contextmanager
+def firmware_stick_store(media_root, run):
+    media_root = Path(media_root)
+    parents = (Path('/run'), media_root.parent) if media_root == DEFAULT_MEDIA_ROOT else ()
+    for directory in (*parents, media_root):
+        try:
+            directory.mkdir(mode=0o755)
+        except FileExistsError:
+            require_private_entry(directory, 'dir')
+        else:
+            # The ordinary update-media review must still be able to traverse these parents.
+            directory.chmod(0o755)
+    # Both mounts belong to this invocation. The outer mount is read-only, and the mount
+    # points are inaccessible to other users until they are removed again.
+    work = Path(tempfile.mkdtemp(prefix='.firmware-', dir=media_root))
+    media = work / 'media'
+    media.mkdir()
+    try:
+        with ExitStack() as mounts:
+            found = find_update_media(runner=run, media_root=media, label=LIVE_MEDIA_LABEL)
+            if found['status'] == 'none':
+                yield None
+                return
+            medium = Path(found['path'])
+            mounts.callback(unmount_firmware_media, medium, run)
+            try:
+                image = regular_stream(medium / 'nix-store.squashfs')
+            except (OSError, ValueError):
+                fail('could not read nix-store.squashfs on the WrOS USB stick')
+            with image:
+                store = work / 'store'
+                store.mkdir()
+                result = run([
+                    'mount', '-c', '-i', '-n', '-t', 'squashfs',
+                    '-o', 'loop,ro,nodev,nosuid,noexec,nosymfollow', '--',
+                    f'/proc/{os.getpid()}/fd/{image.fileno()}', str(store),
+                ])
+                if result.returncode != 0:
+                    store.rmdir()
+                    fail(f'could not mount the WrOS USB stick firmware store: {_tail(result)}')
+                mounts.callback(unmount_firmware_media, store, run)
+                yield store
+    finally:
+        # If an unmount failed, leave its private mount point alone and preserve the error.
+        for directory in (media, work):
+            if not any(directory.iterdir()):
+                directory.rmdir()
+
+
+def append_verified_firmware_export(stream, source, entry, run):
+    path = entry['store_path'].encode('ascii')
+    size, digest = entry['nar_size'], entry['nar_sha256']
+    mismatch = f'firmware on the WrOS USB stick failed SHA-256 or size check: {source.name}'
+    # Nix's export format is an item marker, the NAR, then its NIXE header and store metadata.
+    # The firmware packages are self-contained. There are no references, deriver or legacy
+    # signature to import. The running system's table supplies the store path and NAR hash.
+    stream.write(struct.pack('<Q', 1))
+    start = stream.tell()
+    result = run(['prlimit', f'--fsize={start + size}', '--core=0', '--',
+                  'nix-store', '--dump', str(source)], stdout=stream)
+    if result.returncode == -signal.SIGXFSZ:
+        fail(mismatch)
+    if result.returncode != 0:
+        fail(f'could not read firmware from the WrOS USB stick: {_tail(result)}')
+    if stream.tell() != start + size:
+        fail(mismatch)
+    stream.seek(start)
+    if hashlib.file_digest(stream, 'sha256').hexdigest() != digest:
+        fail(mismatch)
+    stream.seek(0, os.SEEK_END)
+    stream.write(struct.pack('<QQ', 0x4558494E, len(path)))  # NIXE and the padded path string
+    stream.write(path + b'\0' * (-len(path) % 8))
+    stream.write(struct.pack('<QQQ', 0, 0, 0))  # empty references, deriver and legacy signature
+
+
+def import_stick_firmware(entries, *, media_root, sets_dir, run):
+    with firmware_stick_store(media_root, run) as source:
+        if source is None:
+            return {'status': 'media-needed', 'packages': sorted(entries)}
+        wanted = []
+        missing = []
+        for name, entry in sorted(entries.items()):
+            path, size, digest = entry.get('store_path'), entry.get('nar_size'), entry.get('nar_sha256')
+            if (not isinstance(path, str) or not STORE_PATH_RE.fullmatch(path)
+                    or type(size) is not int or not 0 < size <= ARCHIVE_LIMIT
+                    or not isinstance(digest, str) or not HEX64_RE.fullmatch(digest)):
+                fail(f'invalid running system firmware table entry: {name}')
+            package = source / Path(path).name
+            if not os.path.lexists(package):
+                missing.append(name)
+                continue
+            require_private_entry(package, 'dir')
+            wanted.append((package, entry))
+        if missing:
+            return {'status': 'not-on-stick', 'packages': missing}
+        sets_dir = Path(sets_dir)
+        if sets_dir == FIRMWARE_SETS:
+            for parent in reversed(sets_dir.parent.parents):
+                require_private_entry(parent, 'dir')
+        for directory in ((sets_dir.parent, sets_dir) if sets_dir == FIRMWARE_SETS else (sets_dir,)):
+            try:
+                directory.mkdir(mode=0o755)
+            except FileExistsError:
+                require_private_entry(directory, 'dir')
+            else:
+                directory.chmod(0o755)
+        require_free_space(sets_dir, 2 * sum(entry['nar_size'] for _, entry in wanted))
+        # A bounded anonymous file holds the exact bytes verified, so import neither rereads the
+        # removable medium nor leaves a staging file behind if this process is interrupted.
+        with tempfile.TemporaryFile(dir=sets_dir, buffering=0) as stream:
+            for package, entry in wanted:
+                append_verified_firmware_export(stream, package, entry, run)
+            stream.write(struct.pack('<Q', 0))  # end of export stream
+            stream.seek(0)
+            result = run(['nix-store', '--import'], stdin=stream)
+            forget_valid_store_paths()
+            if result.returncode != 0:
+                fail(f'could not import verified firmware from the WrOS USB stick: {_tail(result)}')
+    return None
+
+
 def add_device_firmware(*, base_url=ONLINE_URL, cache=FIRMWARE_CACHE, now=None,
                         keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS, package_keyring=None,
                         current_system=DEFAULT_CURRENT_SYSTEM, firmware_sets_dir=FIRMWARE_SETS,
                         state_dir=DEFAULT_STATE_DIR, store_dir=REAL_STORE_DIR, profile=DEFAULT_PROFILE,
-                        opener=None, runner=None):
+                        opener=None, runner=None, media_root=DEFAULT_MEDIA_ROOT):
     run = runner or _base.default_runner
     cache = Path(cache)
     toplevel = current_toplevel(current_system)
@@ -1965,28 +2099,41 @@ def add_device_firmware(*, base_url=ONLINE_URL, cache=FIRMWARE_CACHE, now=None,
         if not (needed or pending):
             return nothing
         download = []
+        offline = False
         if needed:
-            inrelease, _, closure = read_online_manifest(
-                base_url, now, resolve_trust_anchor(keyring), resolve_trust_anchor(signers),
-                package_keyring, opener)
-            channel = {name: closure['firmware'].get(name.replace('_', '-')) for name in needed}
-            different = sorted(name for name, package in channel.items()
-                               if package is not None and package['store_path'] != paths[name])
-            if different:
-                return {'status': 'update-first', 'packages': different}
-            # Seed firmware may be listed with no extra files because it ships in the system.
-            unavailable = sorted(name for name, package in channel.items()
-                                 if package is None or (name in absent and not package['files']))
-            if unavailable:
-                return {'status': 'not-in-channel', 'packages': unavailable}
-            download = [channel[name] for name in sorted(needed & absent)]
+            try:
+                inrelease, _, closure = read_online_manifest(
+                    base_url, now, resolve_trust_anchor(keyring), resolve_trust_anchor(signers),
+                    package_keyring, opener)
+            except FIRMWARE_CONNECTION_ERRORS:
+                offline = True
+            else:
+                channel = {name: closure['firmware'].get(name.replace('_', '-')) for name in needed}
+                different = sorted(name for name, package in channel.items()
+                                   if package is not None and package['store_path'] != paths[name])
+                if different:
+                    return {'status': 'update-first', 'packages': different}
+                # Seed firmware may be listed with no extra files because it ships in the system.
+                unavailable = sorted(name for name, package in channel.items()
+                                     if package is None or (name in absent and not package['files']))
+                if unavailable:
+                    return {'status': 'not-in-channel', 'packages': unavailable}
+                download = [channel[name] for name in sorted(needed & absent)]
 
         # GRUB makes the system passed to `boot` its default entry.
         if toplevel != current_toplevel(profile):
             fail('Restart into the default WrOS version, then try again.')
         if download:
-            download_device_firmware(cache, inrelease, closure, download,
-                                     base_url=base_url, opener=opener, run=run)
+            try:
+                download_device_firmware(cache, inrelease, closure, download,
+                                         base_url=base_url, opener=opener, run=run)
+            except FIRMWARE_CONNECTION_ERRORS:
+                offline = True
+        if offline and absent:
+            outcome = import_stick_firmware({name: table[name] for name in absent},
+                                            media_root=media_root, sets_dir=firmware_sets_dir, run=run)
+            if outcome is not None:
+                return outcome
 
         names = sorted(needed | pending)
         for directory in (cache.parent, cache):

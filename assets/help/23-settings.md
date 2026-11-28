@@ -27,4 +27,4 @@ available for an alias. Shortcuts use the letters from your active keyboard layo
 
 Settings are remembered in `~/.config/grimoire/`, and the manuscript's look and your author details are kept in the project's `project.toml`, so they travel with it.
 
-On an installed laptop, open **Settings › Updates and recovery › Updates** and choose **Firmware for a new device** after plugging in a device that needs firmware. With an internet connection, WrOS can download and add the signed firmware this laptop needs. See *WrOS*.
+On an installed laptop, open **Settings › Updates and recovery › Updates** and choose **Firmware for a new device** after plugging in a device that needs firmware. WrOS can get matching firmware from the update site or, when offline, from a WrOS USB stick. See *WrOS*.

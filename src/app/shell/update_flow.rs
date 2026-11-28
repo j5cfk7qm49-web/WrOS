@@ -747,6 +747,12 @@ impl App {
             FirmwareStatus::UpdateFirst => {
                 "Update WrOS first to get the firmware this device needs.".into()
             }
+            FirmwareStatus::MediaNeeded => {
+                "Connect to the internet, or plug in a WrOS USB stick, and try again.".into()
+            }
+            FirmwareStatus::NotOnStick => {
+                "This WrOS USB stick doesn't have the matching firmware. Try a stick for this version of WrOS, or connect to the internet.".into()
+            }
         };
         self.deck.shell.update_flow.last_result = Some(text.clone());
         self.update_notice(text);

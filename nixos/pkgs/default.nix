@@ -53,6 +53,8 @@ let
       (pkgs.python3.withPackages (ps: [ ps.pillow ]))
       pkgs.gnupg
       pkgs.kmod
+      pkgs.nix
+      pkgs.util-linux
       pkgs.stdenv.cc
       pkgs.kbd
       pkgs.console-setup

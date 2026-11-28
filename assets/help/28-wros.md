@@ -81,10 +81,13 @@ repair and staged update** lead to **Repair now from retained verified packages*
 On NixOS, this re-activates the current generation. The cached APT package-plan
 preview is not available on NixOS.
 
-If a new device needs firmware, plug it in and connect to the internet. Open
-**Settings › Updates and recovery › Updates** and choose **Firmware for a new device**.
-WrOS checks what your laptop needs and adds matching signed firmware from the
-update site. When it finishes, unplug the device and plug it in again, or restart.
+If a new device needs firmware, plug it in. Open **Settings › Updates and recovery
+› Updates** and choose **Firmware for a new device**. WrOS checks what your laptop
+needs and tries the update site. If it can't reach the site, it looks for a WrOS
+USB stick. When you're offline, plug in a stick for the version of WrOS you're
+running before choosing the row. WrOS checks that the firmware on the stick
+matches your installed version before adding it. When it finishes, unplug the
+device and plug it in again, or restart.
 If WrOS asks you to update first, the system update brings the firmware.
 If you started an older version from the boot menu, start the default version
 before adding firmware.

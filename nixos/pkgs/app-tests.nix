@@ -46,6 +46,7 @@ in
       pkgs.git
       pkgs.gnupg
       pkgs.kmod
+      pkgs.nix
       pkgs.restic
       pkgs.rclone
       pkgs.e2fsprogs

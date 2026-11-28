@@ -79,7 +79,7 @@ The mouse works everywhere on the bar: click a view tile to switch views, click 
 
 **Writing**, **Look and keyboard**, **System**, **Backups and accounts**, **Updates and recovery** and **Music**: each opens Settings on that group, in a box over the page. See *Settings*.
 
-Under **Updates and recovery › Updates**, choose **Firmware for a new device** to look for signed firmware for a device you've plugged in. See *WrOS*.
+Under **Updates and recovery › Updates**, choose **Firmware for a new device** to look for matching firmware for a device you've plugged in. When offline, plug in a WrOS USB stick before you choose the row. See *WrOS*.
 
 ## Help
 

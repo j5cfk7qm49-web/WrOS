@@ -1,4 +1,5 @@
 """Unit tests for the NixOS generation-based update engine (nixos/scripts/wros-update-engine.py)."""
+import base64
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
@@ -10,6 +11,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -335,7 +337,8 @@ class NixosUpdateEngineTests(unittest.TestCase):
             self.assertTrue(all(f['path'] in asked for f in closure['firmware']['ath9k-htc']['files']))
             self.assertTrue(all(f['path'] not in asked for f in closure['firmware']['rtw89']['files']))
 
-    def _device_firmware(self, root, *, detected=('rtw88',), installed=(), present=(), different=None):
+    def _device_firmware(self, root, *, detected=('rtw88',), installed=(), present=(), different=None,
+                         offline=False, stick=False, drop_download=False):
         bundle, keyring, signers, moment = self._make_signed_bundle(
             root, firmware=('rtw88', 'ath9k-htc', 'rtw89'))
         manifest = json.loads((bundle / 'closure-manifest.json').read_bytes())
@@ -346,6 +349,15 @@ class NixosUpdateEngineTests(unittest.TestCase):
         if different is not None:
             table[different]['store_path'] = '/nix/store/' + 'e' * 32 + '-previous-firmware'
         store = root / 'store'
+        if stick:
+            for name in ('rtw88', 'ath9k_htc'):
+                tree = root / 'stick-store' / Path(table[name]['store_path']).name
+                firmware = tree / 'lib/firmware/example.bin'
+                firmware.parent.mkdir(parents=True)
+                firmware.write_bytes(b'test firmware for ' + name.encode())
+                (firmware.parent / 'alias.bin').symlink_to(firmware.name)
+                nar = subprocess.check_output(['nix-store', '--dump', str(tree)])
+                table[name].update(nar_sha256=hashlib.sha256(nar).hexdigest(), nar_size=len(nar))
         current = store / ('f' * 32 + '-current')
         current.mkdir(parents=True)
         (current / 'wros-firmware.json').write_text(json.dumps({'format': 1, 'packages': table}))
@@ -367,10 +379,38 @@ class NixosUpdateEngineTests(unittest.TestCase):
             def open(self, url, timeout=None):
                 rel = url.removeprefix('http://channel.test/')
                 asked.append(rel)
+                if offline or (drop_download and rel.startswith('cache/')):
+                    raise urllib.error.URLError('no connection')
                 return io.BytesIO((bundle / rel).read_bytes())
 
-        def run(cmd):
+        def run(cmd, **streams):
             commands.append(cmd)
+            executable = Path(cmd[0]).name
+            if executable == 'lsblk':
+                output = '/dev/sdb iso9660 WROS_LIVE disk\n' if stick else ''
+                return subprocess.CompletedProcess(cmd, 0, output, '')
+            if executable == 'mount':
+                target = Path(cmd[-1])
+                if 'squashfs' in cmd:
+                    shutil.copytree(root / 'stick-store', target, dirs_exist_ok=True, symlinks=True)
+                else:
+                    (target / 'nix-store.squashfs').touch()
+            if executable == 'umount':
+                for entry in Path(cmd[-1]).iterdir():
+                    if entry.is_dir() and not entry.is_symlink():
+                        shutil.rmtree(entry)
+                    else:
+                        entry.unlink()
+            if cmd[0] == 'prlimit':
+                return subprocess.run(cmd, stderr=subprocess.PIPE, text=True, **streams)
+            if cmd == ['nix-store', '--import']:
+                result = subprocess.run(
+                    [*cmd, '--store', f'local?root={root / "import-root"}'],
+                    capture_output=True, text=True, **streams)
+                if result.returncode == 0:
+                    for path in result.stdout.splitlines():
+                        (store / Path(path).name).mkdir()
+                return result
             if cmd[1:2] == ['detect']:
                 return subprocess.CompletedProcess(cmd, 0, json.dumps({'packages': detected}), '')
             if cmd[0] == 'nix':
@@ -395,11 +435,103 @@ class NixosUpdateEngineTests(unittest.TestCase):
                     base_url='http://channel.test/', opener=Opener(), cache=root / 'firmware-download',
                     keyring=keyring, signers=signers, now=moment + timedelta(minutes=1),
                     state_dir=root / 'state', current_system=current_system, profile=profile,
-                    firmware_sets_dir=sets, store_dir=store)
+                    firmware_sets_dir=sets, store_dir=store, media_root=root / 'media')
             finally:
                 os.umask(previous)
 
         return invoke, asked, commands, packages, boot
+
+    def test_a_stick_package_matching_the_table_is_added(self):
+        with tempfile.TemporaryDirectory(prefix='wros-device-firmware-') as tmp:
+            root = Path(tmp)
+            invoke, asked, commands, packages, _ = self._device_firmware(root, offline=True, stick=True)
+            self.assertEqual(invoke(), {'status': 'added', 'packages': ['rtw88']})
+            self.assertEqual(asked, ['InRelease'])
+            self.assertEqual([Path(cmd[0]).name for cmd in commands[1:-2]],
+                             ['lsblk', 'mount', 'mount', 'prlimit', 'nix-store', 'umount', 'umount'])
+            self.assertEqual([cmd[1] for cmd in commands[-2:]], ['ensure', 'boot'])
+            self.assertEqual(list((root / 'media').iterdir()), [])
+            self.assertEqual((root / 'media').stat().st_mode & 0o777, 0o755)
+            self.assertEqual(list((root / 'sets').glob('.firmware-*')), [])
+            store_path = packages['rtw88']['store_path']
+            rows = subprocess.check_output([
+                'nix', '--offline', '--extra-experimental-features', 'nix-command',
+                'path-info', '--json', '--json-format', '1',
+                '--store', f'local?root={root / "import-root"}', store_path,
+            ])
+            info = json.loads(rows)[store_path]
+            table, = (root / 'store').glob('*/wros-firmware.json')
+            entry = json.loads(table.read_text())['packages']['rtw88']
+            self.assertEqual(info['narHash'], 'sha256-' + base64.b64encode(
+                bytes.fromhex(entry['nar_sha256'])).decode())
+            self.assertEqual(info['narSize'], entry['nar_size'])
+            restored = root / 'import-root/nix/store' / Path(store_path).name
+            self.assertEqual(os.readlink(restored / 'lib/firmware/alias.bin'), 'example.bin')
+            self.assertFalse((root / 'import-root/nix/store' / Path(packages['ath9k-htc']['store_path']).name).exists())
+
+    def test_a_stick_package_with_another_hash_is_refused(self):
+        for extra_bytes in (0, 4096):
+            with self.subTest(extra_bytes=extra_bytes), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                invoke, _, commands, packages, _ = self._device_firmware(root, offline=True, stick=True)
+                firmware = root / 'stick-store' / Path(packages['rtw88']['store_path']).name / 'lib/firmware/example.bin'
+                firmware.write_bytes(b'X' * (firmware.stat().st_size + extra_bytes))
+                with self.assertRaisesRegex(ValueError, 'failed SHA-256 or size check'):
+                    invoke()
+                self.assertFalse(any(cmd[1] in ('--import', 'ensure', 'boot') for cmd in commands))
+                self.assertEqual(list((root / 'media').iterdir()), [])
+
+    def test_stick_requires_the_exact_package_path_and_refuses_a_symlink(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            invoke, _, commands, packages, _ = self._device_firmware(root, offline=True, stick=True)
+            package = root / 'stick-store' / Path(packages['rtw88']['store_path']).name
+            other = package.rename(package.with_name('e' * 32 + '-rtw88'))
+            self.assertEqual(invoke(), {'status': 'not-on-stick', 'packages': ['rtw88']})
+            package.symlink_to(other.name)
+            with self.assertRaisesRegex(ValueError, 'wrong type'):
+                invoke()
+            self.assertFalse(any(cmd[1] in ('--import', 'ensure', 'boot') for cmd in commands))
+            self.assertEqual(list((root / 'media').iterdir()), [])
+
+    def test_no_stick_and_no_network_says_so(self):
+        with tempfile.TemporaryDirectory(prefix='wros-device-firmware-') as tmp:
+            invoke, asked, commands, _, _ = self._device_firmware(Path(tmp), offline=True)
+            self.assertEqual(invoke(), {'status': 'media-needed', 'packages': ['rtw88']})
+            self.assertEqual(asked, ['InRelease'])
+            self.assertEqual([cmd[1] for cmd in commands], ['detect', '-rn'])
+
+    def test_firmware_refuses_a_symlinked_media_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            invoke, _, commands, _, _ = self._device_firmware(root, offline=True)
+            other = root / 'other'
+            other.mkdir()
+            (root / 'media').symlink_to(other)
+            with self.assertRaisesRegex(ValueError, 'wrong type: media'):
+                invoke()
+            self.assertEqual([cmd[1] for cmd in commands], ['detect'])
+            self.assertEqual(list(other.iterdir()), [])
+
+    def test_firmware_does_not_try_media_when_the_channel_manifest_fails_verification(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            invoke, asked, commands, _, _ = self._device_firmware(root)
+            (root / 'bundle/closure-manifest.json').write_bytes(b'{}')
+            with self.assertRaisesRegex(ValueError, 'does not match signed Release metadata'):
+                invoke()
+            self.assertEqual(asked, ['InRelease', 'closure-manifest.json'])
+            self.assertEqual([cmd[1] for cmd in commands], ['detect'])
+
+    def test_firmware_can_use_a_stick_if_the_channel_download_drops(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            invoke, asked, commands, _, _ = self._device_firmware(
+                Path(tmp), stick=True, drop_download=True, detected=('rtw88', 'ath9k_htc'))
+            with mock.patch.object(self.engine, 'RETRY_PAUSE', 0):
+                self.assertEqual(invoke(), {'status': 'added', 'packages': ['ath9k_htc', 'rtw88']})
+            self.assertEqual(asked[:2], ['InRelease', 'closure-manifest.json'])
+            self.assertIn('cache/nix-cache-info', asked)
+            self.assertEqual(commands.count(['nix-store', '--import']), 1)
 
     def test_firmware_verb_adds_only_missing_packages(self):
         with tempfile.TemporaryDirectory(prefix='wros-device-firmware-') as tmp:
