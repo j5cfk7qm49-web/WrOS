@@ -33,6 +33,15 @@ impl NativeConfig {
         }
         Ok(())
     }
+
+    pub(crate) fn cell_at(self, (x, y): (u16, u16)) -> (u16, u16) {
+        let cell_width = (self.pixels.0 / self.cells.0).max(1);
+        let cell_height = (self.pixels.1 / self.cells.1).max(1);
+        (
+            (x / cell_width).min(self.cells.0 - 1),
+            (y / cell_height).min(self.cells.1 - 1),
+        )
+    }
 }
 
 struct Pointer {
@@ -92,17 +101,17 @@ impl Pointer {
             .collect()
     }
 
-    fn event(&self, kind: MouseEventKind, modifiers: KeyModifiers) -> MouseEvent {
-        let column = (self.position.0
-            / (self.geometry.pixels.0 / self.geometry.cells.0).max(1) as f64)
-            as u16;
-        let row = (self.position.1 / (self.geometry.pixels.1 / self.geometry.cells.1).max(1) as f64)
-            as u16;
-        MouseEvent {
-            kind,
-            modifiers,
-            column: column.min(self.geometry.cells.0 - 1),
-            row: row.min(self.geometry.cells.1 - 1),
+    fn event(&self, kind: MouseEventKind, modifiers: KeyModifiers) -> crate::InputEvent {
+        let pointer = (self.position.0 as u16, self.position.1 as u16);
+        let (column, row) = self.geometry.cell_at(pointer);
+        crate::InputEvent {
+            event: Event::Mouse(MouseEvent {
+                kind,
+                modifiers,
+                column,
+                row,
+            }),
+            pointer: Some(pointer),
         }
     }
 }
@@ -520,12 +529,16 @@ mod tests {
         };
         assert!(geometry.validate().is_ok());
         let mut pointer = Pointer::new(geometry);
-        pointer.move_to(80.0, 32.0);
-        let event = pointer.event(MouseEventKind::Moved, KeyModifiers::NONE);
-        assert_eq!((event.column, event.row), (10, 2));
+        pointer.move_to(83.9, 35.1);
+        let input = pointer.event(MouseEventKind::Moved, KeyModifiers::NONE);
+        assert_eq!(input.pointer, Some((83, 35)));
+        assert!(matches!(input.event, Event::Mouse(mouse) if (mouse.column, mouse.row) == (10, 2)));
         pointer.move_to(2000.0, 1000.0);
-        let event = pointer.event(MouseEventKind::Moved, KeyModifiers::NONE);
-        assert_eq!((event.column, event.row), (169, 47));
+        let input = pointer.event(MouseEventKind::Moved, KeyModifiers::NONE);
+        assert_eq!(input.pointer, Some((1359, 767)));
+        assert!(
+            matches!(input.event, Event::Mouse(mouse) if (mouse.column, mouse.row) == (169, 47))
+        );
         pointer.move_to(-4.0, -1.0);
         pointer.buttons = Some(MouseButton::Left);
         assert_eq!(
@@ -534,8 +547,9 @@ mod tests {
         );
         pointer.retire();
         assert_eq!(pointer.motion_kind(), MouseEventKind::Moved);
-        let event = pointer.event(MouseEventKind::Moved, KeyModifiers::NONE);
-        assert_eq!((event.column, event.row), (0, 0));
+        let input = pointer.event(MouseEventKind::Moved, KeyModifiers::NONE);
+        assert_eq!(input.pointer, Some((0, 0)));
+        assert!(matches!(input.event, Event::Mouse(mouse) if (mouse.column, mouse.row) == (0, 0)));
         for bad in [
             NativeConfig {
                 pixels: (0, 768),

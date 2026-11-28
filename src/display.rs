@@ -43,6 +43,8 @@ pub fn start_input(terminal: &mut Terminal) -> std::io::Result<Option<wros_input
     if graphical(terminal) {
         use ratatui::backend::Backend;
         let size = terminal.backend_mut().window_size()?;
+        // KMS copies this raster to scanout at (0, 0) without scaling. Use its
+        // dimensions so the unused pixels at the screen edge don't change hit testing.
         let input = wros_input::Input::start_native(
             &executable,
             wros_input::NativeConfig {
@@ -84,13 +86,19 @@ pub fn receive(
     wait: std::time::Duration,
 ) -> Result<std::io::Result<ratatui::crossterm::event::Event>, std::sync::mpsc::RecvTimeoutError> {
     let received = match input {
-        Some(input) => input.recv_timeout(wait),
-        None => terminal.backend_mut().receive(wait),
+        Some(input) => input.recv_with_pointer(wait),
+        None => terminal
+            .backend_mut()
+            .receive(wait)
+            .map(|event| event.map(Into::into)),
     };
-    if let Ok(Ok(event)) = &received {
-        terminal.backend_mut().observe(event);
-    }
-    received
+    received.map(|event| {
+        event.map(|input| {
+            // Move the DRM cursor before dispatching the cell event or painting another frame.
+            terminal.backend_mut().observe(&input.event, input.pointer);
+            input.event
+        })
+    })
 }
 
 #[cfg(target_os = "linux")]

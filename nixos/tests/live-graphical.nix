@@ -16,6 +16,7 @@ pkgs.testers.runNixOSTest {
     virtualisation = {
       memorySize = 2560;  # a 4 GiB guest starves the 16 GB qualification host
       cores = 2;
+      qemu.options = [ "-device usb-mouse,bus=usb-bus.0" ];
     };
   };
 
@@ -39,5 +40,53 @@ pkgs.testers.runNixOSTest {
     # The greeter never took over tty1 from the live session.
     live.fail("pgrep -x wros-greeter")
     live.screenshot("live-graphical-install-prompt")
+
+    # QEMU's default VGA (bochs) has no cursor plane. Verify that the fallback arrow
+    # actually moves within a cell, using the USB mouse for relative input.
+    mice = live.send_monitor_command("info mice")
+    mouse = re.search(r"Mouse #(\d+): QEMU (?:HID|USB) Mouse", mice)
+    assert mouse is not None, mice
+    live.send_monitor_command(f"mouse_set {mouse[1]}")
+    dump = Path(live.out_dir) / "cursor.ppm"
+
+    def arrow_x():
+        live.send_monitor_command(f"screendump {dump}")
+        magic, size, maximum, rgb = dump.read_bytes().split(b"\n", 3)
+        assert (magic, maximum) == (b"P6", b"255")
+        width, height = map(int, size.split())
+        cx, y = (width // 8) * 4, (height // 16) * 8
+        rows = ("X", "XX", "XOX", "XOOX", "XOOOX", "XOOOOX", "XOOOOOX")
+        colors = {"X": b"\x00" * 3, "O": b"\xff" * 3}
+
+        def pixel_at(x, y):
+            offset = 3 * (y * width + x)
+            return rgb[offset:offset + 3]
+
+        for x in range(cx - 8, cx + 40):
+            if all(
+                pixel_at(x + dx, y + dy) == colors[pixel]
+                for dy, row in enumerate(rows)
+                for dx, pixel in enumerate(row)
+            ):
+                return x
+        return None
+
+    assert arrow_x() is None, "the arrow should be hidden before mouse input"
+    previous = None
+    observed = []
+    moved_within_cell = False
+    for _ in range(16):
+        live.send_monitor_command("mouse_move 1 0")
+        time.sleep(0.25)
+        current = arrow_x()
+        observed.append(current)
+        if previous is not None and current is not None and current > previous and current // 8 == previous // 8:
+            moved_within_cell = True
+            break
+        previous = current
+    dump.unlink()
+    journal = live.succeed(f"journalctl -b _PID={first} --no-pager -o cat")
+    assert journal.count("WrOS pointer: frame sprite") == 1, journal
+    assert moved_within_cell, f"the fallback arrow did not move within a cell: {observed}"
   '';
 }

@@ -1,6 +1,7 @@
 //! libinput/XKB and their device descriptors stay in this one reader process.
 
 use super::{Keyboard, Layout, NativeConfig, Pointer, seat};
+use crate::InputEvent;
 use crossterm::event::{Event, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind};
 use input::{
     DeviceCapability, Libinput,
@@ -223,7 +224,10 @@ impl Reader {
         })
     }
 
-    pub(crate) fn run(mut self, mut emit: impl FnMut(Event) -> io::Result<()>) -> io::Result<()> {
+    pub(crate) fn run(
+        mut self,
+        mut emit: impl FnMut(InputEvent) -> io::Result<()>,
+    ) -> io::Result<()> {
         let stop = self.stop.flag.clone();
         let result = self.events(&stop, &mut emit);
         // No exit status can acknowledge retirement until libinput closed its
@@ -243,7 +247,7 @@ impl Reader {
     fn events(
         &mut self,
         stop: &AtomicBool,
-        emit: &mut impl FnMut(Event) -> io::Result<()>,
+        emit: &mut impl FnMut(InputEvent) -> io::Result<()>,
     ) -> io::Result<()> {
         let mut active = true;
         let mut repeat = Repeat::default();
@@ -261,7 +265,7 @@ impl Reader {
                 repeat.retire();
                 active = false;
                 self.seat.acknowledge_disable()?;
-                emit(Event::FocusLost)?;
+                emit(Event::FocusLost.into())?;
             }
             if !active && self.seat.enabled() {
                 self.input
@@ -269,7 +273,7 @@ impl Reader {
                     .map_err(|_| io::Error::other("Native input could not resume"))?;
                 self.keys.reset();
                 active = true;
-                emit(Event::FocusGained)?;
+                emit(Event::FocusGained.into())?;
             }
             if self.watch.changed()? {
                 self.keys = keyboard()?;
@@ -325,7 +329,7 @@ impl Reader {
                                 .key_repeats(xkbcommon::xkb::Keycode::new(code + 8));
                             repeat.key(code, pressed, repeats, events.clone(), Instant::now());
                             for event in events {
-                                emit(event)?;
+                                emit(event.into())?;
                             }
                         }
                         input::Event::Pointer(event) => match event {
@@ -362,9 +366,7 @@ impl Reader {
                                 } else {
                                     MouseEventKind::Up(button)
                                 };
-                                emit(Event::Mouse(
-                                    self.pointer.event(kind, self.keys.modifiers()),
-                                ))?;
+                                emit(self.pointer.event(kind, self.keys.modifiers()))?;
                                 moved = false;
                             }
                             PointerEvent::ScrollWheel(event) => {
@@ -391,13 +393,13 @@ impl Reader {
                     }
                 }
                 if moved {
-                    emit(Event::Mouse(
+                    emit(
                         self.pointer
                             .event(self.pointer.motion_kind(), self.keys.modifiers()),
-                    ))?;
+                    )?;
                 }
                 for event in repeat.due(Instant::now()) {
-                    emit(event)?;
+                    emit(event.into())?;
                 }
             }
             let mut fds = [
@@ -440,12 +442,10 @@ impl Reader {
     fn scroll(
         &mut self,
         steps: f64,
-        emit: &mut impl FnMut(Event) -> io::Result<()>,
+        emit: &mut impl FnMut(InputEvent) -> io::Result<()>,
     ) -> io::Result<()> {
         for kind in self.pointer.scroll(steps) {
-            emit(Event::Mouse(
-                self.pointer.event(kind, self.keys.modifiers()),
-            ))?;
+            emit(self.pointer.event(kind, self.keys.modifiers()))?;
         }
         Ok(())
     }
