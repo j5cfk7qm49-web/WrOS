@@ -45,6 +45,7 @@ in
       python
       pkgs.git
       pkgs.gnupg
+      pkgs.kmod
       pkgs.restic
       pkgs.rclone
       pkgs.e2fsprogs

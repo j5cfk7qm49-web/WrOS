@@ -1,0 +1,534 @@
+#!/usr/bin/python3 -I
+"""Detect and maintain the firmware set for each installed WrOS generation."""
+
+import argparse
+from contextlib import contextmanager
+import ctypes
+import fcntl
+import json
+import os
+from pathlib import Path
+import re
+import secrets
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+
+
+TRUSTED_UID = 0  # tests may point this at the invoking user; production never does
+MODPROBE = '/usr/sbin/modprobe'
+STORE = Path('/nix/store')
+CURRENT = Path('/run/current-system')
+PROFILE = Path('/nix/var/nix/profiles/system')
+SETS = Path('/nix/var/wros/firmware')
+ROOTS = Path('/nix/var/nix/gcroots/wros-firmware')
+LIB = Path('/lib')
+CREATABLE_DIRS = {SETS.parent, SETS, ROOTS, LIB}
+FIRMWARE = Path('lib/firmware')
+STORE_NAME = re.compile(r'[0-9a-df-np-sv-z]{32}-[A-Za-z0-9._+?=-]+')
+PACKAGE_NAME = re.compile(r'[a-z0-9]+(?:[-_][a-z0-9]+)*')
+MIN_BOOT_FREE = 64 * 1024 * 1024
+
+
+class FirmwareError(Exception):
+    pass
+
+
+def absolute(path):
+    path = Path(path)
+    if path.anchor != '/' or '..' in path.parts:
+        raise FirmwareError(f'Expected an absolute path: {path}')
+    return path
+
+
+def is_store_path(path):
+    return path.parent == STORE and STORE_NAME.fullmatch(path.name) is not None
+
+
+def is_package_name(name):
+    return isinstance(name, str) and len(name) <= 40 and PACKAGE_NAME.fullmatch(name) is not None
+
+
+def trusted(info, kind):
+    return kind(info.st_mode) and info.st_uid == TRUSTED_UID and not info.st_mode & 0o022
+
+
+def lstat(path):
+    try:
+        return path.lstat()
+    except FileNotFoundError:
+        return None
+
+
+def trusted_link(path, info):
+    if not stat.S_ISLNK(info.st_mode) or info.st_uid != TRUSTED_UID:
+        raise FirmwareError(f'Expected a trusted symlink: {path}')
+    return Path(os.readlink(path))
+
+
+def read_json(path):
+    with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)) as source:
+        if not trusted(os.fstat(source.fileno()), stat.S_ISREG):
+            raise FirmwareError(f'Expected a trusted regular file: {path}')
+        try:
+            return json.load(source)
+        except ValueError as error:
+            raise FirmwareError(f'Invalid JSON in {path}') from error
+
+
+def table(system):
+    data = read_json(system / 'wros-firmware.json')
+    if not isinstance(data, dict) or data.get('format') != 1 or not isinstance(data.get('packages'), dict):
+        raise FirmwareError(f'Invalid firmware table: {system}')
+    packages = data['packages']
+    for name, entry in packages.items():
+        if (not is_package_name(name) or not isinstance(entry, dict)
+                or not isinstance(entry.get('store_path'), str)
+                or not is_store_path(Path(entry['store_path']))
+                or type(entry.get('nar_size')) is not int or entry['nar_size'] <= 0
+                or not isinstance(entry.get('modules'), list)
+                or not all(isinstance(module, str) for module in entry['modules'])
+                or type(entry.get('initrd')) is not bool):
+            raise FirmwareError(f'Invalid firmware table entry: {name}')
+    return packages
+
+
+def hardware_modules(sys_root, modules_root):
+    aliases = set()
+    for path in (sys_root / 'sys/bus').glob('*/devices/*/modalias'):
+        try:
+            alias = path.read_text().strip()
+        except (OSError, UnicodeError):
+            # Devices can disappear between enumeration and reading their alias.
+            continue
+        if alias:
+            aliases.add(alias)
+
+    try:
+        versions = [path.name for path in (modules_root / 'lib/modules').iterdir() if path.is_dir()]
+    except OSError:
+        versions = []
+    modules = set()
+    unknown = set()
+    for alias in sorted(aliases):
+        names = []
+        if len(versions) == 1:
+            try:
+                reply = subprocess.run(
+                    [MODPROBE, '-C', '/dev/null', '-d', modules_root, '-S', versions[0],
+                     '--resolve-alias', '--', alias],
+                    capture_output=True, text=True, env={'LC_ALL': 'C'}, timeout=10,
+                )
+                if reply.returncode == 0:
+                    names = reply.stdout.split()
+            except (OSError, UnicodeError, subprocess.TimeoutExpired):
+                pass
+        if names:
+            modules.update(names)
+        else:
+            unknown.add(alias)
+    try:
+        for line in (sys_root / 'proc/modules').read_text().splitlines():
+            fields = line.split()
+            if fields:
+                modules.add(fields[0])
+    except (OSError, UnicodeError):
+        pass
+    return {name.replace('-', '_') for name in modules}, unknown
+
+
+def exchange(source, target):
+    # A normal rename cannot replace a non-empty directory. Exchange both names
+    # so /lib/firmware always leads to a complete set, even during a rewrite.
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.renameat2(-100, os.fsencode(source), -100, os.fsencode(target), 2) != 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error), str(target))
+
+
+def firmware_paths(directory):
+    """Yield files in a trusted tree without descending through directory symlinks."""
+    for path in sorted(directory.iterdir()):
+        info = path.lstat()
+        if trusted(info, stat.S_ISDIR):
+            yield from firmware_paths(path)
+        elif stat.S_ISLNK(info.st_mode) and info.st_uid == TRUSTED_UID:
+            yield path, info
+        elif trusted(info, stat.S_ISREG):
+            yield path, info
+        else:
+            raise FirmwareError(f'Untrusted firmware path: {path}')
+
+
+def cpio_entries(files):
+    directories = {Path('wros-firmware')}
+    for relative in files:
+        directories.update(Path('wros-firmware', relative).parents)
+    entries = [(os.fsencode(path), 0o40755, None, 0)
+               for path in sorted(directories - {Path('.')})]
+    for relative, path in files.items():
+        size = path.stat().st_size
+        if size >= 2**32:
+            raise FirmwareError(f'Firmware file is too large for newc: {path}')
+        entries.append((os.fsencode(Path('wros-firmware', relative)), 0o100644, path, size))
+    return entries + [(b'TRAILER!!!', 0, None, 0)]
+
+
+def archive_size(entries):
+    return sum((110 + len(name) + 1 + 3) // 4 * 4 + (size + 3) // 4 * 4
+               for name, _, _, size in entries)
+
+
+def write_archive(output, entries):
+    for index, (name, mode, path, size) in enumerate(entries, 1):
+        fields = (index, mode, 0, 0, 2 if stat.S_ISDIR(mode) else 1, 0, size,
+                  0, 0, 0, 0, len(name) + 1, 0)
+        output.write(b'070701' + ''.join(f'{field:08x}' for field in fields).encode('ascii'))
+        output.write(name + b'\0' * (1 + (-(110 + len(name) + 1) % 4)))
+        if path is not None:
+            with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW), 'rb') as source:
+                shutil.copyfileobj(source, output)
+            output.write(b'\0' * (-size % 4))
+
+
+class Firmware:
+    def __init__(self, root):
+        self.root = absolute(root)
+
+    def disk(self, path):
+        return self.root / absolute(path).relative_to('/')
+
+    def directory(self, logical, *, create=False):
+        # Verify each parent before opening a child. Only the Nix store itself is
+        # group writable (by nixbld), and its sticky bit protects existing paths.
+        logical = absolute(logical)
+        for ancestor in (*reversed(logical.parents), logical):
+            path = self.disk(ancestor)
+            if create and ancestor in CREATABLE_DIRS and lstat(path) is None:
+                try:
+                    path.mkdir(mode=0o755)
+                except FileExistsError:
+                    pass  # A concurrent invocation created it first.
+            info = path.lstat()
+            if (ancestor == STORE and info.st_mode & stat.S_ISVTX
+                    and not info.st_mode & stat.S_IWOTH):
+                info_ok = stat.S_ISDIR(info.st_mode) and info.st_uid == TRUSTED_UID
+            else:
+                info_ok = trusted(info, stat.S_ISDIR)
+            if not info_ok:
+                raise FirmwareError(f'Expected a trusted directory: {path}')
+        return path
+
+    @contextmanager
+    def locked_sets(self, *, write):
+        try:
+            sets = self.directory(SETS, create=write)
+        except FileNotFoundError:
+            if write:
+                raise
+            yield None
+            return
+        fd = os.open(sets, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX if write else fcntl.LOCK_SH)
+            yield sets
+        finally:
+            os.close(fd)
+
+    def system_path(self, path):
+        path = absolute(path)
+        for _ in range(8):
+            if is_store_path(path):
+                return path
+            self.directory(path.parent)
+            target = trusted_link(self.disk(path), self.disk(path).lstat())
+            path = absolute(os.path.normpath(path.parent / target))
+        raise FirmwareError(f'Too many generation symlinks: {path}')
+
+    def read_set(self, system):
+        logical = SETS / system.name
+        if lstat(self.disk(logical)) is None:
+            return None
+        self.directory(logical / FIRMWARE)
+        data = read_json(self.disk(logical / 'packages.json'))
+        names = data.get('packages') if isinstance(data, dict) else None
+        if not isinstance(names, list) or not all(is_package_name(name) for name in names):
+            raise FirmwareError(f'Invalid firmware set metadata: {logical}')
+        return set(names)
+
+    def running_set(self):
+        try:
+            system = self.system_path(CURRENT)
+        except FileNotFoundError:
+            return set()
+        return self.read_set(system) or set()
+
+    def in_store(self, entry):
+        try:
+            self.directory(Path(entry['store_path']) / FIRMWARE)
+        except FileNotFoundError:
+            return False
+        return True
+
+    def detect(self, system, packages, running, *, sys_root=None, modules_root=None):
+        modules, unknown = hardware_modules(sys_root or self.root, modules_root or system / 'kernel-modules')
+        by_module = {}
+        for name, entry in packages.items():
+            for module in entry['modules']:
+                by_module.setdefault(module.replace('-', '_'), []).append(name)
+        selected = set()
+        for module in modules & by_module.keys():
+            selected.add(max(by_module[module], key=lambda name: (
+                name in running, self.in_store(packages[name]), packages[name]['nar_size'], name,
+            )))
+        return selected, unknown
+
+    def resolved_firmware(self, path, directory):
+        resolved = path.resolve(strict=True)
+        if not resolved.is_relative_to(directory) or not trusted(resolved.lstat(), stat.S_ISREG):
+            raise FirmwareError(f'Expected a trusted firmware file inside {directory}: {path}')
+        return resolved
+
+    def set_links(self, system, names, packages):
+        directory = self.disk(SETS / system.name / FIRMWARE)
+        store_dirs = {Path(packages[name]['store_path']) / FIRMWARE: packages[name]['initrd']
+                      for name in names if name in packages}
+        links = {}
+        for path, info in firmware_paths(directory):
+            relative = path.relative_to(directory)
+            target = trusted_link(path, info)
+            store_dir = Path(*target.parts[:len(STORE.parts) + 1 + len(FIRMWARE.parts)])
+            if store_dir not in store_dirs or target != store_dir / relative:
+                raise FirmwareError(f'Unexpected firmware symlink: {path}')
+            links[relative] = (target, store_dir, store_dirs[store_dir])
+        return links
+
+    def ensure(self, system, entries, added):
+        target = self.disk(SETS / system.name)
+        stage = target.with_name('.new-' + target.name)
+        roots = self.directory(ROOTS, create=True)
+        previous = self.read_set(system)
+        running = self.running_set()
+        selected, unknown = self.detect(self.disk(system), entries, running)
+        wanted = selected | running | added | (previous or set())
+        available = {name for name in wanted if name in entries and self.in_store(entries[name])}
+        missing = wanted - available
+        result = {'packages': sorted(available), 'missing': sorted(missing), 'unknown': sorted(unknown)}
+        if previous is not None:
+            old_links = self.set_links(system, previous, entries)
+            if previous & missing:
+                result['packages'] = sorted(previous)
+                return result
+        else:
+            old_links = {}
+
+        # Validate existing roots before writing any, and pin packages before using them.
+        desired_roots = {roots / f'{system.name}--{name}': Path(entries[name]['store_path'])
+                         for name in sorted(available)}
+        absent_roots = {}
+        for path, store_path in desired_roots.items():
+            info = lstat(path)
+            if info is None:
+                absent_roots[path] = store_path
+            elif trusted_link(path, info) != store_path:
+                raise FirmwareError(f'Unexpected firmware GC root: {path}')
+
+        if lstat(stage) is not None:
+            self.directory(SETS / stage.name)
+            shutil.rmtree(stage)
+        new_roots = []
+        published = False
+        stage.mkdir(mode=0o755)
+        try:
+            for path, store_path in absent_roots.items():
+                path.symlink_to(store_path)
+                new_roots.append(path)
+            firmware = stage / FIRMWARE
+            firmware.mkdir(parents=True)
+            # Prefer an early-boot package if packages provide the same filename.
+            # Both sets then use the same file for that filename.
+            for name in sorted(available, key=lambda name: (not entries[name]['initrd'], name)):
+                logical = Path(entries[name]['store_path']) / FIRMWARE
+                directory = self.directory(logical)
+                for path, info in firmware_paths(directory):
+                    relative = path.relative_to(directory)
+                    link = firmware / relative
+                    if stat.S_ISLNK(info.st_mode):
+                        self.resolved_firmware(path, directory)
+                    if not link.is_symlink():
+                        link.parent.mkdir(parents=True, exist_ok=True)
+                        link.symlink_to(logical / relative)
+            if any(not (firmware / relative).is_symlink() for relative in old_links):
+                raise FirmwareError(f'Refusing to remove existing firmware files from {target}')
+            (stage / 'packages.json').write_text(json.dumps({'packages': sorted(available)}) + '\n')
+            if previous is None:
+                stage.rename(target)
+            else:
+                exchange(stage, target)
+            published = True
+        finally:
+            if not published:
+                for path in new_roots:
+                    path.unlink()
+            if stage.exists():
+                shutil.rmtree(stage)
+        return result
+
+    def initrd(self, system, output, entries):
+        output = absolute(output)
+        if output == Path('/boot') or not output.is_relative_to('/boot'):
+            raise FirmwareError(f'Expected an initrd output under /boot: {output}')
+        parent = self.directory(output.parent)
+        output = self.disk(output)
+        info = lstat(output)
+        if info is not None and not trusted(info, stat.S_ISREG):
+            raise FirmwareError(f'Expected a trusted initrd output file: {output}')
+        names = self.read_set(system)
+        result = {}
+        if names is None:
+            result = self.ensure(system, entries, set())
+            names = set(result['packages'])
+        files = {}
+        for relative, (target, store_dir, early) in self.set_links(system, names, entries).items():
+            if early:
+                files[relative] = self.resolved_firmware(self.disk(target), self.directory(store_dir))
+        archive = cpio_entries(files)
+        size = archive_size(archive)
+        space = os.statvfs(parent)
+        needed = (size + space.f_frsize - 1) // space.f_frsize * space.f_frsize
+        if space.f_bavail * space.f_frsize - needed < MIN_BOOT_FREE:
+            raise FirmwareError('Writing the firmware initrd would leave less than 64 MiB free on /boot.')
+        temp = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=parent, prefix='.wros-firmware-', delete=False) as stream:
+                temp = Path(stream.name)
+                write_archive(stream, archive)
+                stream.flush()
+                os.fsync(stream.fileno())
+            space = os.statvfs(parent)
+            if space.f_bavail * space.f_frsize < MIN_BOOT_FREE:
+                raise FirmwareError('Writing the firmware initrd would leave less than 64 MiB free on /boot.')
+            temp.replace(output)
+        finally:
+            if temp is not None:
+                temp.unlink(missing_ok=True)
+        return {'bytes': size, **result}
+
+    def link(self, system, entries):
+        lib = self.directory(LIB, create=True)
+        link = lib / 'firmware'
+        target = SETS / system.name / FIRMWARE
+        info = lstat(link)
+        old = None
+        if info is not None:
+            old = trusted_link(link, info)
+            generation = old.parent.parent
+            if (generation.parent != SETS or not STORE_NAME.fullmatch(generation.name)
+                    or old != generation / FIRMWARE):
+                raise FirmwareError(f'Refusing to replace a firmware symlink WrOS does not own: {link}')
+        names = self.read_set(system)
+        result = self.ensure(system, entries, set()) if names is None else {}
+        if names is not None:
+            self.set_links(system, names, entries)
+        if old != target:
+            temp = lib / ('.wros-firmware-' + secrets.token_hex(8))
+            temp.symlink_to(target)
+            try:
+                temp.replace(link)
+            finally:
+                temp.unlink(missing_ok=True)
+        return {'target': str(target), **result}
+
+    def prune(self, sets, profile):
+        parent = self.directory(absolute(profile).parent)
+        pattern = re.compile(re.escape(profile.name) + r'-[0-9]+-link')
+        keep = {self.system_path(profile.with_name(path.name)).name for path in parent.iterdir()
+                if pattern.fullmatch(path.name)}
+        roots = self.disk(ROOTS)
+        old_roots = []
+        if lstat(roots) is not None:
+            self.directory(ROOTS)
+            for path in roots.iterdir():
+                generation, separator, package = path.name.rpartition('--')
+                if not (separator and STORE_NAME.fullmatch(generation) and is_package_name(package)):
+                    raise FirmwareError(f'Unexpected firmware GC root name: {path}')
+                if not is_store_path(trusted_link(path, path.lstat())):
+                    raise FirmwareError(f'Unexpected firmware GC root: {path}')
+                if generation not in keep:
+                    old_roots.append(path)
+        old_sets = []
+        removed = []
+        for path in sets.iterdir():
+            generation = path.name.removeprefix('.new-')
+            if not STORE_NAME.fullmatch(generation):
+                raise FirmwareError(f'Unexpected firmware set name: {path}')
+            self.directory(SETS / path.name)
+            if generation not in keep:
+                old_sets.append(path)
+                if path.name == generation:
+                    removed.append(generation)
+        for path in old_sets:
+            shutil.rmtree(path)
+        for path in old_roots:
+            path.unlink()
+        return {'removed': sorted(removed)}
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--root', type=Path, default=Path('/'), help=argparse.SUPPRESS)
+    commands = parser.add_subparsers(dest='command', required=True)
+    detect = commands.add_parser('detect')
+    detect.add_argument('--system', required=True, type=Path)
+    detect.add_argument('--sys-root', type=Path)
+    detect.add_argument('--modules', type=Path)
+    ensure = commands.add_parser('ensure')
+    ensure.add_argument('system', type=Path)
+    ensure.add_argument('--add', nargs='+', action='extend', default=[])
+    initrd = commands.add_parser('initrd')
+    initrd.add_argument('system', type=Path)
+    initrd.add_argument('output', type=Path)
+    link = commands.add_parser('link')
+    link.add_argument('system', type=Path)
+    prune = commands.add_parser('prune')
+    prune.add_argument('--profile', type=Path, default=PROFILE)
+    args = parser.parse_args(argv)
+    # GRUB uses a restrictive umask for its secrets file. The firmware directory
+    # needs searchable parents independently of that caller's umask.
+    previous_umask = os.umask(0o022) if args.command != 'detect' else None
+    try:
+        firmware = Firmware(args.root)
+        with firmware.locked_sets(write=args.command != 'detect') as sets:
+            if args.command == 'prune':
+                result = firmware.prune(sets, args.profile)
+            else:
+                system = firmware.system_path(args.system)
+                entries = table(firmware.directory(system))
+                if args.command == 'detect':
+                    selected, unknown = firmware.detect(
+                        firmware.disk(system), entries, firmware.running_set(),
+                        sys_root=args.sys_root, modules_root=args.modules,
+                    )
+                    result = {'packages': sorted(selected), 'unknown': sorted(unknown)}
+                elif args.command == 'ensure':
+                    if not all(is_package_name(name) for name in args.add):
+                        raise FirmwareError('Invalid firmware package name in --add.')
+                    result = firmware.ensure(system, entries, set(args.add))
+                elif args.command == 'initrd':
+                    result = firmware.initrd(system, args.output, entries)
+                else:
+                    result = firmware.link(system, entries)
+    except (FirmwareError, OSError, RuntimeError) as error:
+        print(f'wros-firmware: {error}', file=sys.stderr)
+        return 1
+    finally:
+        if previous_umask is not None:
+            os.umask(previous_umask)
+    print(json.dumps(result))
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

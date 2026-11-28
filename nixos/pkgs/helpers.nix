@@ -224,6 +224,11 @@ pkgs.stdenv.mkDerivation {
       --replace-fail "/usr/lib/wros-update/debian_engine.py" "$out/lib/wros-update/debian_engine.py" \
       --replace-fail "/usr/sbin:/usr/bin:/sbin:/bin" "${safePath}"
 
+    install -m 755 nixos/scripts/wros-firmware "$out/bin/wros-firmware"
+    substituteInPlace "$out/bin/wros-firmware" \
+      --replace-fail "#!/usr/bin/python3 -I" "#!${pkgs.python3}/bin/python3 -I" \
+      --replace-fail "/usr/sbin/modprobe" "${pkgs.kmod}/bin/modprobe"
+
     for nixScript in wros-install-core wros-installer-backend wros-install-session wros-live-session; do
       install -m 755 "nixos/scripts/$nixScript" "$out/libexec/$nixScript"
       substituteInPlace "$out/libexec/$nixScript" \
