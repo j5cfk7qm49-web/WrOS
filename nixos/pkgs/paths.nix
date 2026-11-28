@@ -64,6 +64,7 @@ let
     updateApply = "${wros-helpers}/libexec/wros-update-apply";
     updateCancel = "${wros-helpers}/libexec/wros-update-cancel";
     updateFetch = "${wros-helpers}/libexec/wros-update-fetch";
+    updateFirmware = "${wros-helpers}/libexec/wros-update-firmware";
     updateHealthy = "${wros-helpers}/libexec/wros-update-healthy";
     updateMedia = "${wros-helpers}/libexec/wros-update-media";
     updateRepair = "${wros-helpers}/libexec/wros-update-repair";
@@ -194,6 +195,7 @@ let
     WROS_PATH_HELPER_UPDATE_APPLY = helperPaths.updateApply;
     WROS_PATH_HELPER_UPDATE_CANCEL = helperPaths.updateCancel;
     WROS_PATH_HELPER_UPDATE_FETCH = helperPaths.updateFetch;
+    WROS_PATH_HELPER_UPDATE_FIRMWARE = helperPaths.updateFirmware;
     WROS_PATH_HELPER_UPDATE_HEALTHY = helperPaths.updateHealthy;
     WROS_PATH_HELPER_UPDATE_MEDIA = helperPaths.updateMedia;
     WROS_PATH_HELPER_UPDATE_REPAIR = helperPaths.updateRepair;

@@ -1003,11 +1003,12 @@ def verify_bundle(bundle_dir, keyring=DEFAULT_KEYRING, signers=DEFAULT_SIGNERS, 
     return public_view(raw)
 
 
-def default_runner(command):
+def default_runner(command, *, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE):
     return subprocess.run(
         command,
-        stdin=subprocess.DEVNULL,
-        capture_output=True,
+        stdin=stdin,
+        stdout=stdout,
+        stderr=subprocess.PIPE,
         text=True,
         timeout=1800,
         env=safe_env({'DEBIAN_FRONTEND': 'noninteractive'}),
@@ -2346,8 +2347,9 @@ def parse_mountinfo(mountinfo_text):
     return mounts
 
 
-def find_update_media(*, runner=None, media_root=DEFAULT_MEDIA_ROOT, mountinfo_text=None):
-    """Mount the block device labelled WROS-UPDATE read-only under media_root/<n>."""
+def find_update_media(*, runner=None, media_root=DEFAULT_MEDIA_ROOT, mountinfo_text=None,
+                      label=MEDIA_LABEL):
+    """Mount the block device with the requested label read-only under media_root/<n>."""
     run = runner or default_runner
     media_root = Path(media_root)
     listing = run(['/usr/bin/lsblk', '-rn', '-o', 'PATH,FSTYPE,LABEL,TYPE'])
@@ -2358,8 +2360,8 @@ def find_update_media(*, runner=None, media_root=DEFAULT_MEDIA_ROOT, mountinfo_t
         fields = line.split(' ')
         if len(fields) != 4:
             continue
-        path, fstype, label, kind = fields
-        if (label == MEDIA_LABEL and fstype in MEDIA_FILESYSTEMS and kind in ('part', 'disk', 'rom', 'loop')
+        path, fstype, device_label, kind = fields
+        if (device_label == label and fstype in MEDIA_FILESYSTEMS and kind in ('part', 'disk', 'rom', 'loop')
                 and DEVICE_RE.fullmatch(path) is not None):
             candidates.append((path, fstype))
     if not candidates:

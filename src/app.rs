@@ -2708,13 +2708,11 @@ impl App {
             Action::Cut => self.cut(),
             Action::Copy => self.copy_selection(),
             Action::Lock => {
-                // Locked, the writer comes back to where they were; refused,
-                // Settings › Power stays open and says why.
-                let before = self.overlay.clone();
-                self.choose_in_settings(shell::SettingsRow::Lock);
-                if self.deck.lock_requested {
-                    self.deck.shell.external = false;
-                    self.overlay = before;
+                self.request_console_lock();
+                if !self.deck.lock_requested
+                    && let Some(notice) = self.deck.shell.notices.latest()
+                {
+                    self.msg = notice.into();
                 }
             }
             Action::Sleep => self.choose_in_settings(shell::SettingsRow::Sleep),

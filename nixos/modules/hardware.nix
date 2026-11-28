@@ -30,7 +30,6 @@ in
   boot.kernelPackages = pkgs.linuxPackages;
 
   hardware.enableRedistributableFirmware = false;
-  hardware.firmware = [ pkgs.sof-firmware ];
   # NixOS adds pkgs.wireless-regdb to hardware.firmware through this option.
   hardware.wirelessRegulatoryDatabase = true;
 
@@ -38,6 +37,9 @@ in
 
   # Early KMS graphics and generic UEFI laptop + QEMU virtio storage/keyboard drivers
   boot.initrd.availableKernelModules = [
+    "amdgpu"
+    "radeon"
+    "xe"
     "mmc_block"
     "sdhci"
     "sdhci_pci"

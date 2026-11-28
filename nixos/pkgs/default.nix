@@ -52,6 +52,10 @@ let
     nativeBuildInputs = [
       (pkgs.python3.withPackages (ps: [ ps.pillow ]))
       pkgs.gnupg
+      pkgs.kmod
+      pkgs.nix
+      pkgs.util-linux
+      pkgs.stdenv.cc
       pkgs.kbd
       pkgs.console-setup
       pkgs.xkeyboard_config
@@ -79,6 +83,7 @@ let
     python3 -m unittest test_keyboard test_clock test_sound test_media_key test_passwd_helper \
       test_recovery_menu test_boot_settings test_boot_unlock test_session_launcher \
       test_display_manager test_nixos_update test_nixos_install_core test_nixos_installer \
+      test_wros_firmware \
       test_update_reply_contract test_update_workflow test_nixos_bundle_tool test_unifont_preview
     mkdir -p "$out"
     echo "pass" > "$out/result"

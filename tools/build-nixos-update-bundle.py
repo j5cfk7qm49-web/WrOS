@@ -19,6 +19,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -27,6 +28,7 @@ REPO = Path(__file__).resolve().parents[1]
 GPG = 'gpg'
 ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'}
 FINGERPRINT_RE = re.compile(r'^[0-9A-F]{40}$')
+FIRMWARE_FILE_LIMIT = 95_000_000
 
 
 class BuildError(Exception):
@@ -41,32 +43,45 @@ def narinfo_url(path):
     raise BuildError(f'{Path(path).name} names no archive')
 
 
-def prune_to_delta(staging, cache_files, baseline, toplevel):
-    """Keep what a machine running `baseline` lacks. Store paths with identical contents share one
-    archive, and the manifest credits it to only one of them: rc15's sudo.pam shared passwd.pam's,
-    passwd.pam was in rc14, and pruning by that credit dropped the archive sudo.pam needed. Keep
-    an archive whenever a kept .narinfo points at it, credited to that kept path."""
+def archive_credits(narinfos):
+    """A shared archive must be fetched even if one of its store paths is present."""
+    credits = {}
+    for archive, store_path in narinfos:
+        credits[archive] = None if archive in credits else store_path
+    return credits
+
+
+def credit_archives(cache_files, credits):
+    return [
+        {**item, 'store_path': credits[item['path']]}
+        if item['path'].startswith('cache/nar/') and item['path'] in credits else item
+        for item in cache_files
+    ]
+
+
+def prune_to_delta(staging, cache_files, baseline, toplevel, *, keep_store_paths=()):
+    """Keep what a machine running `baseline` lacks. Keep an archive whenever a kept .narinfo
+    points at it, with a store-path credit only if exactly one kept .narinfo needs it."""
     staging = Path(staging)
 
     def dropped(item):
         sp = item.get('store_path')
-        return bool(sp) and sp in baseline and sp != toplevel
+        return bool(sp) and sp in baseline and sp != toplevel and sp not in keep_store_paths
 
-    needed = {}
-    for item in cache_files:
-        if item['path'].endswith('.narinfo') and not dropped(item):
-            needed.setdefault(narinfo_url(staging / item['path']), item.get('store_path'))
+    needed = archive_credits((narinfo_url(staging / item['path']), item.get('store_path'))
+                             for item in cache_files
+                             if item['path'].endswith('.narinfo') and not dropped(item))
     kept = []
     for item in cache_files:
         if item['path'].startswith('cache/nar/'):
             if item['path'] in needed:
-                kept.append({**item, 'store_path': needed[item['path']]})
+                kept.append(item)
                 continue
         elif not dropped(item):
             kept.append(item)
             continue
         (staging / item['path']).unlink(missing_ok=True)
-    return kept
+    return credit_archives(kept, needed)
 
 
 UPSTREAM = 'https://cache.nixos.org/'
@@ -92,24 +107,118 @@ def narinfo_fields(text):
     return dict(line.split(': ', 1) for line in text.splitlines() if ': ' in line)
 
 
+def store_narinfo_path(store_path):
+    return f'cache/{Path(store_path).name.split("-", 1)[0]}.narinfo'
+
+
+def check_firmware_size(path, size):
+    if size >= FIRMWARE_FILE_LIMIT:
+        raise BuildError(f'firmware file {path} must be under 95 MB (got {size} bytes)')
+
+
+def cache_file_entry(staging, rel, store_path):
+    path = staging / rel
+    with path.open('rb') as stream:
+        digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+        size = os.fstat(stream.fileno()).st_size
+    return {'path': rel, 'sha256': digest, 'size': size, 'store_path': store_path}
+
+
+def collect_cache_manifest(staging, toplevel, version, system_paths, firmware_paths,
+                           *, baseline=(), baseline_toplevel=None):
+    """Index the cache from nix copy. Firmware already in the system closure stays in cache_files
+    so older engines still import it; its firmware entry needs no additional files."""
+    staging = Path(staging)
+    narinfos = {}
+    for path in sorted((staging / 'cache').glob('*.narinfo')):
+        fields = narinfo_fields(path.read_text(encoding='utf-8'))
+        url = fields.get('URL', '')
+        if re.fullmatch(r'nar/[A-Za-z0-9._-]+\.nar(?:\.zst|\.xz)?', url) is None:
+            raise BuildError(f'{path.name} names an invalid archive')
+        narinfos[path.relative_to(staging).as_posix()] = (fields['StorePath'], 'cache/' + url)
+    credits = archive_credits((archive, sp) for sp, archive in narinfos.values())
+    firmware = {}
+    extra_files = set()
+    for driver, store_path in sorted(firmware_paths.items()):
+        name = driver.replace('_', '-')
+        if name in firmware:
+            raise BuildError(f'more than one firmware package is named {name}')
+        narinfo = store_narinfo_path(store_path)
+        if narinfo not in narinfos or narinfos[narinfo][0] != store_path:
+            raise BuildError(f'the cache has no .narinfo for firmware package {name}')
+        _, archive = narinfos[narinfo]
+        for rel in (narinfo, archive):
+            check_firmware_size(rel, (staging / rel).stat().st_size)
+        files = []
+        if store_path not in system_paths:
+            if credits[archive] is None:
+                raise BuildError(f'firmware package {name} shares archive {archive} with another store path')
+            files = [cache_file_entry(staging, rel, store_path) for rel in (narinfo, archive)]
+            extra_files.update((narinfo, archive))
+        firmware[name] = {'store_path': store_path, 'files': files}
+
+    cache_files = []
+    for path in sorted((staging / 'cache').rglob('*')):
+        rel = path.relative_to(staging).as_posix()
+        if path.is_file() and rel not in extra_files:
+            sp = narinfos[rel][0] if rel in narinfos else credits.get(rel)
+            cache_files.append(cache_file_entry(staging, rel, sp))
+    if baseline:
+        cache_files = prune_to_delta(staging, cache_files, baseline, toplevel,
+                                     keep_store_paths=firmware_paths.values())
+    return {
+        'schema': 2,
+        'format': 'wros-nixos-cache-v2',
+        'version': version,
+        'system': 'x86_64-linux',
+        'toplevel': toplevel,
+        'baseline': baseline_toplevel,
+        'app_only': False,
+        'cache_files': cache_files,
+        'firmware': firmware,
+    }
+
+
+FETCH_TRIES = 4
+RETRY_PAUSE = 5  # seconds, doubled after each failed try
+
+
 def fetch(url, limit):
-    """GET a cache file, or None if the cache doesn't have it."""
+    """GET a cache file, or None if the cache doesn't have it.
+
+    A connection that drops mid-download makes urllib return a short read with no error, so
+    the length is checked against Content-Length and a download cut short is tried again."""
+    import http.client
+    import time
     import urllib.error
     import urllib.request
-    try:
-        with urllib.request.urlopen(url, timeout=60) as response:
-            data = response.read(limit + 1)
-    except urllib.error.HTTPError as exc:
-        if exc.code == 404:
-            return None
-        raise BuildError(f'{url}: HTTP {exc.code}') from None
-    except urllib.error.URLError as exc:
-        if isinstance(exc.reason, FileNotFoundError):  # a file:// copy without it
-            return None
-        raise BuildError(f'{url}: {exc.reason}') from None
-    if len(data) > limit:
-        raise BuildError(f'{url} is larger than {limit} bytes')
-    return data
+    pause = RETRY_PAUSE
+    for attempt in range(1, FETCH_TRIES + 1):
+        try:
+            with urllib.request.urlopen(url, timeout=60) as response:
+                expected = response.headers.get('Content-Length')
+                data = response.read(limit + 1)
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                return None
+            raise BuildError(f'{url}: HTTP {exc.code}') from None
+        except urllib.error.URLError as exc:
+            if isinstance(exc.reason, FileNotFoundError):  # a file:// copy without it
+                return None
+            problem = str(exc.reason)
+        except (OSError, http.client.HTTPException) as exc:
+            problem = str(exc) or type(exc).__name__
+        else:
+            if len(data) > limit:
+                raise BuildError(f'{url} is larger than {limit} bytes')
+            if expected is None or len(data) == int(expected):
+                return data
+            problem = f'download cut short: {len(data)} of {expected} bytes'
+        if attempt == FETCH_TRIES:
+            raise BuildError(f'{url}: {problem} (tried {FETCH_TRIES} times)')
+        time.sleep(pause)
+        pause *= 2
+    raise AssertionError('unreachable')
 
 
 def decompress(name, data):
@@ -124,58 +233,79 @@ def decompress(name, data):
     return data
 
 
-def thin_out(staging, cache_files, upstream, toplevel, keep):
+def thin_out(staging, cache_files, upstream, toplevel, keep, *, keep_store_paths=()):
     """Leave out of the bundle every package cache.nixos.org already has byte for byte (#169): list
     its .narinfo and archive under their cache.nixos.org address instead, with the SHA-256 and size
     of cache.nixos.org's own files, so the laptop fetches them from there and checks them against
     this signed manifest. A package whose NAR hash differs (WrOS built or patched it) stays. The
     fetched files are written to `keep` for the bundle's self-check, not to the bundle."""
     staging = Path(staging)
-    narinfo_items = [i for i in cache_files if i['path'].endswith('.narinfo')
-                     and i.get('store_path') and i['store_path'] != toplevel]
+    narinfo_items = [i for i in cache_files if i['path'].endswith('.narinfo')]
+    local_urls = {i['path']: narinfo_url(staging / i['path']) for i in narinfo_items}
+    final_urls = local_urls.copy()
     moved = {}
+    # Byte-identical packages share one archive on cache.nixos.org: fetch it once.
+    archives = {}
     for item in narinfo_items:
+        store_path = item.get('store_path')
+        if not store_path or store_path == toplevel or store_path in keep_store_paths:
+            continue
         local = narinfo_fields((staging / item['path']).read_text(encoding='utf-8'))
         name = Path(item['path']).name
         remote_bytes = fetch(upstream + name, 64 * 1024)
         if remote_bytes is None:
             continue
         remote = narinfo_fields(remote_bytes.decode('utf-8'))
-        if remote.get('NarHash') != local.get('NarHash') or not NAR_REL_RE.fullmatch(remote.get('URL', '')):
+        nar_rel = remote.get('URL', '')
+        nar_hash = remote.get('NarHash')
+        if not nar_hash or not NAR_REL_RE.fullmatch(nar_rel):
             continue
-        nar_rel = remote['URL']
-        archive = fetch(upstream + nar_rel, 1536 * 1024 * 1024)
-        if archive is None:
+        verified = archives.get(nar_rel)
+        if verified is not None and verified[0] != nar_hash:
+            raise BuildError(f"{name} declares a different NAR hash for cache.nixos.org's {nar_rel}")
+        if nar_hash != local.get('NarHash'):
             continue
-        algo, _, digest = local['NarHash'].partition(':')
-        if algo != 'sha256' or hashlib.sha256(decompress(nar_rel, archive)).digest() != nix32_decode(digest):
-            raise BuildError(f'cache.nixos.org\'s archive for {name} does not unpack to its NAR hash')
-        moved[item['path']] = (item['store_path'], name, remote_bytes, nar_rel, archive)
+        if verified is not None:
+            _, archive = verified
+        else:
+            archive = fetch(upstream + nar_rel, 1536 * 1024 * 1024)
+            if archive is None:
+                continue
+            algo, _, digest = nar_hash.partition(':')
+            if algo != 'sha256' or hashlib.sha256(decompress(nar_rel, archive)).digest() != nix32_decode(digest):
+                raise BuildError(f'cache.nixos.org\'s archive for {name} does not unpack to its NAR hash')
+            archives[nar_rel] = (nar_hash, archive)
+        moved[item['path']] = (store_path, name, remote_bytes, nar_rel, archive)
+        final_urls[item['path']] = 'cache/' + nar_rel
+    credits = archive_credits((final_urls[i['path']], i.get('store_path')) for i in narinfo_items)
     if not moved:
-        return cache_files, False
+        return credit_archives(cache_files, credits), False
     # Local archives still needed by a package that stays.
-    still_needed = {narinfo_url(staging / i['path']) for i in narinfo_items + [
-        i for i in cache_files if i['path'].endswith('.narinfo') and i.get('store_path') == toplevel]
-        if i['path'] not in moved}
+    still_needed = {url for path, url in local_urls.items() if path not in moved}
+    replaced = {local_urls[path] for path in moved} - still_needed
     kept = []
     for item in cache_files:
         if item['path'] in moved:
             continue
-        if item['path'].startswith('cache/nar/') and item['path'] not in still_needed \
-                and any(narinfo_url(staging / p) == item['path'] for p in moved):
+        if item['path'].startswith('cache/nar/') and item['path'] in replaced:
             (staging / item['path']).unlink(missing_ok=True)
             continue
         kept.append(item)
+    # A shared archive is listed once, even if several .narinfo files name it.
+    listed = {item['path'] for item in kept}
     for rel, (store_path, name, remote_bytes, nar_rel, archive) in moved.items():
         (staging / rel).unlink(missing_ok=True)
         for path, data, url in ((rel, remote_bytes, UPSTREAM + name),
                                 ('cache/' + nar_rel, archive, UPSTREAM + nar_rel)):
+            if path in listed:
+                continue
+            listed.add(path)
             target = Path(keep) / path
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
             kept.append({'path': path, 'sha256': hashlib.sha256(data).hexdigest(),
                          'size': len(data), 'store_path': store_path, 'url': url})
-    return kept, True
+    return credit_archives(kept, credits), True
 
 
 def check_archives(root, cache_files):
@@ -188,6 +318,30 @@ def check_archives(root, cache_files):
             url = narinfo_url(Path(root) / item['path'])
             if url not in listed or not (Path(root) / url).is_file():
                 raise BuildError(f'{item["path"]} points at {url}, which the bundle lacks')
+
+
+def check_firmware_files(staging, closure):
+    """Verify the firmware files the engine will only download in a later update step."""
+    system_files = {item['path']: item for item in closure['cache_files']}
+    for name, package in closure['firmware'].items():
+        files = package['files']
+        listed = {item['path']: item for item in files} if files else system_files
+        narinfo = store_narinfo_path(package['store_path'])
+        if narinfo not in listed or listed[narinfo]['url'] is not None:
+            raise BuildError(f'firmware package {name} lacks its local .narinfo')
+        info = narinfo_fields((staging / narinfo).read_text(encoding='utf-8'))
+        archive = 'cache/' + info.get('URL', '')
+        if info.get('StorePath') != package['store_path'] or archive not in listed:
+            raise BuildError(f'firmware package {name} lacks its archive or has the wrong store path')
+        for item in files or (listed[narinfo], listed[archive]):
+            rel = item['path']
+            if item['url'] is not None:
+                raise BuildError(f'firmware file {rel} must be hosted in the bundle')
+            check_firmware_size(rel, (staging / rel).stat().st_size)
+            if files:
+                actual = cache_file_entry(staging, rel, item['store_path'])
+                if actual['sha256'] != item['sha256'] or actual['size'] != item['size']:
+                    raise BuildError(f'firmware file {rel} does not match its manifest hash or size')
 
 
 def load_engine():
@@ -276,6 +430,23 @@ def parse_args(argv):
     return parser.parse_args(argv)
 
 
+def prepare_manifest(staging, args, upstream_files):
+    manifest = json.loads((staging / 'closure-manifest.json').read_text(encoding='utf-8'))
+    firmware_paths = {package['store_path'] for package in manifest.get('firmware', {}).values()}
+    if args.baseline_store_paths is not None and args.baseline_toplevel is not None:
+        baseline = {line.strip() for line in args.baseline_store_paths.read_text(encoding='utf-8').splitlines()
+                    if line.strip()}
+        manifest['cache_files'] = prune_to_delta(staging, manifest['cache_files'], baseline, manifest['toplevel'],
+                                                keep_store_paths=firmware_paths)
+        manifest['baseline'] = args.baseline_toplevel
+    if args.thin:
+        manifest['cache_files'], manifest['thin'] = thin_out(
+            staging, manifest['cache_files'], args.upstream_url, manifest['toplevel'],
+            upstream_files, keep_store_paths=firmware_paths)
+    check_archives(staging, manifest['cache_files'])
+    return manifest
+
+
 def build(args):
     engine = load_engine()
     if not 1 <= args.valid_days <= 30:
@@ -295,30 +466,23 @@ def build(args):
     until = moment + timedelta(days=args.valid_days)
     out.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix='.wros-nixos-bundle-', dir=out.parent))
+    upstream_files = None
     try:
         shutil.copytree(src, staging, dirs_exist_ok=True)
-        manifest_data = json.loads((staging / 'closure-manifest.json').read_text(encoding='utf-8'))
-        if args.baseline_store_paths is not None and args.baseline_toplevel is not None:
-            baseline_set = {
-                line.strip()
-                for line in args.baseline_store_paths.read_text(encoding='utf-8').splitlines()
-                if line.strip()
-            }
-            manifest_data['cache_files'] = prune_to_delta(
-                staging, manifest_data['cache_files'], baseline_set, manifest_data['toplevel'])
-            manifest_data['baseline'] = args.baseline_toplevel
-            (staging / 'closure-manifest.json').write_text(
-                json.dumps(manifest_data, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+        manifest_path = staging / 'closure-manifest.json'
+        # Nix bundle outputs are read-only. Make the copied files and directories we edit writable.
+        for path in (staging, staging / 'cache', staging / 'cache/nar', manifest_path):
+            if path.exists():
+                path.chmod(path.stat().st_mode | stat.S_IWUSR)
+        # Validate paths and firmware metadata before pruning or thinning any files.
+        engine.parse_closure_manifest(manifest_path.read_bytes())
         upstream_files = Path(tempfile.mkdtemp(prefix='wros-nixos-upstream-'))
-        if args.thin:
-            manifest_data['cache_files'], manifest_data['thin'] = thin_out(
-                staging, manifest_data['cache_files'], args.upstream_url, manifest_data['toplevel'],
-                upstream_files)
-            (staging / 'closure-manifest.json').write_text(
-                json.dumps(manifest_data, indent=2, sort_keys=True) + '\n', encoding='utf-8')
-        check_archives(staging, manifest_data['cache_files'])
-        manifest_bytes = (staging / 'closure-manifest.json').read_bytes()
+        manifest_data = prepare_manifest(staging, args, upstream_files)
+        if args.thin or (args.baseline_store_paths is not None and args.baseline_toplevel is not None):
+            manifest_path.write_text(json.dumps(manifest_data, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+        manifest_bytes = manifest_path.read_bytes()
         closure = engine.parse_closure_manifest(manifest_bytes)
+        check_firmware_files(staging, closure)
         release = (
             f'Origin: {args.origin}\nLabel: WrOS NixOS updates\nSuite: {args.suite}\nCodename: nixos-26.05\n'
             f'Date: {rfc2822(moment)}\nValid-Until: {rfc2822(until)}\nArchitectures: amd64\n'
@@ -340,22 +504,28 @@ def build(args):
                 (fake_store / Path(closure['baseline']).name).mkdir()
             engine.TRUSTED_UID = os.geteuid()
             engine._base.TRUSTED_UID = os.geteuid()
-            # A thin bundle is checked as the laptop will have it: with cache.nixos.org's files
-            # beside the bundle's own.
+            # Check the cache a laptop fetches for the system update, including upstream files.
+            # The optional firmware files were checked separately before signing.
+            optional_firmware = {staging / item['path'] for package in closure['firmware'].values()
+                                 for item in package['files']}
             whole = Path(check) / 'whole'
-            shutil.copytree(staging, whole)
+            shutil.copytree(staging, whole, ignore=lambda directory, names: [
+                name for name in names if Path(directory) / name in optional_firmware
+            ])
             shutil.copytree(upstream_files, whole, dirs_exist_ok=True)
             verified = engine.verify_bundle(
                 whole, keyring=keyring, signers=signers, suites=(args.suite,),
                 now=moment + timedelta(minutes=1), version_file=Path('/nonexistent'),
                 current_system=Path('/nonexistent'), store_dir=fake_store)
-            shutil.rmtree(upstream_files, ignore_errors=True)
         if out.exists():
             out.rmdir()
         staging.rename(out)
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
         raise
+    finally:
+        if upstream_files is not None:
+            shutil.rmtree(upstream_files, ignore_errors=True)
     return {
         'out': str(out),
         'signer': actual,

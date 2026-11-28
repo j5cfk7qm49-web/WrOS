@@ -25,7 +25,7 @@ Built by [`nixos/pkgs/update-bundle.nix`](../nixos/pkgs/update-bundle.nix) or [`
   InRelease                     # OpenPGP clearsigned Release metadata
   Release                       # Origin: WrOS, Suite: wros-nixos-updates, Date, Valid-Until, SHA256 of closure-manifest.json
   Release.gpg                   # Detached OpenPGP signature
-  closure-manifest.json         # Schema 2 (format: wros-nixos-cache-v2): version, system, toplevel, baseline, app_only, cache_files[]
+  closure-manifest.json         # Schema 2 (wros-nixos-cache-v2), with cache_files[] and firmware{}
   cache/
     nix-cache-info              # Local Nix binary cache metadata
     <store-hash>.narinfo        # One .narinfo per store path in the bundle
@@ -36,7 +36,14 @@ Built by [`nixos/pkgs/update-bundle.nix`](../nixos/pkgs/update-bundle.nix) or [`
 - **Full vs. delta bundles (`U5`)**:
   - A **full bundle** (`baseline: null`, built when `baselineToplevel = null` in `nixos/pkgs/update-bundle.nix` or without `--baseline-toplevel` in `tools/collect-nixos-update-runtime.py`) carries the complete closure of `toplevel` for offline USB recovery or multi-release jumps.
   - A **delta bundle** (`baseline: "/nix/store/...-nixos-system-wros-..."`, built when `baselineToplevel` / `--baseline-toplevel` is supplied) prunes every `.narinfo` and `.nar.zst` already present in `baseline`'s closure so the bundle carries only store paths changed since the baseline release.
-  - Fetching and staging omit files for valid existing store paths, except the toplevel. Verification checks every supplied indexed file. Missing files are accepted only when `allow_skipped_present` is enabled and their non-toplevel store path is already valid.
+  - Fetching and staging can omit system cache files for valid existing non-toplevel store paths.
+- **Firmware (rc33 and later)**: The signed `closure-manifest.json` has a
+  `firmware` object keyed by package name. Each entry gives the `store_path`
+  and the package's `files`, with the cache paths, SHA-256 hashes and sizes of
+  its `.narinfo` and compressed NAR. The HP Stream seed entries have empty
+  `files` lists because their files are indexed in `cache_files` for older
+  updaters. Both the delta and thin bundles retain the firmware cache files
+  for hosting on Pages.
 
 ## 3. Pre-import verification & import through Nix (`U2`)
 
@@ -45,7 +52,7 @@ Because `/nix/store` is mounted read-only on NixOS 26.05, writing directly into 
 1. **OpenPGP signature & signer pin**: `verify_signed_metadata` verifies `InRelease` (or `Release` + `Release.gpg`) with `gpgv` against the store-backed `wros-archive-keyring.gpg` and confirms the primary key fingerprint matches `update-signers`.
 2. **Release validity & replay guard**: `parse_release` checks `Origin: WrOS`, `Suite: wros-nixos-updates`, `Date`, and `Valid-Until` (`<= 30 days`), and refuses any bundle whose `Date` is not newer than `replay.json`.
 3. **Manifest digest check**: `closure-manifest.json` is verified against the exact SHA-256 and byte size recorded in the signed `Release` file.
-4. **Every supplied binary-cache file verified by SHA-256**: `verify_closure_archives` checks the SHA-256 and byte size of every supplied indexed file, including files for existing store paths, and rejects any unindexed file under `cache/`. Missing indexed files are accepted only with `allow_skipped_present` enabled and a valid existing non-toplevel store path. The toplevel files and `cache/nix-cache-info` remain required.
+4. **Every supplied binary-cache file verified by SHA-256**: `verify_closure_archives` checks the SHA-256 and byte size of every supplied indexed file, including files for existing store paths and files in the `firmware` section, and rejects any unindexed file under `cache/`. For the system cache, `allow_skipped_present` permits omitting files for valid existing non-toplevel store paths. The toplevel files and `cache/nix-cache-info` remain required. Firmware files can be fetched selectively and are verified against the signed manifest before import.
 5. **Import via `nix copy` (`U2`)**: Only after steps 1–4 succeed does `import_verified_closure` run:
    ```sh
    nix --extra-experimental-features nix-command copy --from file:///var/lib/wros-update/staged/cache --no-check-sigs --no-recursive <toplevel> <other-staged-store-paths...>
@@ -55,12 +62,14 @@ Because `/nix/store` is mounted read-only on NixOS 26.05, writing directly into 
 
 ## 4. Design decision: two-restart `/system-update` apply flow (`U8`) & disk management (`U4`)
 
-### Recorded design decision: stage now, import & switch in `system-update.target` (`U8`)
+### Stage now, switch in `system-update.target` (`U8`)
 
-WrOS retains the two-phase offline update flow (`/system-update` -> `system-update.target` -> `wros-offline-update.service`) rather than importing into `/nix/store` while the writer is actively editing:
+WrOS retains the two-phase offline apply flow (`/system-update` -> `system-update.target` -> `wros-offline-update.service`). For bundles with a `firmware` section, staging imports the verified system and prepares its firmware while the update source is available (see section 6).
 
-- **Why**: Keeping `nix copy` and `switch-to-configuration boot` inside `wros-offline-update.service` during `system-update.target` avoids competing with the writer's interactive session or background Restic backups for eMMC I/O and RAM on the 4 GB / 32 GB HP Stream 11, and matches the Debian `wros-offline-update.service` state machine and journal lifecycle (`staged` -> `applying` -> `completed`).
-- **Restart and disk cost**: Applying a full system update takes two restarts (first into `system-update.target` where `wros-offline-update.service` imports the verified cache, sets `/nix/var/nix/profiles/system`, runs `<toplevel>/bin/switch-to-configuration boot`, and reboots into the new generation). While staged before the restart, `/var/lib/wros-update/staged/cache` temporarily holds the compressed `.nar.zst` files of the new store paths not already in `/nix/store`. App-only updates (`closure_live_apply_check` where kernel, initrd, and systemd units are unchanged) can still be applied live via `wros-update-apply` without a system restart.
+- **Why**: The offline apply service keeps the generation switch outside the
+  writing session. Bundles without firmware also defer the store import to
+  that service to reduce competition for eMMC I/O and RAM on the HP Stream 11.
+- **Restart and disk cost**: Applying a full system update takes two restarts. The first enters `system-update.target`, where `wros-offline-update.service` imports any remaining verified cache paths, sets `/nix/var/nix/profiles/system`, runs `<toplevel>/bin/switch-to-configuration boot`, and restarts into the new generation. The journal records `staged` -> `applying` -> `completed`. Until apply finishes, `/var/lib/wros-update/staged/cache` can hold compressed `.nar.zst` files that were copied there during staging. App-only updates (`closure_live_apply_check` where kernel, initrd, and systemd units are unchanged) can still be applied live via `wros-update-apply` without a system restart.
 
 ### Disk space checks, cache cleanup & garbage collection (`U4`)
 
@@ -68,7 +77,7 @@ To protect the 32 GB eMMC from filling up across releases:
 
 1. **Free-space checks before fetching and staging**: `require_free_space()` checks the download-cache filesystem before fetching and the staging filesystem before copying. It requires the compressed files' size plus 512 MiB free. It does not separately budget the unpacked store import.
 2. **Removal of staged NARs after import and generation switch**: After the closure import and generation switch both succeed, `apply_staged_transaction` deletes `/var/lib/wros-update/staged/cache` (`shutil.rmtree(store.staged / 'cache')`) before rotating `staged/` to `installed/`. As a result, `installed/` and `previous/` retain only the small metadata files (`Release`, `InRelease`, `closure-manifest.json`, `manifest.json`) and never duplicate compressed `.nar.zst` archives already in `/nix/store`.
-3. **Generation pruning and garbage collection once healthy**: `update_gc_roots` maintains three symlink GC roots in `/nix/var/nix/gcroots/wros/` (`running`, `previous`, `staged`). When the new generation passes probation (`wros-update-healthy ready` -> `report_health('ready')`), `prune_old_generations_and_gc` runs `nix-env -p /nix/var/nix/profiles/system --delete-generations +2` and `nix-collect-garbage` to free all unreferenced store paths.
+3. **Generation pruning and garbage collection once healthy**: `update_gc_roots` maintains three symlink GC roots in `/nix/var/nix/gcroots/wros/` (`running`, `previous`, `staged`). When the new generation passes probation (`wros-update-healthy ready` -> `report_health('ready')`), `prune_old_generations_and_gc` deletes old profile generations, prunes their firmware sets and roots, then runs `nix-collect-garbage` to free unreferenced store paths.
 
 ## 5. Online channel hosting, GitHub Pages limits & streaming downloads (`D2`, `U8`)
 
@@ -101,3 +110,51 @@ unless a release is signed again offline before then.
 ### Streaming downloads with bounded memory (`U8`)
 
 Because the target laptop has 4 GB of RAM, `http_stream_to_file(url, dest_path, expected_size, expected_sha256, opener=None, timeout=120)` in [`nixos/scripts/wros-update-engine.py`](../nixos/scripts/wros-update-engine.py) streams every `.narinfo` and `.nar.zst` response body directly to disk in **64 KiB chunks** while incrementally updating `hashlib.sha256()`, enforcing the exact byte size and SHA-256 from `closure-manifest.json` before moving the temporary file into `/var/cache/wros-update/online/`. No `.nar.zst` archive is ever buffered in memory.
+
+## 6. Per-machine firmware sets (rc33 and later)
+
+The signed system toplevel is the same on every laptop. Its `wros-firmware.json`
+maps supported kernel modules to driver packages and records each package's
+store path, NAR hash and size, and whether it is needed in the initrd.
+The WrOS live ISO carries all supported packages. During an offline install,
+the installer detects the target laptop's hardware, copies the selected packages
+into the target store, and writes the first generation's set.
+
+An online update first selects packages from the running system's detection and
+existing set, and reuses paths already in the store. Staging checks again against
+the target kernel, imports any additional packages from the verified channel or
+the offline bundle, and finishes the new set before the bootloader is updated.
+The set carries forward the running generation's packages that are available for
+the target. If a needed package is missing locally and the release manifest
+lacks it, staging reports its name under `firmware_missing`.
+
+Each generation has its own symlink tree at
+`/nix/var/wros/firmware/<toplevel store name>/lib/firmware/`. Its packages are
+kept alive by GC roots under `/nix/var/nix/gcroots/wros-firmware/`. Activation
+links `/lib/firmware` to the generation's tree. GRUB loads a second initrd for
+that generation with only the packages needed in early boot, such as graphics,
+under `/wros-firmware/`. Writing the archive requires leaving at least 64 MiB
+free on `/boot`. **Go back** boots the previous generation with its own set.
+
+For a direct online update from rc32 or earlier, the signed system closure carries
+the HP Stream's seed (`rtw88`, `i915-glk`, `sof`) alongside the common wireless
+regulatory database. The old updater imports the seed with the system. The
+bootloader hook and activation build a set from the available packages if the
+generation has no set yet. The seed is also on the installed system's fallback
+firmware path.
+
+To see what WrOS detects on a running laptop, open the maintenance console and run:
+
+```sh
+wros-firmware detect --system /run/current-system
+```
+
+The command prints `packages` (driver packages selected from device aliases and
+loaded modules) and `unknown` (aliases the kernel modules could not resolve).
+Use the [hardware checklist](HARDWARE_CHECKLIST.md#8-after-an-update) to verify
+Wi-Fi, display and sound after an update and after going back. For hardware
+plugged in later, open **Settings › Updates and recovery › Updates › Firmware for
+a new device**. WrOS uses the signed channel or, if it cannot reach the site,
+checks a WrOS USB stick. The stick's package must match the store path, NAR
+SHA-256 and size in the running system's firmware table. If the channel names
+a different store path for a needed package, update WrOS first.

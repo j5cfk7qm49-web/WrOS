@@ -7,7 +7,7 @@ use grimoire_core::tutorial;
 /// The Settings page each menu-bar row is chosen on.
 fn settings_row_page(row: SettingsRow) -> Route {
     match row {
-        SettingsRow::Lock | SettingsRow::Sleep | SettingsRow::Restart | SettingsRow::ShutDown => {
+        SettingsRow::Sleep | SettingsRow::Restart | SettingsRow::ShutDown => {
             Route::Panel(Panel::Power)
         }
         SettingsRow::Install => Route::Panel(Panel::Storage),
@@ -226,7 +226,7 @@ impl App {
         }
     }
     /// Choose a row of a Settings page as if the writer had: the WrOS menu's
-    /// power rows and File › Back up now run exactly what Settings runs, with
+    /// confirmed power rows and File › Back up now run what Settings runs, with
     /// the same confirmations, and leave the Settings box on that page.
     pub(in crate::app) fn choose_in_settings(&mut self, row: SettingsRow) {
         let was_busy = self.deck.busy;
@@ -257,7 +257,6 @@ impl App {
     }
     fn choose_on_open_page(&mut self, row: SettingsRow) {
         let wanted = |choice: &Choice| match row {
-            SettingsRow::Lock => matches!(choice, Choice::Lock),
             SettingsRow::Sleep => matches!(choice, Choice::System(8)),
             SettingsRow::Restart => matches!(choice, Choice::System(10)),
             SettingsRow::ShutDown => matches!(choice, Choice::System(9)),

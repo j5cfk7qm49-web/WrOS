@@ -257,6 +257,8 @@ class Core(unittest.TestCase):
 
             def runner(argv, *, input_bytes=None, timeout=600):
                 timeouts[argv[0]] = timeout
+                if argv[0] == '/run/current-system/sw/bin/wros-firmware':
+                    return '{"packages": [], "missing": [], "unknown": []}'
                 if 'switch-to-configuration' in ' '.join(argv):
                     (target / 'boot/EFI/BOOT').mkdir(parents=True, exist_ok=True)
                     (target / 'boot/EFI/BOOT/BOOTX64.EFI').write_bytes(b'grub')

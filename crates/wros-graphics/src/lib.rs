@@ -267,13 +267,22 @@ impl<W: io::Write> Screen<W> {
     }
 
     /// Position the pointer without adding it to the application's cells.
-    pub fn pointer(&mut self, position: Option<Position>) {
+    pub fn pointer(&mut self, cell: Position, pixels: Option<(u16, u16)>) {
         #[cfg(target_os = "linux")]
         if let Some(display) = &mut self.graphics {
-            display.pointer(position);
+            display.pointer(cell, pixels);
         }
         #[cfg(not(target_os = "linux"))]
-        let _ = position;
+        let _ = (cell, pixels);
+    }
+
+    pub fn pointer_focus(&mut self, focused: bool) {
+        #[cfg(target_os = "linux")]
+        if let Some(display) = &mut self.graphics {
+            display.pointer_focus(focused);
+        }
+        #[cfg(not(target_os = "linux"))]
+        let _ = focused;
     }
 
     /// Another screen has put its own frame on the display in place of this one's. Dropped,
@@ -446,7 +455,14 @@ fn copy_rgb_with_progress(
 }
 
 /// The native pointer is a scanout overlay, never part of the writing buffer.
-fn pointer_sprite(target: &mut [u8], pitch: usize, rows: usize, width: usize, at: (u16, u16)) {
+fn pointer_sprite(
+    target: &mut [u8],
+    pitch: usize,
+    rows: usize,
+    width: usize,
+    at: (u16, u16),
+    alpha: u8,
+) {
     const ARROW: [&[u8]; 16] = [
         b"X.........",
         b"XX........",
@@ -477,7 +493,7 @@ fn pointer_sprite(target: &mut [u8], pitch: usize, rows: usize, width: usize, at
             }
             if let Some(out) = target.get_mut(y * pitch + x * 4..y * pitch + x * 4 + 4) {
                 let colour = if pixel == b'O' { 255 } else { 0 };
-                out.copy_from_slice(&[colour, colour, colour, 0]);
+                out.copy_from_slice(&[colour, colour, colour, alpha]);
             }
         }
     }
@@ -576,14 +592,14 @@ mod tests {
     #[test]
     fn pointer_overlay_clips_at_the_screen_edge_and_preserves_row_padding() {
         let mut pixels = vec![0x66; 20 * 18];
-        super::pointer_sprite(&mut pixels, 20, 18, 4, (3, 17));
+        super::pointer_sprite(&mut pixels, 20, 18, 4, (3, 17), 0);
         assert_eq!(&pixels[17 * 20 + 12..17 * 20 + 16], &[0, 0, 0, 0]);
         for row in pixels.as_chunks::<20>().0 {
             assert_eq!(&row[16..], &[0x66; 4]);
         }
         assert!(pixels[..17 * 20].iter().all(|&byte| byte == 0x66));
         let mut pixels = vec![0x66; 64 * 18];
-        super::pointer_sprite(&mut pixels, 64, 18, 16, (0, 0));
+        super::pointer_sprite(&mut pixels, 64, 18, 16, (0, 0), 0);
         assert_eq!(&pixels[2 * 64 + 4..2 * 64 + 8], &[255, 255, 255, 0]);
     }
 }

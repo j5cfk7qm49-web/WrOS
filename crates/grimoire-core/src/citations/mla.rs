@@ -219,6 +219,25 @@ mod tests {
     }
 
     #[test]
+    fn pages_that_are_not_consecutive_are_listed_with_commas() {
+        // MLA 9: (Freud 54, 56); ranges and single pages can be mixed, as in (Freud 12–14, 20).
+        let sources = Sources::parse(
+            r#"[{"id":"freud","type":"book","title":"Civilization and Its Discontents",
+                "author":[{"family":"Freud","given":"Sigmund"}],"issued":{"date-parts":[[1961]]}}]"#,
+        )
+        .unwrap();
+        let cite = |page| Cite {
+            key: "freud",
+            page: Some(page),
+            suppress_author: false,
+        };
+        let result = render(&sources, &[vec![cite("54, 56")], vec![cite("12–14, 20")]]).unwrap();
+        let plain = |runs: &[Formatted]| runs.iter().map(|r| r.text.as_str()).collect::<String>();
+        assert_eq!(plain(&result.citations[0]), "(Freud 54, 56)");
+        assert_eq!(plain(&result.citations[1]), "(Freud 12–14, 20)");
+    }
+
+    #[test]
     fn baron_mla_fixtures_produce_pages_and_a_styled_works_cited() {
         let sources = Sources::parse(r#"[{"id":"baron","type":"article-journal","title":"Redefining Reading: The Impact of Digital Communication Media","author":[{"family":"Baron","given":"Naomi S."}],"container-title":"PMLA","volume":"128","issue":"1","issued":{"date-parts":[[2013,1]]},"page":"193-200"}]"#).unwrap();
         let groups = vec![

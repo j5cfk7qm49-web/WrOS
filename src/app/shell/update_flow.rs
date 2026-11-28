@@ -1,12 +1,13 @@
 //! Offline update flow in Settings: find media, review, confirm, stage, then
-//! restart or cancel; plus recovery status and repair.
+//! restart or cancel; plus device firmware, recovery status and repair.
 //!
-//! Every system change here sits behind its own default-Cancel screen. Replies
-//! are never assumed: after cancel, repair or staging the recovery status is
-//! read again and the screens show what the system reported.
+//! Staging, repair and going back have their own default-Cancel screens. After
+//! cancel, repair or staging, the screens read back the system's recovery status.
 use super::*;
 use std::time::SystemTime;
-use wros_sys::{PowerAction, Request, UpdatePackage, UpdateReview, UpdateState};
+use wros_sys::{
+    FirmwareResult, FirmwareStatus, PowerAction, Request, UpdatePackage, UpdateReview, UpdateState,
+};
 
 /// Screens that belong to the update flow. Leaving the flow pops back past all
 /// of them to wherever the writer started (Updates panel or Recovery view).
@@ -179,6 +180,12 @@ pub(super) fn updates_panel(app: &App) -> Vec<Entry> {
         "Check for WrOS updates",
         Choice::UpdateOnlineCheck,
     ));
+    if !app.deck.live_session {
+        rows.push(Entry::new(
+            "Firmware for a new device",
+            Choice::AddDeviceFirmware,
+        ));
+    }
     rows.extend([
         Entry::new(
             "Preview cached package plan",
@@ -717,6 +724,39 @@ impl App {
         self.update_notice("Downloading the WrOS update and checking its signature…");
         self.deck.request(Request::FetchOnlineUpdate);
     }
+    pub(super) fn add_device_firmware(&mut self) {
+        if self.deck.busy {
+            self.update_notice("A system request is still running. Wait for it, then try again.");
+            return;
+        }
+        self.deck.shell.update_flow.last_result = None;
+        self.deck.request(Request::AddDeviceFirmware);
+    }
+    pub(crate) fn on_device_firmware(&mut self, result: FirmwareResult) {
+        let text = match result.status {
+            FirmwareStatus::Added => format!(
+                "Firmware added: {}. Unplug the device and plug it in again, or restart.",
+                result.packages.join(", ")
+            ),
+            FirmwareStatus::NothingNeeded => {
+                "This laptop already has the firmware its devices need.".into()
+            }
+            FirmwareStatus::NotInChannel => {
+                "WrOS's update site doesn't have firmware for this device.".into()
+            }
+            FirmwareStatus::UpdateFirst => {
+                "Update WrOS first to get the firmware this device needs.".into()
+            }
+            FirmwareStatus::MediaNeeded => {
+                "Connect to the internet, or plug in a WrOS USB stick, and try again.".into()
+            }
+            FirmwareStatus::NotOnStick => {
+                "This WrOS USB stick doesn't have the matching firmware. Try a stick for this version of WrOS, or connect to the internet.".into()
+            }
+        };
+        self.deck.shell.update_flow.last_result = Some(text.clone());
+        self.update_notice(text);
+    }
     pub(crate) fn on_online_update(&mut self, online: wros_sys::OnlineUpdate) {
         let flow = &mut self.deck.shell.update_flow;
         if online.status == "available"
@@ -1251,6 +1291,11 @@ impl App {
     /// the request was an update request and has been handled.
     pub(crate) fn on_update_error(&mut self, request: &Request, error: &str) -> bool {
         match request {
+            Request::AddDeviceFirmware => {
+                let text = format!("Could not finish adding device firmware: {error}");
+                self.deck.shell.update_flow.last_result = Some(text.clone());
+                self.update_notice(text);
+            }
             Request::CheckOnlineUpdates => {
                 // Silent: the Updates panel says the server could not be reached.
                 let online = wros_sys::OnlineUpdate {

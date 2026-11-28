@@ -358,6 +358,7 @@ impl App {
                 Ok(Reply::OnlineUpdateFetched(path)) => {
                     self.on_online_update_fetched(path);
                 }
+                Ok(Reply::DeviceFirmware(result)) => self.on_device_firmware(result),
                 Ok(Reply::WifiScan(networks)) => {
                     self.deck.note = format!(
                         "{} named Wi-Fi networks returned. Select a network to connect.",

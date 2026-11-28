@@ -499,6 +499,7 @@ impl App {
         next.scene_visible = self.scene_visible;
         next.wros_music = self.wros_music;
         next.super_keys = self.super_keys;
+        next.tile_glyphs = self.tile_glyphs;
         next.screen = self.screen;
         next.frame = self.frame;
         next.state_file = self.state_file.take();

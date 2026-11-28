@@ -7,6 +7,6 @@ mod linux;
 mod native;
 pub mod paths;
 #[cfg(target_os = "linux")]
-pub use linux::{Input, Paused, WORKER_ARGUMENT, worker_main};
+pub use linux::{Input, InputEvent, Paused, WORKER_ARGUMENT, worker_main};
 #[cfg(all(target_os = "linux", feature = "native"))]
 pub use {linux::native_worker_main, native::NativeConfig};

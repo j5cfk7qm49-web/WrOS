@@ -1,9 +1,10 @@
 //! In-memory backend for testing system workflows.
 use crate::{
-    AudioStatus, Backend, GoogleAccountStatus, ImportStick, LocalAccount, OnlineUpdate,
-    PowerAction, RecoveryInfo, RemoteFile, Reply, Request, ResticSnapshot, SUSPEND_UNAVAILABLE,
-    SavedWifi, Snapshot, StorageDevice, UpdateApplied, UpdateInfo, UpdatePackage, UpdateReview,
-    UpdateStaged, UpdateState, WifiNetwork, boot, display, system_views, timezone,
+    AudioStatus, Backend, FirmwareResult, GoogleAccountStatus, ImportStick, LocalAccount,
+    OnlineUpdate, PowerAction, RecoveryInfo, RemoteFile, Reply, Request, ResticSnapshot,
+    SUSPEND_UNAVAILABLE, SavedWifi, Snapshot, StorageDevice, UpdateApplied, UpdateInfo,
+    UpdatePackage, UpdateReview, UpdateStaged, UpdateState, WifiNetwork, boot, display,
+    system_views, timezone,
 };
 use anyhow::{Result, bail};
 
@@ -24,6 +25,7 @@ pub struct Simulated {
     import_mounted: Option<String>,
     /// What the simulated update server reports, and where a fetch lands.
     pub online: Option<OnlineUpdate>,
+    pub device_firmware: Option<FirmwareResult>,
     /// Whether the simulated staged update changes only the writing app.
     pub staged_live: bool,
     pub fetched: Option<String>,
@@ -93,6 +95,7 @@ impl Default for Simulated {
             import_media: Vec::new(),
             import_mounted: None,
             online: None,
+            device_firmware: None,
             staged_live: false,
             fetched: None,
             fetch_error: None,
@@ -468,6 +471,11 @@ impl Backend for Simulated {
                 system_views::validate_update_bundle_path(&path)?;
                 Ok(Reply::OnlineUpdateFetched(path))
             }
+            Request::AddDeviceFirmware => Ok(Reply::DeviceFirmware(
+                self.device_firmware
+                    .clone()
+                    .ok_or_else(|| anyhow::anyhow!("SIMULATED: no device firmware server"))?,
+            )),
             Request::StageUpdates {
                 bundle_dir,
                 review_id,

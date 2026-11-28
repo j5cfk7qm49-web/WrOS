@@ -1,4 +1,4 @@
-use crossterm::event::{self, Event, KeyCode};
+use crossterm::event::{self, Event, KeyCode, MouseEvent};
 use serde::{Deserialize, Serialize};
 use std::{
     io::{self, Read, Write},
@@ -33,6 +33,21 @@ fn failure(message: &'static str) -> io::Error {
     io::Error::other(message)
 }
 
+pub struct InputEvent {
+    pub event: Event,
+    /// Pixel coordinates in the native reader's text raster.
+    pub pointer: Option<(u16, u16)>,
+}
+
+impl From<Event> for InputEvent {
+    fn from(event: Event) -> Self {
+        Self {
+            event,
+            pointer: None,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 enum Wire {
     Ready {
@@ -43,11 +58,44 @@ enum Wire {
         native: bool,
     },
     Event(Event),
+    NativeMouse(MouseEvent, (u16, u16)),
     EventRejected,
 }
 
 // Pending events are discarded at ownership boundaries. Never Debug/log them.
 struct Message(Option<Wire>);
+impl Message {
+    fn into_event(
+        mut self,
+        #[cfg(feature = "native")] config: Option<crate::NativeConfig>,
+    ) -> io::Result<InputEvent> {
+        match self.0.take() {
+            #[cfg(feature = "native")]
+            Some(Wire::NativeMouse(mouse, pointer)) => {
+                let config = config.ok_or_else(|| failure("Unexpected native mouse event"))?;
+                if pointer.0 >= config.pixels.0
+                    || pointer.1 >= config.pixels.1
+                    || config.cell_at(pointer) != (mouse.column, mouse.row)
+                {
+                    return Err(failure("Invalid native mouse position"));
+                }
+                Ok(InputEvent {
+                    event: Event::Mouse(mouse),
+                    pointer: Some(pointer),
+                })
+            }
+            #[cfg(feature = "native")]
+            Some(Wire::Event(Event::Mouse(_))) if config.is_some() => {
+                Err(failure("Missing native mouse position"))
+            }
+            Some(Wire::Event(event)) => Ok(event.into()),
+            Some(Wire::EventRejected) => Err(failure(
+                "Input event exceeds 2 MiB transport limit; prior edits are being saved",
+            )),
+            _ => Err(failure("Unexpected input reader message")),
+        }
+    }
+}
 impl Drop for Message {
     fn drop(&mut self) {
         if let Some(Wire::Event(event)) = &mut self.0 {
@@ -184,8 +232,11 @@ fn ready(output: &mut impl Write, native: bool) -> io::Result<()> {
     )
 }
 
-fn send_event(output: &mut impl Write, event: Event) -> io::Result<()> {
-    let message = Message(Some(Wire::Event(event)));
+fn send_event(output: &mut impl Write, input: InputEvent) -> io::Result<()> {
+    let message = Message(Some(match (input.event, input.pointer) {
+        (Event::Mouse(mouse), Some(pointer)) => Wire::NativeMouse(mouse, pointer),
+        (event, _) => Wire::Event(event),
+    }));
     let bytes = match encode(&message) {
         Ok(bytes) => bytes,
         Err(_) => {
@@ -203,7 +254,7 @@ fn terminal_worker() -> io::Result<()> {
         // crossterm's complete AND partial parser state belongs exclusively to
         // this disposable address space. No terminal/event calls on other threads.
         let event = event::read().map_err(|_| failure("Terminal input failed"))?;
-        send_event(&mut output, event)?;
+        send_event(&mut output, event.into())?;
     }
 }
 
@@ -410,6 +461,14 @@ impl Input {
         &self,
         timeout: Duration,
     ) -> Result<io::Result<Event>, mpsc::RecvTimeoutError> {
+        self.recv_with_pointer(timeout)
+            .map(|event| event.map(|input| input.event))
+    }
+
+    pub fn recv_with_pointer(
+        &self,
+        timeout: Duration,
+    ) -> Result<io::Result<InputEvent>, mpsc::RecvTimeoutError> {
         let State::Active(running) = &self.state else {
             return Err(mpsc::RecvTimeoutError::Disconnected);
         };
@@ -418,12 +477,11 @@ impl Input {
             .as_ref()
             .ok_or(mpsc::RecvTimeoutError::Disconnected)?;
         let message = messages.recv_timeout(timeout)?;
-        Ok(message.and_then(|mut message| match message.0.take() {
-            Some(Wire::Event(event)) => Ok(event),
-            Some(Wire::EventRejected) => Err(failure(
-                "Input event exceeds 2 MiB transport limit; prior edits are being saved",
-            )),
-            _ => Err(failure("Unexpected input reader message")),
+        Ok(message.and_then(|message| {
+            message.into_event(
+                #[cfg(feature = "native")]
+                self.config.filter(|_| self.native),
+            )
         }))
     }
     /// No credential reader may start until this returns its proof successfully.
@@ -497,6 +555,78 @@ mod tests {
             assert_eq!(actual, event);
         }
     }
+    #[cfg(feature = "native")]
+    #[test]
+    fn native_mouse_pixels_round_trip_alongside_the_unchanged_cell_event() {
+        use crossterm::event::{KeyModifiers, MouseButton, MouseEventKind};
+        let config = crate::NativeConfig {
+            pixels: (1360, 768),
+            cells: (170, 48),
+        };
+        for kind in [
+            MouseEventKind::Moved,
+            MouseEventKind::Down(MouseButton::Left),
+            MouseEventKind::Drag(MouseButton::Left),
+            MouseEventKind::Up(MouseButton::Left),
+            MouseEventKind::ScrollUp,
+        ] {
+            let mouse = MouseEvent {
+                kind,
+                column: 10,
+                row: 2,
+                modifiers: KeyModifiers::SHIFT,
+            };
+            let mut bytes = Vec::new();
+            send_event(
+                &mut bytes,
+                InputEvent {
+                    event: Event::Mouse(mouse),
+                    pointer: Some((83, 35)),
+                },
+            )
+            .unwrap();
+            let received = read_frame(&mut bytes.as_slice())
+                .unwrap()
+                .into_event(Some(config))
+                .unwrap();
+            assert_eq!(received.pointer, Some((83, 35)));
+            assert_eq!(received.event, Event::Mouse(mouse));
+        }
+    }
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn the_native_reader_rejects_out_of_range_and_mismatched_positions() {
+        use crossterm::event::{KeyModifiers, MouseEventKind};
+        let config = crate::NativeConfig {
+            pixels: (1360, 768),
+            cells: (170, 48),
+        };
+        let mouse = MouseEvent {
+            kind: MouseEventKind::Moved,
+            column: 169,
+            row: 47,
+            modifiers: KeyModifiers::NONE,
+        };
+        for position in [(1360, 767), (1359, 768), (0, 0)] {
+            let mut bytes = Vec::new();
+            write_frame(
+                &mut bytes,
+                &Message(Some(Wire::NativeMouse(mouse, position))),
+            )
+            .unwrap();
+            let message = read_frame(&mut bytes.as_slice()).unwrap();
+            assert_eq!(
+                message.into_event(Some(config)).err().unwrap().to_string(),
+                "Invalid native mouse position"
+            );
+        }
+        let message = Message(Some(Wire::NativeMouse(mouse, (1359, 767))));
+        assert!(message.into_event(None).is_err());
+        let message = Message(Some(Wire::Event(Event::Mouse(mouse))));
+        assert!(message.into_event(Some(config)).is_err());
+    }
+
     #[test]
     fn a_super_tap_survives_the_wire() {
         let event = Event::Key(crossterm::event::KeyEvent::new(

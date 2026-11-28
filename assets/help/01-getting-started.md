@@ -10,7 +10,7 @@ Projects you start by name go in `~/Documents/Grimoire`. *Project › This proje
 - **The page**, on the right: the scene you're writing.
 - **The Pomodoro**, under the outline: a timer drawn as a little world. `←` `→` turns it into the Visualizer.
 - **Music**, below that, when you've turned it on.
-- **The top bar**, with W r O S tiles for Write, read, Outline and Study, the menus, save and backup marks, and the ⏻ Power tile.
+- **The top bar**, with W r O S tiles for Write, read, Outline and Study, the menus, save and backup marks, and Power at the far right (⏻ on the native graphical screen).
 - **The upper bottom bar**, with information about where you are on the left and Wi-Fi, sound, battery and the clock on the right. Click a widget to open its panel.
 - **The lower bottom bar**, with the project's words against its target and today's words on the left, and messages on the right. When there is no fresh message, the playing track scrolls there.
 
@@ -30,6 +30,8 @@ You never have to save. A scene is written two seconds after you stop typing, an
 Installed WrOS hides Quit and shows a short message when you press `Ctrl-Q`, keeping the writing app open. To stop writing, use *Power › Lock*, or *Power › Shut down…*. *Settings › System › Battery and power* also offers Restart the writing app, which keeps you signed in. In a desktop session, use `Ctrl-Q`, `q` in the outline, or *Power › Quit*. These save and close the app.
 
 ## The mouse
+
+On WrOS's own screen a hardware cursor lets the pointer glide with your hand, a pixel at a time. With no hardware cursor, the pointer moves when the screen next redraws.
 
 Click a pane to move to it, a chapter to fold it, a scene to open it, and the prose to put the cursor there. Drag across the prose to select; double-click picks a word, and a third click the paragraph. The wheel scrolls whatever is under the pointer.
 

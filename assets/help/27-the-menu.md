@@ -1,6 +1,8 @@
 # The menu bar, menu by menu
 
-The top bar starts with **W r O S**, the tiles for Write, read, Outline and Study. Then come **File, Edit, View, Project, Tools, Settings, Help** and the ⏻ Power tile at the right. `Esc` lights the bar on the menu you used last; `←` `→` move along it, and `↓` or `Enter` opens the lit one. `←` from File reaches the view tiles; choose one and press `Enter` to switch. A menu's underlined letter opens it straight away, so *Esc, then P* opens Project and *Esc, then W* opens Power. In the graphical session, press `Alt-P` for Project or `Alt` with another menu's letter. `F10` opens the bar too. A tap of the `Super` key opens **Find anything** just under the bar; `←` or `→` from there goes into the menus.
+The top bar starts with **W r O S**, the tiles for Write, read, Outline and Study. Then come **File, Edit, View, Project, Tools, Settings, Help** and **Power** at the right. On the native graphical screen, the view letters and ⏻ appear in square tiles. In the text layout, look for plain W r O S and Power.
+
+`Esc` lights the bar on the menu you used last; `←` `→` move along it, and `↓` or `Enter` opens the lit one. `←` from File reaches the view tiles; choose one and press `Enter` to switch. A menu's underlined letter opens it straight away, so *Esc, then P* opens Project and *Esc, then W* opens Power. In the graphical session, press `Alt-P` for Project or `Alt` with another menu's letter. `F10` opens the bar too. A tap of the `Super` key opens **Find anything** just under the bar; `←` or `→` from there goes into the menus.
 
 Menus drop down in the header's colour with a shadow. Inside a menu, `↑` `↓` (or `j` `k`) move, a letter jumps to the next row starting with it, and `Enter` runs the row. Rows with a › open beside it. The highlighted row says what it does on the lower bottom bar, and `?` opens the help on it. A row that can't run right now is dim and says why. `Esc` closes the menu.
 
@@ -9,7 +11,8 @@ The mouse works everywhere on the bar: click a view tile to switch views, click 
 ## Power
 
 - **Install WrOS to disk…**: only on a live USB stick.
-- **Lock**, **Sleep**, **Restart…** and **Shut down…**: as in Settings › System › Battery and power, and they ask first in the same way.
+- **Lock** saves and locks right away. Unlock to get back to where you were writing.
+- **Sleep**, **Restart…** and **Shut down…** ask first, as in Settings › System › Battery and power.
 - **Quit** (`Ctrl-Q`): where WrOS offers it; everything is saved first.
 
 ## File
@@ -78,6 +81,8 @@ The mouse works everywhere on the bar: click a view tile to switch views, click 
 ## Settings
 
 **Writing**, **Look and keyboard**, **System**, **Backups and accounts**, **Updates and recovery** and **Music**: each opens Settings on that group, in a box over the page. See *Settings*.
+
+Under **Updates and recovery › Updates**, choose **Firmware for a new device** to look for matching firmware for a device you've plugged in. When offline, plug in a WrOS USB stick before you choose the row. See *WrOS*.
 
 ## Help
 

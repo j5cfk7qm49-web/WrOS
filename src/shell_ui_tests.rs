@@ -1637,20 +1637,60 @@ fn the_power_menus_install_asks_even_while_storage_is_still_loading() {
 }
 
 #[test]
-fn the_power_menus_lock_waits_for_the_first_status_then_locks() {
-    // rc23 has no dashboard to read the system status at login, so the first Lock from the
-    // menu opens a Settings page that is still reading it. Lock used to be refused then.
-    let mut desk = Desk::open(book("menu-lock-busy", true), 100, 30);
+fn power_menu_lock_without_a_status_read_returns_to_the_editor() {
+    let mut desk = Desk::open(book("menu-lock-no-status", true), 100, 30);
     desk.app
         .deck
         .use_test_backend(Box::new(Simulated::laptop()));
     desk.app.deck.lock_available = true;
+    desk.key(KeyCode::Tab);
+    let settings_route = route(&desk);
     assert!(desk.app.deck.snapshot.is_none());
     desk.menu(&["Power", "Lock"]);
-    assert!(desk.app.deck.busy, "opening the page reads the status");
-    assert!(!desk.app.deck.lock_requested);
-    wait_system(&mut desk);
-    assert!(desk.app.deck.lock_requested, "{}", desk.rows().join("\n"));
+    assert_eq!(desk.app.overlay, Overlay::None);
+    assert_eq!(route(&desk), settings_route);
+    assert!(!desk.app.deck.busy, "locking needs no system status read");
+    assert!(desk.app.deck.lock_requested);
+    desk.app.on_unlocked();
+    assert_eq!(desk.app.overlay, Overlay::None);
+    assert_eq!(desk.app.focus, Focus::Editor);
+}
+
+#[test]
+fn power_menu_uses_the_settings_confirmations() {
+    use wros_sys::PowerAction;
+
+    for (menu, settings, action) in [
+        ("Sleep", "Lock and suspend", PowerAction::Suspend),
+        (
+            "Restart…",
+            "Restart · confirmation required",
+            PowerAction::Restart,
+        ),
+        (
+            "Shut down…",
+            "Shutdown · confirmation required",
+            PowerAction::Shutdown,
+        ),
+    ] {
+        let mut desk = Desk::open(book(menu, true), 100, 30);
+        desk.app.deck.suspend_available = true;
+        desk.app.deck.lock_available = true;
+        desk.app
+            .deck
+            .use_test_backend(Box::new(Simulated::laptop()));
+        desk.menu(&["Power", menu]);
+        wait_system(&mut desk);
+        let confirmation = Overlay::Deck(Page::Power { action, yes: false });
+        assert_eq!(desk.app.overlay, confirmation);
+        desk.key(KeyCode::Enter);
+        assert!(!desk.app.deck.suspend_requested);
+        assert!(!desk.app.deck.power_pending);
+
+        system_panel(&mut desk, 2);
+        desk.choose(settings);
+        assert_eq!(desk.app.overlay, confirmation);
+    }
 }
 
 #[test]
@@ -1815,6 +1855,64 @@ fn online_update_names_the_earlier_version_and_offers_no_install() {
     assert!(desk.app.deck.note.contains("install from a WrOS stick"));
     assert!(!desk.shows("Update WrOS to"));
     assert!(!desk.app.msg.contains("is available"));
+}
+
+#[test]
+fn firmware_for_a_new_device_shows_each_result_in_updates() {
+    use wros_sys::{FirmwareResult, FirmwareStatus};
+
+    for (status, packages, text) in [
+        (
+            FirmwareStatus::Added,
+            vec!["ath9k_htc", "rtw88"],
+            "Firmware added: ath9k_htc, rtw88. Unplug the device and plug it in again, or restart.",
+        ),
+        (
+            FirmwareStatus::NothingNeeded,
+            vec![],
+            "This laptop already has the firmware its devices need.",
+        ),
+        (
+            FirmwareStatus::NotInChannel,
+            vec!["ath9k_htc"],
+            "WrOS's update site doesn't have firmware for this device.",
+        ),
+        (
+            FirmwareStatus::UpdateFirst,
+            vec!["rtw88"],
+            "Update WrOS first to get the firmware this device needs.",
+        ),
+        (
+            FirmwareStatus::MediaNeeded,
+            vec!["rtw88"],
+            "Connect to the internet, or plug in a WrOS USB stick, and try again.",
+        ),
+        (
+            FirmwareStatus::NotOnStick,
+            vec!["rtw88"],
+            "This WrOS USB stick doesn't have the matching firmware. Try a stick for this version of WrOS, or connect to the internet.",
+        ),
+    ] {
+        let mut desk = Desk::open(book(&format!("firmware-{status:?}"), true), 140, 30);
+        let mut sim = online_backend("current", None);
+        sim.device_firmware = Some(FirmwareResult {
+            status,
+            packages: packages.into_iter().map(str::to_owned).collect(),
+        });
+        desk.app.deck.use_test_backend(Box::new(sim));
+        system_panel(&mut desk, 5);
+        wait_system(&mut desk);
+        assert!(desk.shows("Firmware for a new device"));
+        desk.choose("Firmware for a new device");
+        assert!(desk.app.deck.busy);
+        assert!(desk.shows("Checking for device firmware"));
+        wait_system(&mut desk);
+        assert_eq!(
+            desk.app.deck.shell.update_flow.last_result.as_deref(),
+            Some(text)
+        );
+        assert!(desk.shows_wrapped(text), "{}", desk.rows().join("\n"));
+    }
 }
 
 /// A stand-in wros-sync: records each request, answers from `<dir>/<operation>.json`,

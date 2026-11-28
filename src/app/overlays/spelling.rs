@@ -408,10 +408,13 @@ pub(super) fn draw_taught(f: &mut Frame, app: &App, area: Rect, t: &Theme) {
         Line::from(""),
     ];
     if words.is_empty() {
-        lines.push(Line::from(Span::styled(
-            " None yet. Always ignore, on a word's spellings, adds one.",
-            Style::default().fg(t.text),
-        )));
+        // Wider than the box on one line, so it takes two.
+        for part in [
+            " None yet. Always ignore, on a word's spellings,",
+            " adds one.",
+        ] {
+            lines.push(Line::from(Span::styled(part, Style::default().fg(t.text))));
+        }
     }
     let start = (*sel + 1).saturating_sub(shown);
     for (i, (word, book)) in words.iter().enumerate().skip(start).take(shown) {

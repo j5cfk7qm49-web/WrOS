@@ -38,7 +38,9 @@ You can also search from the top of **Add a source** to fill in the form.
 
 The page step shows the source's Works Cited entry under its key. Press `e`
 to edit the source details. Saving takes you back to the page step, where you
-can enter a page or range if needed. Tab moves to **Author named in my sentence**
+can enter a page if needed: one page (194), a range (12–14), or pages that
+aren't next to each other with a comma between them (54, 56), which MLA writes as
+(Freud 54, 56). Tab moves to **Author named in my sentence**
 and **Add another source**. Enter inserts the citation and Esc cancels. One
 Undo removes the inserted citation.
 

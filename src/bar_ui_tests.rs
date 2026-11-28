@@ -924,16 +924,14 @@ fn lock_from_the_power_menu_comes_back_to_the_page() {
         Overlay::None,
         "unlocking finds the page, not Settings"
     );
-    // Refused, Settings › Power says why.
+    // If a request is already running, the status line says why Lock was refused.
     let mut d = Desk::open(book("bar-lock-refused", true), 120, 35);
     d.app.deck.lock_available = true;
     d.app.deck.busy = true;
     d.menu(&["Power", "Lock"]);
     assert!(!d.app.deck.lock_requested);
-    assert_eq!(
-        d.app.overlay,
-        Overlay::Deck(crate::app::wros::Page::Settings)
-    );
+    assert_eq!(d.app.overlay, Overlay::None);
+    assert!(d.status().contains("a system request is pending"));
 }
 
 #[test]

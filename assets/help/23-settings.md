@@ -26,3 +26,5 @@ action a `Ctrl-Alt` letter or a function key from `F10` through `F12`. `F12` is
 available for an alias. Shortcuts use the letters from your active keyboard layout.
 
 Settings are remembered in `~/.config/grimoire/`, and the manuscript's look and your author details are kept in the project's `project.toml`, so they travel with it.
+
+On an installed laptop, open **Settings › Updates and recovery › Updates** and choose **Firmware for a new device** after plugging in a device that needs firmware. WrOS can get matching firmware from the update site or, when offline, from a WrOS USB stick. See *WrOS*.

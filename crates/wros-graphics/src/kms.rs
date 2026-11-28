@@ -4,9 +4,12 @@
     clippy::cast_possible_wrap
 )]
 
+mod cursor;
+
 use super::TextSize;
 use crate::Pixels;
 use crate::geometry::to_u16;
+use cursor::{KmsCursor, Pointer};
 use drm::{
     Device as _,
     buffer::{Buffer, DrmFourcc},
@@ -78,7 +81,7 @@ pub(super) struct Display {
     release: Arc<AtomicBool>,
     acquire: Arc<AtomicBool>,
     signals: Vec<signal_hook::SigId>,
-    pointer: Option<(u16, u16)>,
+    pointer: Pointer<DumbBuffer>,
 }
 
 fn ioctl(tty: &File, request: libc::c_ulong, arg: libc::c_int) -> io::Result<()> {
@@ -268,7 +271,7 @@ impl Display {
             release: Arc::new(AtomicBool::new(false)),
             acquire: Arc::new(AtomicBool::new(false)),
             signals: vec![],
-            pointer: None,
+            pointer: Pointer::default(),
         };
         display.signals.push(signal_hook::flag::register(
             libc::SIGUSR1,
@@ -306,9 +309,13 @@ impl Display {
         Ok(())
     }
 
-    fn with_master<T>(&self, operation: impl FnOnce() -> io::Result<T>) -> io::Result<T> {
+    fn with_master<T>(
+        &mut self,
+        timeout: Duration,
+        operation: impl FnOnce(&mut Self) -> io::Result<T>,
+    ) -> io::Result<T> {
         if self.keep_master {
-            return operation();
+            return operation(self);
         }
         // The colour helper briefly owns master between modesets. A VT handoff
         // must wait for it instead of silently leaving fbcon on the old buffer.
@@ -317,9 +324,9 @@ impl Display {
                 active_console(&self.tty)?;
                 self.card.acquire_master_lock()
             },
-            Duration::from_secs(2),
+            timeout,
         )?;
-        let result = operation();
+        let result = operation(self);
         let released = self.card.release_master_lock();
         result.and_then(|value| released.map(|()| value))
     }
@@ -327,15 +334,17 @@ impl Display {
     fn scanout(&mut self) -> io::Result<()> {
         // Mapped-buffer writes need no master; release it after the modeset so
         // the narrow colour helper can work between handoffs.
-        self.with_master(|| {
-            self.card.set_crtc(
-                self.crtc.handle(),
-                Some(self.framebuffer),
+        self.with_master(Duration::from_secs(2), |display| {
+            display.card.set_crtc(
+                display.crtc.handle(),
+                Some(display.framebuffer),
                 (0, 0),
-                &[self.connector],
-                Some(self.mode),
+                &[display.connector],
+                Some(display.mode),
             )?;
-            ioctl(&self.tty, KDSETMODE, 1)
+            ioctl(&display.tty, KDSETMODE, 1)?;
+            display.restore_pointer();
+            Ok(())
         })
     }
 
@@ -350,26 +359,32 @@ impl Display {
     /// them. Returns whether it put anything back.
     fn put_back(&mut self, unless_superseded: bool) -> io::Result<bool> {
         let mut superseded = false;
-        let put_back = self.with_master(|| {
+        let put_back = self.with_master(Duration::from_secs(2), |display| {
             if unless_superseded
-                && self.card.get_crtc(self.crtc.handle())?.framebuffer() != Some(self.framebuffer)
+                && display.card.get_crtc(display.crtc.handle())?.framebuffer()
+                    != Some(display.framebuffer)
             {
                 superseded = true;
                 return Ok(());
             }
-            self.card
+            display
+                .pointer
+                .hide(&KmsCursor(&display.card, display.crtc.handle()));
+            display
+                .card
                 .set_crtc(
-                    self.crtc.handle(),
-                    self.crtc.framebuffer(),
-                    self.crtc.position(),
-                    &self.connectors,
-                    self.crtc.mode(),
+                    display.crtc.handle(),
+                    display.crtc.framebuffer(),
+                    display.crtc.position(),
+                    &display.connectors,
+                    display.crtc.mode(),
                 )
                 // What was on screen at open was another start screen's frame, since freed:
                 // turn the display off, and the console takes it back in text mode.
                 .or_else(|_| {
-                    self.card
-                        .set_crtc(self.crtc.handle(), None, (0, 0), &[], None)
+                    display
+                        .card
+                        .set_crtc(display.crtc.handle(), None, (0, 0), &[], None)
                 })
         });
         self.released = true;
@@ -389,7 +404,6 @@ impl Display {
                 // Locked: the switch away is refused and nothing changes on screen.
                 ioctl(&self.tty, VT_RELDISP, 0)?;
             } else {
-                self.pointer = None;
                 let restored = self.restore();
                 // The VT switch waits for this answer whatever happened to the screen.
                 ioctl(&self.tty, VT_RELDISP, 1)?;
@@ -406,6 +420,7 @@ impl Display {
         if self.released {
             return Ok(());
         }
+        self.update_pointer();
         let pitch = self.buffer.pitch() as usize;
         let height = usize::from(self.mode.size().1);
         let mut mapping = self.card.map_dumb_buffer(&mut self.buffer)?;
@@ -417,15 +432,12 @@ impl Display {
             pitch,
             height,
         );
-        if let Some(position) = self.pointer {
-            super::pointer_sprite(
-                mapping.as_mut(),
-                pitch,
-                height,
-                usize::from(self.mode.size().0),
-                position,
-            );
-        }
+        self.pointer.draw_sprite(
+            mapping.as_mut(),
+            pitch,
+            height,
+            usize::from(self.mode.size().0),
+        );
         drop(mapping);
         if self.shown {
             self.flush_frame();
@@ -465,9 +477,11 @@ impl Display {
     /// login screen, and with no DRM master the console's buffer returns): this screen's frame
     /// goes back up and it carries on.
     pub fn superseded(&mut self) -> bool {
+        let crtc = self.crtc.handle();
+        let framebuffer = self.framebuffer;
         let ours = |card: &Card| {
-            card.get_crtc(self.crtc.handle())
-                .is_ok_and(|crtc| crtc.framebuffer() == Some(self.framebuffer))
+            card.get_crtc(crtc)
+                .is_ok_and(|crtc| crtc.framebuffer() == Some(framebuffer))
         };
         if !self.shown || self.released {
             return false;
@@ -481,21 +495,22 @@ impl Display {
             return false;
         }
         let mut retook = false;
-        let replaced = self.with_master(|| {
-            if ours(&self.card) {
+        let replaced = self.with_master(Duration::from_secs(2), |display| {
+            if ours(&display.card) {
                 return Ok(false);
             }
-            if !text_mode(&self.tty) {
+            if !text_mode(&display.tty) {
                 return Ok(true);
             }
-            self.card.set_crtc(
-                self.crtc.handle(),
-                Some(self.framebuffer),
+            display.card.set_crtc(
+                crtc,
+                Some(framebuffer),
                 (0, 0),
-                &[self.connector],
-                Some(self.mode),
+                &[display.connector],
+                Some(display.mode),
             )?;
-            ioctl(&self.tty, KDSETMODE, 1)?;
+            ioctl(&display.tty, KDSETMODE, 1)?;
+            display.restore_pointer();
             retook = true;
             Ok(false)
         });
@@ -517,19 +532,48 @@ impl Display {
         self.release.load(Ordering::Relaxed) || self.acquire.load(Ordering::Relaxed)
     }
 
-    pub fn pointer(&mut self, position: Option<ratatui::layout::Position>) {
-        use ratatui::backend::Backend;
-        let cells = self.pixels.size().unwrap();
-        self.pointer = position.map(|p| {
+    pub fn pointer(&mut self, cell: ratatui::layout::Position, pixels: Option<(u16, u16)>) {
+        self.pointer.position = Some(pixels.unwrap_or_else(|| {
+            use ratatui::backend::Backend;
+            let cells = self.pixels.size().unwrap();
+            // The native reader's terminal fallback supplies only cells.
             (
-                p.x.saturating_mul(to_u16(
+                cell.x.saturating_mul(to_u16(
                     self.pixels.get_pixmap_width() / usize::from(cells.width),
                 )),
-                p.y.saturating_mul(to_u16(
+                cell.y.saturating_mul(to_u16(
                     self.pixels.get_pixmap_height() / usize::from(cells.height),
                 )),
             )
-        });
+        }));
+        self.update_pointer();
+    }
+
+    pub fn pointer_focus(&mut self, focused: bool) {
+        self.pointer.focused = focused;
+        self.update_pointer();
+    }
+
+    fn update_pointer(&mut self) {
+        if self.shown
+            && !self.released
+            && !self.release.load(Ordering::Relaxed)
+            && self.pointer.needs_sync()
+        {
+            // Never hold master between events, and don't stall input if the colour
+            // helper has it. The next event or paint retries the latest position.
+            let _ = self.with_master(Duration::ZERO, |display| {
+                display
+                    .pointer
+                    .sync(&KmsCursor(&display.card, display.crtc.handle()), false);
+                Ok(())
+            });
+        }
+    }
+
+    fn restore_pointer(&mut self) {
+        self.pointer
+            .sync(&KmsCursor(&self.card, self.crtc.handle()), true);
     }
 }
 
@@ -551,6 +595,9 @@ impl Drop for Display {
         }
         for signal in self.signals.drain(..) {
             signal_hook::low_level::unregister(signal);
+        }
+        if let Some(buffer) = self.pointer.buffer.take() {
+            let _ = self.card.destroy_dumb_buffer(buffer);
         }
         let _ = self.card.destroy_framebuffer(self.framebuffer);
         let _ = self.card.destroy_dumb_buffer(self.buffer);

@@ -25,20 +25,25 @@ impl Backend {
             Self::Window(_) => None,
         }
     }
-    pub fn observe(&mut self, event: &ratatui::crossterm::event::Event) {
+    pub fn observe(
+        &mut self,
+        event: &ratatui::crossterm::event::Event,
+        pixels: Option<(u16, u16)>,
+    ) {
         #[cfg(all(target_os = "linux", feature = "gui-drm"))]
         if let Some(backend) = self.tty_mut() {
             use ratatui::crossterm::event::Event;
             match event {
                 Event::Mouse(mouse) => {
-                    backend.pointer(Some(Position::new(mouse.column, mouse.row)))
+                    backend.pointer(Position::new(mouse.column, mouse.row), pixels);
                 }
-                Event::FocusLost => backend.pointer(None),
+                Event::FocusLost => backend.pointer_focus(false),
+                Event::FocusGained => backend.pointer_focus(true),
                 _ => {}
             }
         }
         #[cfg(not(all(target_os = "linux", feature = "gui-drm")))]
-        let _ = event;
+        let _ = (event, pixels);
     }
     pub fn reclaim(&mut self) -> io::Result<()> {
         #[cfg(all(target_os = "linux", feature = "gui-drm"))]

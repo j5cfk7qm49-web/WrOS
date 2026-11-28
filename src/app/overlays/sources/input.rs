@@ -351,7 +351,8 @@ impl App {
                 (Some(cite), Key::Char(' ')) if *field == 1 => cite.suppress = !cite.suppress,
                 (Some(cite), Key::Enter) => {
                     if !cite.page.trim().is_empty() && !citations::valid_page(cite.page.trim()) {
-                        dialog.notice = "Enter a page or range, for example 194 or 12–14.".into();
+                        dialog.notice =
+                            "Enter a page (194), a range (12–14) or a list (54, 56).".into();
                     } else if *field == 2 {
                         cluster.push(cite.clone());
                         *chosen = None;

@@ -505,6 +505,29 @@ fn typing_at_shows_catalogue_books_after_local_sources() {
     }));
 }
 
+/// MLA 9 lists pages that aren't consecutive with commas: (Dostoevsky 54, 56).
+#[test]
+fn a_citation_can_name_pages_that_are_not_consecutive() {
+    use crate::catalogue::{fetch::FixtureFetch, openlibrary};
+
+    let fixture = FixtureFetch::new()
+        .reply(&openlibrary::search_url(CRIME_QUERY), 200, CRIME_SEARCH)
+        .reply("https://api.crossref.org/works?", 200, CROSSREF_EMPTY);
+    let (mut desk, _folder, _) = catalogue_writer("cite-two-pages", fixture);
+    fs::write(
+        desk.root.join("sources.json"),
+        r#"[{"id":"dostoevsky-crime","type":"book","title":"Crime and Punishment Penguin 2003"}]"#,
+    )
+    .unwrap();
+    desk.typed("@crime and punishment penguin");
+    poll_catalogue(&mut desk, |desk| desk.shows("dostoevsky-crime"));
+    desk.key(KeyCode::Enter);
+    desk.typed("54, 56");
+    desk.key(KeyCode::Enter);
+    assert!(!desk.shows("Enter a page"), "{}", desk.rows().join("\n"));
+    assert_eq!(desk.app.editor.text(), "[@dostoevsky-crime, pp. 54, 56]");
+}
+
 #[test]
 fn picking_a_catalogue_book_shows_its_works_cited_line_then_cites_with_a_page() {
     use grimoire_brain::bounded_store::PagedBrain;
@@ -2135,12 +2158,9 @@ fn top_bar_shows_tiles_menus_marks_and_power() {
     d.draw();
     let top = &d.rows()[0];
     assert!(top.starts_with(&format!(" W r O S {menus}")), "{top}");
-    assert!(
-        top.ends_with("1 conflict  saved  backed up [Power]"),
-        "{top}"
-    );
+    assert!(top.ends_with("1 conflict  saved  backed up Power"), "{top}");
     let buf = d.term.backend().buffer();
-    assert!(buf[(166, 0)].modifier.contains(Modifier::UNDERLINED));
+    assert!(buf[(167, 0)].modifier.contains(Modifier::UNDERLINED));
 
     // Two cells a tile in both: the native renderer's squares sit where the console's letters do.
     d.app.linux_console = false;
@@ -2162,6 +2182,25 @@ fn top_bar_shows_tiles_menus_marks_and_power() {
     assert_eq!(buf[(168, 0)].symbol(), "\u{E138}");
     assert_eq!(buf[(169, 0)].symbol(), "\u{E139}");
     assert_eq!(buf[(168, 0)].fg, d.app.theme.accent);
+}
+
+#[test]
+fn native_tiles_survive_opening_another_project() {
+    let mut d = Desk::open(book("native-tiles-first-project", true), 120, 35);
+    let other = Desk::open(book("native-tiles-next-project", true), 120, 35);
+    d.app.tile_glyphs = true;
+    let check_tiles = |d: &mut Desk| {
+        d.draw();
+        let top = &d.rows()[0];
+        assert!(
+            top.starts_with(" \u{E130}\u{E131}\u{E122}\u{E123}\u{E124}\u{E125}\u{E126}\u{E127}│"),
+            "{top}"
+        );
+        assert!(top.ends_with("\u{E128}\u{E129}"), "{top}");
+    };
+    check_tiles(&mut d);
+    assert!(d.app.open_book(&other.root));
+    check_tiles(&mut d);
 }
 
 #[test]
@@ -2255,8 +2294,8 @@ fn narrow_bar_drops_titles_before_power() {
     d.app.deck.backup_mark = Some(app::BackupMark::Done);
     for (glyphs, console, marks, power) in [
         (true, false, "⚠ 1  ● 1  ⇅", "\u{E128}\u{E129}"),
-        (false, false, "⚠ 1  ● 1  ⇅", "[Power]"),
-        (false, true, "1 conflict  1 not saved  backed up", "[Power]"),
+        (false, false, "⚠ 1  ● 1  ⇅", "Power"),
+        (false, true, "1 conflict  1 not saved  backed up", "Power"),
     ] {
         d.app.tile_glyphs = glyphs;
         d.app.linux_console = console;
@@ -2281,12 +2320,12 @@ fn status_top_right_shows_conflicts_then_save_then_backup() {
     d.app.deck.backup_mark = Some(crate::app::BackupMark::Done);
     d.draw();
     let top = d.rows()[0].clone();
-    assert!(top.ends_with("⚠ 1  ✓  ⇅ [Power]"), "{top}");
+    assert!(top.ends_with("⚠ 1  ✓  ⇅ Power"), "{top}");
     // A failed backup stays in the warning colour until one works.
     d.app.deck.backup_mark = Some(crate::app::BackupMark::Failed);
     d.draw();
     let top = d.rows()[0].clone();
-    assert!(top.ends_with("⇅! [Power]"), "{top}");
+    assert!(top.ends_with("⇅! Power"), "{top}");
     let buf = d.term.backend().buffer();
     let mark = (0..120)
         .rev()
@@ -12771,6 +12810,26 @@ fn a_taught_word_can_be_taken_back() {
         panic!("the list stays up");
     };
     assert_eq!(words, &vec![("Oren".to_string(), true)]);
+}
+
+/// With nothing taught yet, the list says how a word gets there, whole: the
+/// sentence is wider than the box, so it takes two lines.
+#[test]
+fn an_empty_taught_list_says_how_words_get_there() {
+    let root = book("taught-none", true);
+    let _ = fs::remove_file(root.join("dictionary.txt"));
+    let mut d = Desk::open(root, 120, 40);
+    d.app.open_taught();
+    d.draw();
+    let Overlay::Taught { words, .. } = &d.app.overlay else {
+        panic!("the list is up");
+    };
+    assert!(words.is_empty(), "{words:?}");
+    assert!(
+        d.shows("None yet. Always ignore, on a word's spellings,") && d.shows("adds one."),
+        "{}",
+        d.rows().join("\n")
+    );
 }
 
 /// `f` on a Template Sheet makes a note that starts as a copy of the form,

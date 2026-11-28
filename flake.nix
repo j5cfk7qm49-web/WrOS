@@ -96,10 +96,77 @@
 
       wrosIso = wrosLiveSystem.config.system.build.isoImage;
 
+      firmwareTable = pkgs.runCommand "wros-firmware-table-check" {
+        nativeBuildInputs = [ pkgs.jq pkgs.nix pkgs.zstd ];
+        installedSystem = wrosSystem.config.system.build.toplevel;
+        installedFirmware = wrosSystem.config.hardware.firmware;
+        installedClosure = pkgs.closureInfo { rootPaths = [ wrosSystem.config.system.build.toplevel ]; };
+        # The ISO discards store references after packing this closure into its squashfs.
+        liveClosure = pkgs.closureInfo { rootPaths = wrosLiveSystem.config.isoImage.storeContents; };
+        expectedPaths = builtins.toJSON (lib.mapAttrs (_: toString) wrosSystem.config.wros.firmware);
+      } ''
+        set -o pipefail
+        table="$installedSystem/wros-firmware.json"
+        jq -e --argjson paths "$expectedPaths" '
+          .format == 1 and
+          (.packages | with_entries(.value = .value.store_path)) == $paths and
+          (.packages | all(.[];
+            (.store_path | test("^/nix/store/[0-9a-df-np-sv-z]{32}-[^/]+$")) and
+            (.nar_sha256 | test("^[0-9a-f]{64}$")) and
+            (.nar_size | type == "number" and . > 0 and . == floor) and
+            (.modules | type == "array" and all(.[]; type == "string")) and
+            (.initrd | type == "boolean")
+          )) and
+          (.packages | map_values(select(.initrd)) | keys) == ["amdgpu", "i915", "i915-glk", "radeon", "xe"] and
+          (.packages.rtw88.modules | index("rtw88_8822be") != null) and
+          (.packages["bt-intel"].modules | index("btintel") != null and index("btusb") != null) and
+          (.packages.sof.modules | index("snd_sof_pci_intel_apl") != null)
+        ' "$table" > /dev/null
+
+        printf 'Package\tNAR bytes\tzstd -19 bytes\n' | tee "$out"
+        while IFS=$'\t' read -r driver path hash size; do
+          case "$driver" in
+            rtw88|i915-glk|sof)
+              grep -qxF "$path" "$installedClosure/store-paths" || {
+                echo "Installed closure is missing the $driver seed" >&2
+                exit 1
+              }
+              while IFS= read -r -d "" file; do
+                if [[ ! -f "$installedFirmware/lib/firmware/$file" ]]; then
+                  echo "Installed firmware path is missing $driver seed file $file" >&2
+                  exit 1
+                fi
+              done < <(find -L "$path/lib/firmware" -type f -printf '%P\0')
+              ;;
+            *)
+              if grep -qxF "$path" "$installedClosure/store-paths"; then
+                echo "Installed closure includes non-seed firmware $driver" >&2
+                exit 1
+              fi
+              ;;
+          esac
+          grep -qxF "$path" "$liveClosure/store-paths" || {
+            echo "Live ISO closure is missing $driver" >&2
+            exit 1
+          }
+          compressed=$(nix-store --dump "$path" | tee firmware.nar | zstd -19 -c | wc -c)
+          if [[ $(sha256sum firmware.nar | cut -d' ' -f1) != "$hash" || $(stat -c %s firmware.nar) != "$size" ]]; then
+            echo "Table has the wrong NAR hash or size for $driver" >&2
+            exit 1
+          fi
+          if (( compressed >= 95000000 )); then
+            echo "$driver exceeds the Pages limit: $compressed bytes" >&2
+            exit 1
+          fi
+          printf '%s\t%s\t%s\n' "$driver" "$size" "$compressed" | tee -a "$out"
+        done < <(jq -r '.packages | to_entries[] | [.key, .value.store_path, .value.nar_sha256, .value.nar_size] | @tsv' "$table")
+      '';
+
       wrosUpdateBundle = import ./nixos/pkgs/update-bundle.nix {
         inherit pkgs lib version;
         src = ./.;  # a path, not the flake string: lib.fileset.toSource requires one
         systemToplevel = wrosSystem.config.system.build.toplevel;
+        firmwarePackages = wrosSystem.config.wros.firmware;
       };
 
       # The modules take their WrOS arguments through specialArgs in the two systems above. A VM
@@ -163,6 +230,8 @@
 
       checks.${system} = {
         firmware-lists-current = wrosSystem.config.system.build.wrosFirmwareListsCurrent;
+        firmware-table = firmwareTable;
+        firmware-set = vmTest ./nixos/tests/firmware-set.nix;
         boot-unlock-login = vmTest ./nixos/tests/boot-unlock-login.nix;
         keyboard-preview = vmTest ./nixos/tests/keyboard-preview.nix;
         console-lock = vmTest ./nixos/tests/console-lock.nix;

@@ -6,6 +6,7 @@ disk bootable only after the writer account exists.
 """
 import importlib.machinery
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -24,6 +25,16 @@ def load():
 
 core = load()
 IDENTITY = {'dev': '253:16', 'size': '20971520', 'diskseq': '7'}
+SYSTEM = '/nix/store/00000000000000000000000000000000-wros-system'
+FIRMWARE = '/run/current-system/sw/bin/wros-firmware'
+
+
+def firmware_reply(argv, *, packages=(), missing=()):
+    if argv[:2] == [FIRMWARE, 'detect']:
+        return json.dumps({'packages': list(packages), 'unknown': ['unknown-device']})
+    if argv[0] == FIRMWARE and 'ensure' in argv:
+        return json.dumps({'packages': list(packages), 'missing': list(missing), 'unknown': []})
+    return ''
 
 
 class FakeSys:
@@ -104,18 +115,23 @@ class InstallOrder(unittest.TestCase):
             'user_password': 'writer-secret-password', 'session_nonce': '0' * 32,
         }
 
-    def install(self, tmp, check_disk):
+    def install(self, tmp, check_disk, *, detected=(), firmware_paths=None, missing=(), calls=None):
         target = Path(tmp) / 'target'
-        closure = Path(tmp) / 'closure'
-        closure.write_text('/nix/store/0000000000000000000000000000000-wros-system\n')
-        calls = []
+        closure = self.closure(tmp)
+        calls = [] if calls is None else calls
 
         def runner(argv, *, input_bytes=None, timeout=600):
             calls.append(list(argv))
             if 'switch-to-configuration' in ' '.join(argv):
                 (target / 'boot/EFI/BOOT').mkdir(parents=True, exist_ok=True)
                 (target / 'boot/EFI/BOOT/BOOTX64.EFI').write_bytes(b'grub')
-            return 'luks-uuid' if argv[:2] == ['cryptsetup', 'luksUUID'] else ''
+            if argv == ['cat', f'{SYSTEM}/wros-firmware.json']:
+                return json.dumps({'format': 1, 'packages': {
+                    name: {'store_path': path} for name, path in (firmware_paths or {}).items()
+                }})
+            if argv[:2] == ['cryptsetup', 'luksUUID']:
+                return 'luks-uuid'
+            return firmware_reply(argv, packages=detected, missing=missing)
 
         proof = core.install_target(self.params(), target_root=target, closure_file=closure,
                                     runner=runner, check_disk=check_disk)
@@ -136,7 +152,7 @@ class InstallOrder(unittest.TestCase):
 
     def closure(self, tmp):
         path = Path(tmp) / 'closure'
-        path.write_text('/nix/store/0000000000000000000000000000000-wros-system\n')
+        path.write_text(SYSTEM + '\n')
         return path
 
     def test_the_disk_becomes_bootable_only_after_the_account_exists(self):
@@ -158,12 +174,41 @@ class InstallOrder(unittest.TestCase):
         self.assertLess(lock, boot)
         self.assertEqual(sum('switch-to-configuration' in c for c in flat), 1)
 
+    def test_install_copies_detected_firmware_and_writes_the_set(self):
+        paths = {
+            'radeon': '/nix/store/11111111111111111111111111111111-radeon',
+            'rtw88': '/nix/store/22222222222222222222222222222222-rtw88',
+            'amdgpu': '/nix/store/33333333333333333333333333333333-amdgpu',
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / 'target'
+            proof, calls = self.install(tmp, lambda disk, identity: None,
+                                        detected=('radeon', 'rtw88'), firmware_paths=paths)
+        self.assertTrue(proof['passed'])
+        install = next(i for i, argv in enumerate(calls) if argv[0] == 'nixos-install')
+        detect = calls.index([FIRMWARE, 'detect', '--system', SYSTEM])
+        copy = calls.index(['nix', '--extra-experimental-features', 'nix-command', 'copy', '--offline',
+                            '--from', 'local', '--to', f'local?root={target}', '--no-check-sigs',
+                            paths['radeon'], paths['rtw88']])
+        ensure = calls.index([FIRMWARE, '--root', str(target), 'ensure', SYSTEM, '--add', 'radeon', 'rtw88'])
+        boot = next(i for i, argv in enumerate(calls) if 'switch-to-configuration boot' in ' '.join(argv))
+        self.assertEqual([install, detect, copy, ensure, boot], sorted([install, detect, copy, ensure, boot]))
+
+    def test_install_stops_before_grub_when_ensuring_the_set_reports_missing_firmware(self):
+        calls = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError, 'Firmware missing from the target store: radeon'):
+                self.install(tmp, lambda disk, identity: None, detected=('radeon',), missing=('radeon',),
+                             firmware_paths={'radeon': '/nix/store/11111111111111111111111111111111-radeon'},
+                             calls=calls)
+        self.assertFalse(any('switch-to-configuration boot' in ' '.join(argv) for argv in calls))
+
     def test_a_missing_boot_loader_fails_the_install(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaisesRegex(ValueError, 'boot loader was not installed'):
                 core.install_target(self.params(), target_root=Path(tmp) / 't',
                                     closure_file=self.closure(tmp),
-                                    runner=lambda argv, **kw: 'luks-uuid',
+                                    runner=lambda argv, **kw: firmware_reply(argv),
                                     check_disk=lambda disk, identity: None)
 
 

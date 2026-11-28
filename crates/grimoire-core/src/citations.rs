@@ -104,7 +104,7 @@ fn parse(source: &str) -> Result<Vec<Cite<'_>>, &'static str> {
                         .ok_or("Use p. or pp. before a page locator")?
                         .trim();
                     if !valid_page(page) {
-                        return Err("Enter a page or page range");
+                        return Err("Enter a page, a range or a list of pages");
                     }
                     (key.trim(), Some(page))
                 }
@@ -122,18 +122,54 @@ fn parse(source: &str) -> Result<Vec<Cite<'_>>, &'static str> {
         .collect()
 }
 
+/// A page (194), a range (12–14), or a list of them for pages that aren't consecutive (54, 56),
+/// as MLA 9 writes them.
 pub fn valid_page(page: &str) -> bool {
     !page.is_empty()
         && page.len() <= 64
-        && page.split(['-', '–', '—']).all(|part| {
-            let part = part.trim();
-            !part.is_empty() && part.bytes().all(|b| b.is_ascii_alphanumeric())
+        && page.split(',').all(|item| {
+            let item = item.trim();
+            !item.is_empty()
+                && item.split(['-', '–', '—']).all(|part| {
+                    let part = part.trim();
+                    !part.is_empty() && part.bytes().all(|b| b.is_ascii_alphanumeric())
+                })
         })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pages_can_be_a_list_of_pages_and_ranges() {
+        for good in [
+            "194",
+            "12–14",
+            "54, 56",
+            "54,56",
+            "12–14, 20",
+            "xii, 3",
+            "1-2, 4-5, 9",
+        ] {
+            assert!(valid_page(good), "{good}");
+        }
+        for bad in [
+            "",
+            "54,",
+            ",56",
+            "54,,56",
+            "54; 56",
+            "54, 56–",
+            "54 56",
+            "p. 54",
+        ] {
+            assert!(!valid_page(bad), "{bad}");
+        }
+        let marks = markers("Café [@freud, pp. 54, 56] and [@freud, p. 12].");
+        assert_eq!(marks[0].items.as_ref().unwrap()[0].page, Some("54, 56"));
+        assert_eq!(marks[1].items.as_ref().unwrap()[0].page, Some("12"));
+    }
 
     #[test]
     fn recognizes_clusters_and_keeps_original_source_ranges() {

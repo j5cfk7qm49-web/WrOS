@@ -71,12 +71,27 @@ or create a verified backup. Local manuscript history is not a separate backup.
 Open Settings › System › Storage › Mounted filesystems. It shows mount paths
 and capacity. Open Settings › Updates and recovery › Updates.
 Choose **Check for WrOS updates** for signed WrOS updates, or **Review a signed
-update bundle by path** for an offline NixOS update bundle. A confirmed update
-is staged for a restart. **Go back to** `<version>` returns to the previous
-system generation when available. The repair controls under **Recovery status,
+update bundle by path** for an offline NixOS update bundle. If the download stops
+partway, choose **Check for WrOS updates** again to carry on where it stopped.
+A confirmed update is staged for a restart. WrOS checks which firmware this
+laptop's devices need while preparing the update. An online update can download
+extra firmware then. Once it's staged, you can restart offline.
+Each installed version keeps its own firmware. **Go back to** `<version>` starts
+the previous version with the firmware it had before. The repair controls under **Recovery status,
 repair and staged update** lead to **Repair now from retained verified packages**.
 On NixOS, this re-activates the current generation. The cached APT package-plan
 preview is not available on NixOS.
+
+If a new device needs firmware, plug it in. Open **Settings › Updates and recovery
+› Updates** and choose **Firmware for a new device**. WrOS checks what your laptop
+needs and tries the update site. If it can't reach the site, it looks for a WrOS
+USB stick. When you're offline, plug in a stick for the version of WrOS you're
+running before choosing the row. WrOS checks that the firmware on the stick
+matches your installed version before adding it. When it finishes, unplug the
+device and plug it in again, or restart.
+If WrOS asks you to update first, the system update brings the firmware.
+If you started an older version from the boot menu, start the default version
+before adding firmware.
 
 Keyboard layout selects QWERTY, Colemak or Colemak-DH ANSI/ISO on appliance tty1. A root-owned helper previews for 15 seconds with an independent systemd rollback timer. Type in the preview field; Enter keeps it, Escape reverts. The test field never changes a manuscript. Desktop and SSH sessions must use their own OS layout configuration.
 
@@ -113,14 +128,20 @@ Choose **Help › Interactive tutorial…** to see all 50 lessons. Press `d` to 
 
 The writing application runs as the writer. Ctrl+Alt+F2 opens the authenticated maintenance console. The NixOS installer creates an encrypted installation and a writer account; root stays locked. Screen locking, guarded suspend, signed generation updates, rollback and phone linking are implemented. VM tests establish their tested behavior, not physical suspend/resume or general hardware qualification.
 
+When you install from a WrOS USB stick, WrOS copies the firmware this laptop
+needs from the stick. That includes supported Wi-Fi, display and sound hardware.
+You can install offline.
+
 ## The top and bottom bars
 
 The W r O S tiles switch between Write, read, Outline and Study. Click a tile,
 or press Super+1 through Super+4. From the menus, Left from File reaches the
-tiles. The ⏻ Power tile at the right holds Lock, Sleep,
-Restart… (Restart the computer in Ctrl-K) and Shut down…. Esc then W opens it. The power rows ask
-first, as they do in Settings › System › Battery and power. On a live USB it
-also offers Install WrOS to disk…. About WrOS is the last item in Help. Open
+tiles. Power at the right (⏻ on the native graphical screen) holds Lock, Sleep,
+Restart… (Restart the computer in Ctrl-K) and Shut down…. Esc then W opens it.
+Lock saves and locks right away. Unlock to return to where you were writing.
+Sleep, Restart and Shut down ask first, as they do in Settings › System ›
+Battery and power. On a live USB, Power also offers Install WrOS to disk….
+About WrOS is the last item in Help. Open
 File › Back up now to back up the open project to its configured destinations.
 
 The upper bottom bar shows information about the current view. In Write, with

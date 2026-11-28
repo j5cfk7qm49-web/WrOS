@@ -1,0 +1,2 @@
+brcm/BCM-0a5c-6410.hcd
+brcm/BCM-0bb4-0306.hcd

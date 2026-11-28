@@ -14,6 +14,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
+#include <time.h>
 #include <unistd.h>
 #include <xf86drm.h>
 #include <xf86drmMode.h>
@@ -94,6 +95,17 @@ static int set_gamma(Output *output, uint16_t *ramps) {
     return drmModeCrtcSetGamma(output->fd, output->crtc, output->points,
         ramps, ramps + output->points, ramps + output->points * 2);
 }
+/* The writing screen takes master for an instant to move the mouse pointer (#176): wait
+   briefly for it, as its own display open waits for this helper. */
+static int take_master(int fd) {
+    for (int tries = 0;; ++tries) {
+        if (drmIsMaster(fd) || drmSetMaster(fd) == 0) return 0;
+        if (tries == 50 || (errno != EBUSY && errno != EACCES && errno != EPERM && errno != EINTR))
+            return -1;
+        struct timespec pause = {0, 10 * 1000 * 1000};
+        nanosleep(&pause, NULL);
+    }
+}
 static int capture(Snapshot *snapshot) {
     for (uint32_t card = 0; card < 64; ++card) {
         char path[64];
@@ -104,7 +116,7 @@ static int capture(Snapshot *snapshot) {
         if (fstat(fd, &info) || !S_ISCHR(info.st_mode) || major(info.st_rdev) != 226) {
             close(fd); return fail("Unexpected DRM device identity");
         }
-        if (!drmIsMaster(fd) && drmSetMaster(fd)) {
+        if (take_master(fd)) {
             close(fd); return fail("Display is owned by another graphics session");
         }
         drmModeRes *resources = drmModeGetResources(fd);

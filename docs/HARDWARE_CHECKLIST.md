@@ -47,10 +47,13 @@ you typed at the lock shows up in the project.
 
 ## 3. Wi-Fi after sleep, and over a day
 
-The installed system carries the HP Stream's firmware only: Realtek RTL8822BE Wi-Fi
-(`rtw88`), Intel Gemini Lake graphics (`i915`), and SOF audio, with the wireless
-regulatory database. The live ISO carries every supported driver package for trying WrOS
-on other laptops.
+The live ISO carries every supported driver package. An offline install copies
+the packages the laptop needs into its own firmware set. The installed system
+carries the HP Stream seed for upgrades from rc32 or earlier: Realtek RTL8822BE
+Wi-Fi (`rtw88`), Intel Gemini Lake graphics (`i915-glk`), and SOF audio (`sof`).
+The wireless regulatory database is common to all laptops. Later updates use the
+signed manifest's `firmware` section to get additional packages for the laptop.
+See [Per-machine firmware sets](NIXOS_UPDATES.md#6-per-machine-firmware-sets-rc33-and-later).
 
 1. After each wake in check 2, wait 30 seconds and open Settings › System ›
    Wi-Fi and networking.
@@ -119,6 +122,28 @@ Right after a release candidate installs on the laptop:
 - The warm screen comes on at boot with no black screen.
 - Settings › Updates and recovery › Updates shows the new version, and offers to go back to
   the previous one.
+
+### Firmware after updating and going back
+
+On rc33 or later, open the maintenance console with Ctrl+Alt+F2 and run:
+
+```sh
+wros-firmware detect --system /run/current-system
+readlink -f /run/current-system
+readlink /lib/firmware
+```
+
+Record the detected `packages` and any `unknown` device aliases. On the Stream,
+look for `rtw88`, `i915-glk` and `sof`. The `/lib/firmware` link should point to
+`/nix/var/wros/firmware/<toplevel store name>/lib/firmware`, using the store name
+shown by the second command.
+
+After the first boot into the update, reconnect to Wi-Fi, watch for a usable
+display from startup through sign-in, and play a sound through the speakers.
+Choose **Go back to** the previous version and repeat all three checks. If that
+version is rc33 or later, also confirm `/lib/firmware` now points to its own set.
+For the rc32-to-rc33 upgrade, record whether the three devices worked on the
+first boot into rc33 using the seed.
 
 ## 9. Sound
 

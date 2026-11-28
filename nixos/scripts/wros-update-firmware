@@ -1,0 +1,30 @@
+#!/usr/bin/python3 -I
+"""pkexec launcher (org.wros.update.firmware) for signed device firmware."""
+import importlib.machinery
+import importlib.util
+import json
+import os
+import sys
+
+ENGINE = '/usr/lib/wros-update/engine.py'
+SAFE_PATH = '/usr/sbin:/usr/bin:/sbin:/bin'
+
+
+def main():
+    pkexec_uid = os.environ.get('PKEXEC_UID')
+    os.environ.clear()
+    os.environ.update({'PATH': SAFE_PATH, 'LC_ALL': 'C'})
+    loader = importlib.machinery.SourceFileLoader('wros_update_engine', ENGINE)
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    engine = importlib.util.module_from_spec(spec)
+    loader.exec_module(engine)
+    result = engine.launcher_main('firmware', sys.argv[1:], pkexec_uid)
+    print(json.dumps(result, sort_keys=True))
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(1) from None
