@@ -13,5 +13,9 @@
     ./updates.nix
   ];
 
-  hardware.firmware = with config.wros.firmware; [ rtw88 i915-glk ];
+  # Keep the Stream's seed available when an older update engine stages this system.
+  system.extraDependencies = with config.wros.firmware; [ rtw88 i915-glk sof ];
+  system.systemBuilderCommands = ''
+    cp ${config.system.build.wrosFirmwareTable} "$out/wros-firmware.json"
+  '';
 }

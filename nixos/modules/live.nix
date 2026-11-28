@@ -1,5 +1,6 @@
 { config, lib, pkgs, modulesPath, wrosPkgs, version, nixpkgsRev, wrosRoot, installedSystemToplevel, ... }:
 let
+  firmwarePackages = lib.attrValues config.wros.firmware;
   installedClosureInfo = pkgs.closureInfo {
     rootPaths = [ installedSystemToplevel ];
   };
@@ -18,8 +19,7 @@ in
     ./updates.nix
   ];
 
-  # The complete i915 package already includes the Gemini Lake files.
-  hardware.firmware = lib.attrValues (removeAttrs config.wros.firmware [ "i915-glk" ]);
+  hardware.firmware = firmwarePackages;
 
   # Distinct ISO volume label so live media never collides with WROS-ESP, WROS-LUKS or WROS-ROOT.
   isoImage.volumeID = lib.mkForce "WROS_LIVE";
@@ -81,11 +81,12 @@ in
     MENU COLOR SEL          7;33;40    #FF000000    #FFD6AD60   std
   '';
 
-  # Include the complete installed-system closure inside the ISO squashfs for offline installation.
+  # Include the installed-system closure and every firmware path for offline installation.
+  # The firmware environment may shadow files that are present in more than one package.
   isoImage.storeContents = [
     installedSystemToplevel
     installedClosureInfo
-  ];
+  ] ++ firmwarePackages;
 
   environment.etc."wros/installed-system-path".text = "${installedSystemToplevel}\n";
   environment.etc."wros/installed-system-closure".text = "${installedSystemToplevel}\n";
