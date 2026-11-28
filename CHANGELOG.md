@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.0~rc33 · Firmware for your laptop
+
+- WrOS picks the firmware your laptop needs when you install from a WrOS USB
+  stick and checks again when you update. The stick carries the supported
+  firmware for offline installs. The rc33 update includes the HP Stream 11's
+  Wi-Fi, graphics and sound firmware for the move from rc32.
+- **Go back** brings back the firmware saved with the previous version of WrOS.
+- Plug in a new device and choose *Settings › Updates and recovery › Updates ›
+  Firmware for a new device*. WrOS looks for matching firmware on the update
+  site or on a WrOS USB stick when you're offline.
+
 ## 0.1.0~rc32 · Where your project is kept, a copy in one file, Grimoire 0.9
 
 WrOS's writing app now includes Grimoire 0.8 and 0.9.

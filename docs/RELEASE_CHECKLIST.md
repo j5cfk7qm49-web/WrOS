@@ -31,6 +31,16 @@
 
 rc13 was the last Debian release. Git history preserves its release procedure.
 
+## Check firmware and Pages size
+
+- Check that the signed `closure-manifest.json` lists every supported driver
+  package in `firmware`. Verify that its cache files are present in the selected
+  Pages bundle, including the seed files indexed in `cache_files`. Every hosted
+  cache file, including each firmware `.narinfo` and compressed NAR, must be
+  smaller than 95 MB (95,000,000 bytes).
+- Check that the whole assembled Pages site is under 1 GB (1,000,000,000 bytes),
+  counting the static pages as well as `nixos-updates/`.
+
 ## Check installation without Internet
 
 The NixOS ISO contains the complete installed-system closure and supported
@@ -53,7 +63,8 @@ carry over. Record the results in its table.
 1. Check that Pages serves `nixos-updates/InRelease`,
    `nixos-updates/closure-manifest.json` and every required cache file from the
    verified bundle selected by the workflow. Verify the signed manifest and compare
-   downloaded cache-file sizes and SHA-256 hashes with the bundle.
+   downloaded cache-file sizes and SHA-256 hashes with the bundle, including the
+   files listed under `firmware`.
 2. Use a disposable older WrOS installation whose app accepts the NixOS updater
    replies. rc14 and rc15 cannot install updates from Settings; follow
    [Update an installed system](INSTALLATION.md#update-an-installed-system) for

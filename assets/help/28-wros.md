@@ -73,10 +73,11 @@ and capacity. Open Settings › Updates and recovery › Updates.
 Choose **Check for WrOS updates** for signed WrOS updates, or **Review a signed
 update bundle by path** for an offline NixOS update bundle. If the download stops
 partway, choose **Check for WrOS updates** again to carry on where it stopped.
-A confirmed update is staged for a restart. An update can download more firmware while
-it prepares support for this laptop's devices. Once it's staged, you can restart offline.
-**Go back to** `<version>` returns to the previous system generation and its firmware
-when available. The repair controls under **Recovery status,
+A confirmed update is staged for a restart. WrOS checks which firmware this
+laptop's devices need while preparing the update. An online update can download
+extra firmware then. Once it's staged, you can restart offline.
+Each installed version keeps its own firmware. **Go back to** `<version>` starts
+the previous version with the firmware it had before. The repair controls under **Recovery status,
 repair and staged update** lead to **Repair now from retained verified packages**.
 On NixOS, this re-activates the current generation. The cached APT package-plan
 preview is not available on NixOS.
@@ -127,9 +128,9 @@ Choose **Help › Interactive tutorial…** to see all 50 lessons. Press `d` to 
 
 The writing application runs as the writer. Ctrl+Alt+F2 opens the authenticated maintenance console. The NixOS installer creates an encrypted installation and a writer account; root stays locked. Screen locking, guarded suspend, signed generation updates, rollback and phone linking are implemented. VM tests establish their tested behavior, not physical suspend/resume or general hardware qualification.
 
-When you install from a WrOS USB stick, the installer copies the firmware this
-laptop needs from the stick so its devices can work on the first boot. You can
-install offline.
+When you install from a WrOS USB stick, WrOS copies the firmware this laptop
+needs from the stick. That includes supported Wi-Fi, display and sound hardware.
+You can install offline.
 
 ## The top and bottom bars
 
