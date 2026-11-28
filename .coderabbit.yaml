@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit's reviews of WrOS pull requests. The rules it checks are WrOS's own: CLAUDE.md and
+# docs/UPSTREAM.md.
+language: en-US
+tone_instructions: "Plain and direct. Lead with what breaks for a person using WrOS, then why. Skip praise and style nits that rustfmt, clippy or the repo's gates already enforce."
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+  auto_review:
+    enabled: true
+    drafts: false
+    # Release branches (rc33 → main) and work branches alike.
+    base_branches:
+      - ".*"
+  path_filters:
+    - "!docs/archive/**"
+    - "!docs/evidence/**"
+    - "!crates/crossterm-upstream/**"
+    - "!nixos/firmware/*.txt"
+    - "!**/*.lock"
+  path_instructions:
+    - path: "{nixos/scripts/**,os/scripts/**,os/helpers/**,crates/wros-sys/**,crates/wros-greeter/**,crates/wros-boot/**}"
+      instructions: |
+        This code runs as root, as the wros-keys account, or before login. Review it line by line.
+        Check every path it writes or reads for symlink and time-of-check/time-of-use races
+        (lstat, O_NOFOLLOW, owner root, not group or world writable). No shell=True and no
+        string-built commands. A failure must leave the machine bootable and say plainly what
+        went wrong. Locking, sleep, restart, shut down and the installer must not change
+        behaviour unless the pull request says so.
+    - path: "nixos/**/*.nix"
+      instructions: |
+        The signed system must be identical on every laptop: nothing machine-specific in the
+        closure. Per-machine firmware packages are not referenced by the installed system,
+        except the HP Stream seed (rtw88, i915-glk, sof). Every file the update site hosts stays
+        under 95 MB.
+    - path: "assets/help/**"
+      instructions: |
+        House style: casual, warm, plain, short sentences, no em dashes. Menu paths use ›.
+        WrOS says "project" where upstream says "book". Say what a thing does for the writer
+        before how it works.
+    - path: "{src/**,crates/**}"
+      instructions: |
+        CLAUDE.md's rule: a change a writer can see or press (a key, a menu row, a box, a
+        message, a default, a setting, a command) updates the help in assets/help in the same
+        pull request. Flag any that doesn't. Files that also exist upstream are shared
+        (docs/UPSTREAM.md): bug fixes and small local changes only, never restructuring.
+chat:
+  auto_reply: true
